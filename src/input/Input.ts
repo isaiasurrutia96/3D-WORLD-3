@@ -11,7 +11,13 @@
 
 import { Vector2 } from 'three';
 
-export type ActionName = 'jump' | 'grab' | 'pause' | 'dive';
+export type ActionName =
+  | 'jump'
+  | 'grab'
+  | 'interact'
+  | 'pause'
+  | 'dive'
+  | 'togglePointerLock';
 
 const STICK_DEADZONE = 0.22;
 const MAX_MOUSE_DELTA = 180;
@@ -22,6 +28,14 @@ export class Input {
   readonly look = new Vector2();
 
   gamepadConnected = false;
+  /**
+   * The `code` of the most recent key the page received, and whether the game
+   * recognised it. Shown in the readout: if a key never appears here, the
+   * browser is not delivering it to the page at all, which is a different
+   * problem from the game ignoring it.
+   */
+  lastKey = '—';
+  lastKeyRecognised = false;
   /** True while the most recent meaningful input came from a gamepad. */
   usingGamepad = false;
 
@@ -57,6 +71,12 @@ export class Input {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
       this.keys.add(event.code);
+      this.lastKey = event.code;
+      this.lastKeyRecognised =
+        MOVEMENT_KEYS.has(event.code) ||
+        KEY_ACTIONS[event.code] !== undefined ||
+        event.code === 'ShiftLeft' ||
+        event.code === 'ShiftRight';
       this.usingGamepad = false;
       const action = KEY_ACTIONS[event.code];
       if (action) {
@@ -147,12 +167,13 @@ export class Input {
     this.look.set(0, 0);
 
     // ---- Keyboard movement -------------------------------------------------
+    // E S D F, with the arrow keys kept as an alternative.
     let kx = 0;
     let kz = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) kz -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) kz += 1;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) kx -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) kx += 1;
+    if (this.keys.has('KeyE') || this.keys.has('ArrowUp')) kz -= 1;
+    if (this.keys.has('KeyD') || this.keys.has('ArrowDown')) kz += 1;
+    if (this.keys.has('KeyS') || this.keys.has('ArrowLeft')) kx -= 1;
+    if (this.keys.has('KeyF') || this.keys.has('ArrowRight')) kx += 1;
     if (kx !== 0 || kz !== 0) {
       this.move.set(kx, kz).normalize();
       // Shift walks. Without it the keyboard commits to a full run, which is
@@ -261,6 +282,17 @@ export class Input {
     if (!wanted && this.pointerLocked) document.exitPointerLock();
   }
 
+  /** Locks the pointer if it is free, and frees it if it is locked. */
+  togglePointerLock(): void {
+    if (this.pointerLocked) {
+      this.pointerLockWanted = false;
+      document.exitPointerLock();
+    } else {
+      this.pointerLockWanted = true;
+      this.requestPointerLock();
+    }
+  }
+
   requestPointerLock(): void {
     if (!this.element || this.pointerLocked) return;
     const result = this.element.requestPointerLock() as unknown;
@@ -305,8 +337,9 @@ function applyDeadzone(value: number): number {
 
 const KEY_ACTIONS: Record<string, ActionName | undefined> = {
   Space: 'jump',
-  KeyE: 'grab',
-  KeyQ: 'grab',
+  KeyR: 'grab',
+  KeyQ: 'interact',
+  KeyL: 'togglePointerLock',
   Escape: 'pause',
   ControlLeft: 'dive',
   KeyC: 'dive',
@@ -320,10 +353,10 @@ const GAMEPAD_ACTIONS: Record<number, ActionName> = {
 };
 
 const MOVEMENT_KEYS = new Set([
-  'KeyW',
-  'KeyA',
+  'KeyE',
   'KeyS',
   'KeyD',
+  'KeyF',
   'ArrowUp',
   'ArrowDown',
   'ArrowLeft',

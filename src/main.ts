@@ -68,6 +68,15 @@ class Game {
 
     window.addEventListener('keydown', this.onGlobalKey);
 
+    // Take keyboard focus straight away. A page that has never been clicked
+    // receives no key presses at all, which looks exactly like broken
+    // controls.
+    const canvas = this.engine.renderer.domElement;
+    canvas.tabIndex = 0;
+    canvas.style.outline = 'none';
+    window.focus();
+    canvas.focus();
+
     this.engine.clock.start();
     requestAnimationFrame(this.frame);
   }
@@ -77,7 +86,9 @@ class Game {
       event.preventDefault();
       this.hud.toggleStats();
     }
-    if (event.code === 'KeyR') {
+    // R is reserved for picking things up, so resetting moved off it.
+    if (event.code === 'Backspace') {
+      event.preventDefault();
       this.player.teleport(this.world.spawn, this.world.spawnFacing);
       this.cameraRig.reset(this.player);
     }
@@ -99,6 +110,7 @@ class Game {
     const delta = Math.min(MAX_DELTA, this.engine.clock.getDelta());
 
     this.input.update(this.settings.cameraSensitivity, this.settings.invertCameraY);
+    if (this.input.wasPressed('togglePointerLock')) this.input.togglePointerLock();
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.player.update(delta, this.input, this.cameraRig.movementYaw);
     this.cameraRig.update(delta, this.player);
@@ -116,6 +128,9 @@ class Game {
       speed: this.player.speed,
       position: this.player.position,
       gamepad: this.input.gamepadConnected,
+      lastKey: this.input.lastKey,
+      lastKeyRecognised: this.input.lastKeyRecognised,
+      pointerLocked: this.input.isPointerLocked,
     });
   };
 

@@ -76,26 +76,26 @@ const steps = [];
 await page.screenshot({ path: `${SHOTS}01-standing.png` });
 
 const beforeRun = await playerPosition(page);
-await page.keyboard.down('KeyW');
+await page.keyboard.down('KeyE');
 await page.waitForTimeout(1200);
 const runSpeed = (await snapshot(page, 'run')).speed;
 await page.screenshot({ path: `${SHOTS}02-running.png` });
-await page.keyboard.up('KeyW');
+await page.keyboard.up('KeyE');
 steps.push(await snapshot(page, 'run'));
 const afterRun = await playerPosition(page);
 
 const travelled = Math.hypot(afterRun.x - beforeRun.x, afterRun.z - beforeRun.z);
-if (travelled < 3) problems.push(`holding W moved the character only ${travelled.toFixed(1)}m`);
+if (travelled < 3) problems.push(`holding E moved the character only ${travelled.toFixed(1)}m`);
 
 await resetPlayer(page);
 
 // ---- Walking must be clearly slower --------------------------------------
 await page.keyboard.down('ShiftLeft');
-await page.keyboard.down('KeyW');
+await page.keyboard.down('KeyE');
 await page.waitForTimeout(1400);
 const walkSpeed = (await snapshot(page, 'walk')).speed;
 await page.screenshot({ path: `${SHOTS}03-walking.png` });
-await page.keyboard.up('KeyW');
+await page.keyboard.up('KeyE');
 await page.keyboard.up('ShiftLeft');
 steps.push(await snapshot(page, 'walk'));
 if (!(walkSpeed > 0.5 && walkSpeed < runSpeed * 0.8)) {
@@ -129,12 +129,12 @@ if (peak < 1.0) problems.push(`a held jump only reached ${peak.toFixed(2)}m`);
 
 // ---- Climbing the ladder and topping out ---------------------------------
 await resetPlayer(page);
-await page.keyboard.down('KeyW');
+await page.keyboard.down('KeyE');
 await waitForState(page, (state) => state === 'ladder', 30000);
 steps.push(await snapshot(page, 'grabbed'));
 await page.screenshot({ path: `${SHOTS}05-ladder.png` });
 
-// Keep holding up until the character leaves the ladder, then stop, or they
+// Keep holding forward until the character leaves the ladder, then stop, or they
 // simply carry on running across the top of the box and off the far side.
 const boxTopY = await page.evaluate(() => window.__letsgo.debug.world.boxTopY);
 await page.evaluate(() => {
@@ -154,7 +154,7 @@ try {
 } catch {
   problems.push('the character never left the ladder');
 }
-await page.keyboard.up('KeyW');
+await page.keyboard.up('KeyE');
 await page.waitForTimeout(1200);
 
 const climbPeak = await page.evaluate(() => {
@@ -199,7 +199,7 @@ console.log(
   `\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, ` +
     `jump peak ${peak.toFixed(2)}m, climb peak ${climbPeak.toFixed(2)}m`,
 );
-console.log(` distance covered holding W: ${travelled.toFixed(1)}m`);
+console.log(` distance covered holding E: ${travelled.toFixed(1)}m`);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

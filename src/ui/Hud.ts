@@ -15,10 +15,14 @@ export interface HudState {
   speed: number;
   position: { x: number; y: number; z: number };
   gamepad: boolean;
+  lastKey: string;
+  lastKeyRecognised: boolean;
+  pointerLocked: boolean;
 }
 
 export class Hud {
   private readonly stats: HTMLDivElement;
+  private readonly focusNotice: HTMLDivElement;
   private visible = true;
 
   constructor(container: HTMLElement) {
@@ -37,12 +41,20 @@ export class Hud {
     const hints = document.createElement('div');
     hints.className = 'hud__hints';
     hints.innerHTML = `
-      Run <b>W A S D</b> · Walk <b>hold Shift</b> · Jump <b>Space</b><br />
-      Climb: walk into the ladder · <b>W</b> up, <b>S</b> down, <b>A D</b> across<br />
-      Let go with <b>Space</b> · Camera <b>mouse</b> · Reset <b>R</b><br />
-      Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high · Panel <b>F3</b>
+      Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b><br />
+      Walk <b>hold Shift</b> · Jump <b>Space</b> · Arrow keys also work<br />
+      Climb: walk into the ladder, then <b>E</b> up, <b>D</b> down, <b>S F</b> across<br />
+      Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b><br />
+      Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high
     `;
     hud.appendChild(hints);
+
+    // The page only receives key presses while it has focus. Without this,
+    // a browser that has not been clicked looks identical to broken controls.
+    this.focusNotice = document.createElement('div');
+    this.focusNotice.className = 'hud__focus';
+    this.focusNotice.textContent = 'Click the page to give it keyboard focus';
+    hud.appendChild(this.focusNotice);
   }
 
   toggleStats(): void {
@@ -66,7 +78,16 @@ export class Hud {
         `${state.position.x.toFixed(0)}, ${state.position.y.toFixed(0)}, ${state.position.z.toFixed(0)}`,
       ],
       ['Gamepad', state.gamepad ? 'connected' : 'press a button'],
+      ['Mouse', state.pointerLocked ? 'locked' : 'free  (L)'],
+      [
+        'Last key',
+        state.lastKey === '—'
+          ? 'none yet'
+          : `${state.lastKey}${state.lastKeyRecognised ? '' : '  (unused)'}`,
+      ],
     ];
+
+    this.focusNotice.hidden = document.hasFocus();
 
     this.stats.innerHTML = '';
     for (const [label, value, className] of rows) {

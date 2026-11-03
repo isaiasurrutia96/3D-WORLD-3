@@ -35,12 +35,12 @@ const BOX_CENTRE = new Vector3(0, BOX_HEIGHT / 2, -10);
 /** The ladder is fixed to the box's near face and faces back toward the spawn. */
 const LADDER_HALF_WIDTH = 0.42;
 /**
- * The ladder runs past the top of the box, the way a real one does. Stopping
- * it level with the ledge leaves the climber's feet too low to step up onto
- * it, and they drop back down instead of topping out.
+ * The ladder is exactly as tall as the box. It used to run past the top,
+ * because topping out was an upward impulse that needed the extra height to
+ * clear the ledge. Topping out now places the character on the ledge, so the
+ * overrun is no longer needed and the ladder finishes flush with the top.
  */
-const LADDER_OVERRUN = 0.7;
-const LADDER_HEIGHT = BOX_HEIGHT + LADDER_OVERRUN;
+const LADDER_HEIGHT = BOX_HEIGHT;
 
 export const SPAWN_POSITION = new Vector3(0, 0, 5);
 export const SPAWN_FACING = Math.PI;
@@ -195,15 +195,16 @@ function createLadder(faceZ: number): Group {
   const railZ = faceZ + 0.08;
 
   for (const x of [-LADDER_HALF_WIDTH, LADDER_HALF_WIDTH]) {
-    builder.add('ladder', new BoxGeometry(0.09, LADDER_HEIGHT + 0.2, 0.09), {
-      position: [x, (LADDER_HEIGHT + 0.2) / 2 - 0.1, railZ],
+    builder.add('ladder', new BoxGeometry(0.09, LADDER_HEIGHT, 0.09), {
+      position: [x, LADDER_HEIGHT / 2, railZ],
     });
   }
 
-  const rungCount = Math.floor(LADDER_HEIGHT / 0.38);
+  const rungSpacing = 0.36;
+  const rungCount = Math.floor((LADDER_HEIGHT - 0.2) / rungSpacing);
   for (let i = 0; i <= rungCount; i += 1) {
     builder.add('ladder', new BoxGeometry(LADDER_HALF_WIDTH * 2, 0.06, 0.06), {
-      position: [0, 0.18 + i * 0.38, railZ],
+      position: [0, 0.2 + i * rungSpacing, railZ],
     });
   }
 
