@@ -67,6 +67,8 @@ page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
 await page.goto(BASE, { waitUntil: 'load', timeout: 60000 });
 
+const steps = [];
+
 // ---- Title screen ---------------------------------------------------------
 await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
   timeout: 60000,
@@ -74,12 +76,54 @@ await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, n
 await page.waitForTimeout(2500);
 await page.screenshot({ path: `${SHOTS}01-title.png` });
 
+// ---- Graphics quality must cycle through all three levels ---------------
+const qualitySequence = [];
+for (let i = 0; i < 4; i += 1) {
+  qualitySequence.push(
+    await page.evaluate(() => ({
+      menu: document.querySelectorAll('.menu--title .menu-item__value')[0].textContent,
+      engine: window.__letsgo.debug.engine.currentQuality,
+      stored: window.__letsgo.debug.settings.quality,
+    })),
+  );
+  await page.click('.menu--title .menu-item--option .menu-item__arrow:last-child');
+  await page.waitForTimeout(350);
+}
+steps.push({
+  label: 'quality-cycle',
+  state: qualitySequence.map((q) => q.engine).join(' > '),
+  speed: 0,
+  carrying: qualitySequence.every((q) => q.engine === q.stored),
+  position: { x: 0, y: 0, z: 0 },
+});
+if (new Set(qualitySequence.map((q) => q.engine)).size < 3) {
+  problems.push(`quality did not cycle: ${qualitySequence.map((q) => q.engine).join(' > ')}`);
+}
+for (const entry of qualitySequence) {
+  if (entry.menu.toLowerCase() !== entry.engine) {
+    problems.push(`menu shows ${entry.menu} but engine is ${entry.engine}`);
+  }
+}
+
+// Return to Low so the rest of the run is quick, then confirm it persists.
+await page.evaluate(() => {
+  const ui = window.__letsgo.ui;
+  void ui;
+  window.__letsgo.applyQualityForTest('low');
+});
+await page.waitForTimeout(300);
+await page.reload({ waitUntil: 'load' });
+await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
+  timeout: 60000,
+});
+await page.waitForTimeout(1200);
+const persisted = await page.evaluate(() => window.__letsgo.debug.engine.currentQuality);
+if (persisted !== 'low') problems.push(`quality did not persist across reload: ${persisted}`);
+
 // ---- Start the game -------------------------------------------------------
 await page.click('.menu-item--primary');
 await page.waitForTimeout(1200);
 await page.screenshot({ path: `${SHOTS}02-spawn.png` });
-
-const steps = [];
 
 // ---- Run forward, toward the castle --------------------------------------
 await hold(page, 'KeyW', 1400);
@@ -96,6 +140,28 @@ await page.keyboard.up('Space');
 await waitForState(page, (state) => state !== 'jump' && state !== 'fall');
 steps.push(await snapshot(page, 'landed'));
 await page.keyboard.up('KeyW');
+
+// ---- Cross the bridge on foot, with no jumping ---------------------------
+// The bridge used to have a row of solid plank seams standing proud of the
+// deck, which stopped the character unless they jumped over each one.
+await teleport(page, 0, 1, 34);
+await page.waitForTimeout(600);
+await page.keyboard.down('KeyW');
+let crossed = false;
+try {
+  // The bridge spans z = 10.5 to 28.5, so clearing z = 9 means the character
+  // walked the whole length of it and stepped off onto the island.
+  await page.waitForFunction(() => window.__letsgo.debug.player.position.z < 9, null, {
+    timeout: 60000,
+    polling: 100,
+  });
+  crossed = true;
+} catch {
+  problems.push('could not walk from the spawn across the bridge without jumping');
+}
+await page.keyboard.up('KeyW');
+steps.push(await snapshot(page, crossed ? 'bridge-ok' : 'bridge-stuck'));
+await page.screenshot({ path: `${SHOTS}03b-bridge.png` });
 
 // ---- Drop into the moat, clear of the bridge ------------------------------
 await teleport(page, 18, 3, 20);
@@ -124,6 +190,12 @@ await page.keyboard.up('KeyW');
 // ---- Pick up a crate, then throw it --------------------------------------
 await teleport(page, 6.5, 1, 37.8);
 await page.waitForTimeout(700);
+const promptBefore = await page.evaluate(
+  () => document.querySelector('.hud__prompt')?.textContent ?? '',
+);
+if (!promptBefore.includes('pick up')) {
+  problems.push(`no pick-up prompt next to a crate, prompt was "${promptBefore}"`);
+}
 await page.keyboard.press('KeyE');
 await page.waitForTimeout(500);
 steps.push(await snapshot(page, 'carry'));

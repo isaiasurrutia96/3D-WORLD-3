@@ -60,6 +60,7 @@ export class Player {
   private climbRegrabTimer = 0;
   private submerged = false;
   private atSurface = false;
+  private diving = false;
   private footstepPhase = 0;
   private animationTime = 0;
 
@@ -70,6 +71,15 @@ export class Player {
   private readonly scratchB = new Vector3();
   private readonly scratchMove = new Vector3();
   private readonly scratchSide = new Vector3();
+
+  // Saved capsule and velocity states, used when attempting a step up over a
+  // low lip. Fields rather than locals so walking allocates nothing.
+  private readonly preStart = new Vector3();
+  private readonly preEnd = new Vector3();
+  private readonly preVelocity = new Vector3();
+  private readonly blockedStart = new Vector3();
+  private readonly blockedEnd = new Vector3();
+  private readonly blockedVelocity = new Vector3();
 
   constructor(world: CollisionWorld, spawn: Vector3, events: PlayerEvents = {}) {
     this.world = world;
@@ -271,6 +281,7 @@ export class Player {
 
     this.submerged = true;
     const diving = input.isDown('dive');
+    this.diving = diving;
     if (diving) {
       this.velocity.y -= TUNING.diveAcceleration * delta;
     } else if (toFloatLine > 0) {
@@ -386,8 +397,28 @@ export class Player {
     const previousFallSpeed = this.velocity.y;
 
     for (let step = 0; step < steps; step += 1) {
-      this.capsule.translate(this.scratchMove.copy(this.velocity).multiplyScalar(stepDelta));
+      this.preStart.copy(this.capsule.start);
+      this.preEnd.copy(this.capsule.end);
+      this.preVelocity.copy(this.velocity);
+
+      const move = this.scratchMove.copy(this.velocity).multiplyScalar(stepDelta);
+      const intended = Math.hypot(move.x, move.z);
+
+      this.capsule.translate(move);
       this.resolveCollisions();
+
+      if (!wasOnGround || intended < 1e-4) continue;
+
+      const achieved = Math.hypot(
+        this.capsule.start.x - this.preStart.x,
+        this.capsule.start.z - this.preStart.z,
+      );
+      // Losing most of the intended movement means something is in the way.
+      // It may be a wall, or it may be a kerb, a step edge or the seam
+      // between two pieces of scenery, which should simply be walked over.
+      if (achieved >= intended * 0.75) continue;
+
+      this.tryStepUp(stepDelta, achieved);
     }
 
     if (this.onGround) {
@@ -409,6 +440,65 @@ export class Player {
     }
 
     this.syncPositionFromCapsule();
+  }
+
+  /**
+   * Retries a blocked sub-step from a raised position, then settles back down.
+   * If the obstruction was lower than the step height the character walks
+   * over it; if it was a real wall, nothing changes.
+   */
+  private tryStepUp(stepDelta: number, blockedProgress: number): void {
+    this.blockedStart.copy(this.capsule.start);
+    this.blockedEnd.copy(this.capsule.end);
+    this.blockedVelocity.copy(this.velocity);
+
+    const restore = (): void => {
+      this.capsule.start.copy(this.blockedStart);
+      this.capsule.end.copy(this.blockedEnd);
+      this.velocity.copy(this.blockedVelocity);
+    };
+
+    // Back to the start of the sub-step, then lift.
+    this.capsule.start.copy(this.preStart);
+    this.capsule.end.copy(this.preEnd);
+    this.capsule.translate(this.scratchMove.set(0, TUNING.stepHeight, 0));
+
+    // No headroom means this is not a step, it is a gap under something.
+    if (this.world.capsuleIntersect(this.capsule)) {
+      restore();
+      return;
+    }
+
+    // Move horizontally only; the vertical part was handled by the lift.
+    this.velocity.copy(this.preVelocity);
+    this.capsule.translate(
+      this.scratchMove.set(this.preVelocity.x * stepDelta, 0, this.preVelocity.z * stepDelta),
+    );
+    this.resolveCollisions();
+
+    // Settle back down onto whatever is underneath.
+    const drop = TUNING.stepHeight + 0.06;
+    this.capsule.translate(this.scratchMove.set(0, -drop, 0));
+    const landing = this.world.capsuleIntersect(this.capsule);
+    if (!landing || landing.normal.y < MAX_WALKABLE_NORMAL_Y) {
+      restore();
+      return;
+    }
+    this.capsule.translate(this.scratchMove.copy(landing.normal).multiplyScalar(landing.depth));
+
+    const gained = Math.hypot(
+      this.capsule.start.x - this.preStart.x,
+      this.capsule.start.z - this.preStart.z,
+    );
+    if (gained <= blockedProgress + 1e-3) {
+      restore();
+      return;
+    }
+
+    // The step worked: keep the horizontal speed the wall would have eaten.
+    this.onGround = true;
+    this.groundNormal.copy(landing.normal);
+    this.velocity.set(this.preVelocity.x, 0, this.preVelocity.z);
   }
 
   private resolveCollisions(): void {
@@ -499,6 +589,7 @@ export class Player {
       this.state = this.onGround ? 'ground' : 'air';
       this.submerged = false;
       this.atSurface = false;
+      this.diving = false;
     }
   }
 
@@ -537,14 +628,14 @@ export class Player {
   /** Objects the player may pick up; set by the world each frame. */
   carryables: Carryable[] = [];
 
-  private updateCarry(_delta: number, input: Input): void {
-    if (!input.wasPressed('grab')) return;
-
-    if (this.carried) {
-      this.throwCarried();
-      return;
-    }
-    if (this.state === 'climb') return;
+  /**
+   * The object the character would pick up right now, or null.
+   *
+   * The on-screen prompt and the pick-up itself both call this, so the prompt
+   * can never offer something that the button will then refuse to lift.
+   */
+  findCarryTarget(): Carryable | null {
+    if (this.state === 'climb' || this.carried) return null;
 
     let best: Carryable | null = null;
     let bestScore = Infinity;
@@ -552,27 +643,44 @@ export class Player {
 
     for (const candidate of this.carryables) {
       if (candidate.held || candidate.pickupCooldown > 0) continue;
-      const offset = this.scratchB.copy(candidate.position).sub(this.object.position);
+
+      const offset = this.scratchSide.copy(candidate.position).sub(this.object.position);
       const vertical = Math.abs(offset.y);
       offset.y = 0;
       const distance = offset.length();
-      if (distance > TUNING.carryReach + candidate.radius || vertical > CHARACTER_HEIGHT) continue;
-      // Prefer what is in front of the character over what is merely nearby.
-      const facingBonus = distance > 0.001 ? forward.dot(offset.clone().normalize()) : 1;
-      if (facingBonus < -0.1) continue;
-      const score = distance - facingBonus;
+
+      if (distance > TUNING.carryReach + candidate.radius) continue;
+      if (vertical > CHARACTER_HEIGHT) continue;
+
+      // Facing is a preference, not a requirement: only something clearly
+      // behind the character is ignored.
+      const facing = distance > 0.001 ? forward.dot(offset.divideScalar(distance)) : 1;
+      if (facing < -0.35) continue;
+
+      const score = distance - facing * 0.5;
       if (score < bestScore) {
         bestScore = score;
         best = candidate;
       }
     }
+    return best;
+  }
 
-    if (best) {
-      best.pickUp();
-      this.carried = best;
-      this.rig.carryAnchor.add(best.object3d);
-      best.object3d.position.set(0, 0, 0);
+  private updateCarry(_delta: number, input: Input): void {
+    if (!input.wasPressed('grab')) return;
+
+    if (this.carried) {
+      this.throwCarried();
+      return;
     }
+
+    const target = this.findCarryTarget();
+    if (!target) return;
+
+    target.pickUp();
+    this.carried = target;
+    this.rig.carryAnchor.add(target.object3d);
+    target.object3d.position.set(0, 0, 0);
   }
 
   private throwCarried(): void {
@@ -727,6 +835,7 @@ export class Player {
       landing: this.landingTimer > 0,
       carrying: this.carried !== null,
       submerged: this.submerged && !this.atSurface,
+      diving: this.diving && this.state === 'swim',
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

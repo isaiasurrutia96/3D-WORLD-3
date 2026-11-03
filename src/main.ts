@@ -45,7 +45,7 @@ class Game {
     this.engine = new Engine(container as HTMLElement, this.settings.quality);
     this.effects = new ParticleEffects(this.engine.scene);
 
-    this.ui = new Interface(container as HTMLElement, this.settings, {
+    this.ui = new Interface(container as HTMLElement, () => this.settings, {
       onStart: () => this.startPlaying(),
       onResume: () => this.resume(),
       onReturnToTitle: () => this.returnToTitle(),
@@ -54,6 +54,7 @@ class Game {
         this.settings = settings;
         saveSettings(settings);
       },
+
     });
 
     this.input.attach(this.engine.renderer.domElement);
@@ -216,17 +217,12 @@ class Game {
 
   private updatePrompt(): void {
     if (this.player.carried) {
-      this.ui.setPrompt('E — throw');
+      this.ui.setPrompt('E  /  X — throw');
       return;
     }
-    for (const carryable of this.world.carryables) {
-      if (carryable.held || carryable.pickupCooldown > 0) continue;
-      if (carryable.position.distanceTo(this.player.position) < 2.1) {
-        this.ui.setPrompt('E — pick up');
-        return;
-      }
-    }
-    this.ui.setPrompt(null);
+    // Asks the player for the very same target the button would take, so the
+    // prompt never appears for something that cannot actually be lifted.
+    this.ui.setPrompt(this.player.findCarryTarget() ? 'E  /  X — pick up' : null);
   }
 
   private updateStats(): void {
@@ -249,6 +245,12 @@ class Game {
       ],
       ['Gamepad', this.input.gamepadConnected ? 'connected' : 'press a button'],
     ]);
+  }
+
+  /** Used by the headless verification pass to set quality directly. */
+  applyQualityForTest(quality: UserSettings['quality']): void {
+    this.applyQuality(quality);
+    this.ui.refresh();
   }
 
   /** Read-only handles for the headless verification pass. */

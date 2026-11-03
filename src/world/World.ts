@@ -147,7 +147,7 @@ export function buildWorld(
   signpost.rotation.y = -0.65;
   solid.add(signpost);
 
-  for (const z of [BRIDGE_MIN_Z - 1.8, BRIDGE_MAX_Z + 1.8]) {
+  for (const z of [BRIDGE_MIN_Z - 3.2, BRIDGE_MAX_Z + 3.2]) {
     for (const x of [-BRIDGE_HALF_WIDTH - 1.1, BRIDGE_HALF_WIDTH + 1.1]) {
       const lamp = createLampPost();
       lamp.position.set(x, terrainHeight(x, z), z);
@@ -216,8 +216,9 @@ function createCourtyardObstacles(): Object3D {
     builder.add('block', new BoxGeometry(4.2, height, 3.4), {
       position: [-22 + step * 0.4, height / 2, 9.5 - step * 3.6],
     });
+    // Flush with the step's top face, not standing proud of it.
     builder.add('blockDark', new BoxGeometry(4.4, 0.16, 3.6), {
-      position: [-22 + step * 0.4, height, 9.5 - step * 3.6],
+      position: [-22 + step * 0.4, height - 0.08, 9.5 - step * 3.6],
     });
   }
 
@@ -231,7 +232,7 @@ function createCourtyardObstacles(): Object3D {
       position: [15, height / 2, z],
     });
     builder.add('blockDark', new BoxGeometry(2.8, 0.16, 2.8), {
-      position: [15, height, z],
+      position: [15, height - 0.08, z],
     });
     z -= gaps[i];
   }

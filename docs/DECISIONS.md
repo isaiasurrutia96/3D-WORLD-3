@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means Isaias stated the choice.
 **Proposed** means a practical answer awaiting review. **Deferred** means
 planned for later. **Open** means the answer is still needed.
 
-Last updated: 3 November 2026.
+Last updated: 3 November 2026 (second entry).
 
 ---
 
@@ -115,40 +115,83 @@ yet.
 
 ---
 
-## D) Still open
+## D) The test machine
 
-**1. Open.** Whether the game runs acceptably on the actual Mac. Nothing in
-this repository has been run on real hardware yet.
+**1. Confirmed.** MacBook Pro, 13-inch, Early 2015. 2.7 GHz dual-core Intel
+Core i5, 8 GB RAM, Intel Iris Graphics 6100, macOS Monterey 12.7.6, tested in
+Firefox.
 
-**2. Open.** macOS version, Firefox version and exact RAM on the test machine.
+**2. Measured on that machine, 3 November 2026.** Milestone 1 runs at **60
+frames per second at Medium quality**, with 52 to 74 draw calls and roughly
+125,000 to 130,000 triangles on screen. This was read from the in-game
+performance panel by Isaias, not estimated.
 
-**3. Open.** Whether the movement actually feels right. Every tuning number
+**3. Not yet measured.** Frame rate at High quality, and frame rate while
+swimming or during heavy particle effects.
+
+---
+
+## E) Still open
+
+**1. Open.** Whether the movement actually feels right. Every tuning number
 lives in `src/player/Tuning.ts` and is meant to be adjusted after play.
 
-**4. Open.** Weekly hours, working days, and any deadline for a first playable
+**2. Open.** Whether the movement actually feels right. Every tuning number
+lives in `src/player/Tuning.ts` and is meant to be adjusted after play.
+
+**3. Open.** Weekly hours, working days, and any deadline for a first playable
 version.
 
-**5. Open.** Multiplayer hosting and its cost. Six-player browser multiplayer
+**4. Open.** Multiplayer hosting and its cost. Six-player browser multiplayer
 needs a server; free tiers may cover testing, but this has not been checked.
 
-**6. Open.** Price, commercial model and wider audience.
+**5. Open.** Price, commercial model and wider audience.
 
-**7. Open.** Final character appearance, exact key bindings and controller
-mappings, music and sound sources, and named testers.
-
----
-
-## E) Deferred features
-
-LifeSheet and productivity services, the floor plan editor, company events,
-the full tournament system, extensive clothing, saving and progression, the
-full carnival, and the complete Super Mario 64 move set.
+**6. Open.** Final character appearance, music and sound sources, and named
+testers.
 
 ---
 
-## F) Change log
+## F) Deferred features
+
+**1. Custom key bindings.** Isaias will specify which keys he wants for each
+movement in a later milestone. Until then the defaults listed in the README
+stand. The input layer already maps physical keys and gamepad buttons to
+named actions, so remapping is a matter of editing that one table rather
+than touching the character controller.
+
+**2. Ladder climbing.** Recorded as a deferred feature on 3 November 2026.
+Climbing already exists as its own movement state, attached to climbable
+surfaces registered with the collision world. A ladder would be another
+registered surface with a flat facing rather than a round post, so the state
+machine does not need restructuring to support it.
+
+**3. Still deferred from the original plan.** LifeSheet and productivity
+services, the floor plan editor, company events, the full tournament system,
+extensive clothing, saving and progression, the full carnival, and the
+complete Super Mario 64 move set.
+
+---
+
+## G) Not built, and not planned
+
+**1. Mobile and touch controls.** None exist. The game is keyboard, mouse and
+gamepad only, matching the confirmed decision that the first version targets a
+desktop browser. Nothing has been removed — there was never a touch control
+layer to preserve.
+
+**2. Sound.** Still none.
+
+---
+
+## H) Change log
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
 milestones; multiplayer taken out of scope for now. Reason: Isaias asked for
 the time to go into movement and world feel first.
+
+**3 November 2026, later.** Test machine specification recorded, and 60 frames
+per second measured on it at Medium quality. Custom key bindings and ladder
+climbing recorded as deferred. A round of bug fixes applied after Isaias
+played the build; they are listed in the commit for that change.

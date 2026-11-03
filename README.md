@@ -53,6 +53,10 @@ To stop the game, press `Ctrl` and `C` together in the terminal.
 A browser only detects a gamepad after a button is pressed on it, so press any
 button once if the controller seems unresponsive.
 
+These bindings are fixed for now. Making them configurable is a planned
+feature; the input layer already maps physical keys to named actions in
+`src/input/Input.ts`, so changing them is a matter of editing one table.
+
 ## C) Graphics quality
 
 Three presets are selectable from the title screen and the pause menu, and the
@@ -68,7 +72,9 @@ bloom. Chosen as the default for the Intel Iris Graphics 6100 test machine.
 scenery.
 
 The performance panel on `F3` reports frame rate, draw calls and triangle
-count, so a real reading can be taken on real hardware.
+count. Measured on a 13-inch MacBook Pro (Early 2015, Intel Iris Graphics
+6100, macOS Monterey) in Firefox, milestone 1 runs at **60 frames per second
+at Medium quality**.
 
 ## D) Project layout
 

@@ -381,3 +381,59 @@
     text-align: center;
   }
 }
+
+/* ---------- Option rows with arrow buttons ---------- */
+
+.menu-item--option {
+  cursor: default;
+}
+
+.menu-item--option.menu-item--clickable {
+  cursor: pointer;
+}
+
+.menu-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.menu-item__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffd98a;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
+}
+
+.menu-item__arrow:hover {
+  background: rgba(255, 211, 77, 0.24);
+  border-color: #ffd34d;
+}
+
+.menu-item__arrow:active {
+  transform: scale(0.92);
+}
+
+.menu-item__value {
+  min-width: 74px;
+  text-align: center;
+}

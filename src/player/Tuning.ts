@@ -55,6 +55,12 @@ export const TUNING = {
   maxWalkableSlopeDegrees: 52,
   /** How far down the character searches for ground when walking downhill. */
   groundSnapDistance: 0.42,
+  /**
+   * The tallest lip the character walks straight over instead of being
+   * stopped by it. Kerbs, step edges and the seams between pieces of
+   * scenery all fall under this, so ordinary ground never needs a jump.
+   */
+  stepHeight: 0.45,
 
   // ---- Swimming ----------------------------------------------------------
   swimSpeed: 3.4,
@@ -92,7 +98,7 @@ export const TUNING = {
   /** Speed multiplier while holding something. */
   carrySpeedMultiplier: 0.82,
   /** How far in front the character can reach to pick something up. */
-  carryReach: 1.5,
+  carryReach: 1.9,
   /** Forward speed given to a thrown object. */
   throwSpeed: 11,
   throwLift: 4.2,

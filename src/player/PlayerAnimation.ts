@@ -22,6 +22,8 @@ export interface AnimationInputs {
   landing: boolean;
   carrying: boolean;
   submerged: boolean;
+  /** True while the dive control is held. */
+  diving: boolean;
   inputStrength: number;
   /** 0 at the start of a swim stroke, 1 when it has finished. */
   strokeProgress: number;
@@ -154,6 +156,17 @@ function reset(target: Pose): void {
   target.kneeRight = 0;
 }
 
+/*
+ * Rotation conventions, derived once so the poses below are not guesswork.
+ * The model faces +Z, and every limb hangs downward from its pivot.
+ *
+ *   body.rotation.x  > 0  tips the head forward, toward +Z
+ *   shoulder.rotation.x < 0  swings the arm forward
+ *   hip.rotation.x      > 0  swings the thigh backward
+ *   knee.rotation.x     > 0  bends the heel backward, which is the only way
+ *                            a knee actually bends
+ */
+
 function poseGround(input: AnimationInputs): void {
   const normalised = MathUtils.clamp(input.speed / input.maxSpeed, 0, 1);
 
@@ -165,10 +178,10 @@ function poseGround(input: AnimationInputs): void {
     pose.shoulderRightPitch = -1.2;
     pose.shoulderLeftRoll = 0.85;
     pose.shoulderRightRoll = 0.7;
-    pose.hipLeft = 0.55;
-    pose.hipRight = -0.35;
-    pose.kneeLeft = -0.5;
-    pose.kneeRight = -0.2;
+    pose.hipLeft = -0.5;
+    pose.hipRight = 0.35;
+    pose.kneeLeft = 0.45;
+    pose.kneeRight = 0.2;
     pose.headPitch = -0.18;
     return;
   }
@@ -182,8 +195,8 @@ function poseGround(input: AnimationInputs): void {
     pose.headPitch = Math.sin(input.time * 0.33) * 0.05;
     pose.shoulderLeftPitch = 0.06;
     pose.shoulderRightPitch = -0.06;
-    pose.elbowLeft = -0.12;
-    pose.elbowRight = -0.12;
+    pose.elbowLeft = -0.14;
+    pose.elbowRight = -0.14;
     return;
   }
 
@@ -199,15 +212,16 @@ function poseGround(input: AnimationInputs): void {
 
   pose.hipLeft = swing * legAmplitude;
   pose.hipRight = counterSwing * legAmplitude;
-  // Knees only bend on the backswing, which is what stops a walk looking like
-  // a pair of scissors.
-  pose.kneeLeft = -Math.max(0, -swing) * legAmplitude * 1.15;
-  pose.kneeRight = -Math.max(0, -counterSwing) * legAmplitude * 1.15;
+  // The knee bends on the trailing leg only, which is what stops a walk
+  // looking like a pair of scissors.
+  pose.kneeLeft = Math.max(0, swing) * legAmplitude * 1.25;
+  pose.kneeRight = Math.max(0, counterSwing) * legAmplitude * 1.25;
 
   pose.shoulderLeftPitch = counterSwing * armAmplitude;
   pose.shoulderRightPitch = swing * armAmplitude;
-  pose.elbowLeft = -Math.max(0, counterSwing) * armAmplitude * 0.75 - 0.18;
-  pose.elbowRight = -Math.max(0, swing) * armAmplitude * 0.75 - 0.18;
+  // Elbows stay slightly bent, and bend more as the arm comes forward.
+  pose.elbowLeft = -0.22 - Math.max(0, -counterSwing) * armAmplitude * 0.6;
+  pose.elbowRight = -0.22 - Math.max(0, -swing) * armAmplitude * 0.6;
   pose.shoulderLeftRoll = 0.1 + normalised * 0.06;
   pose.shoulderRightRoll = 0.1 + normalised * 0.06;
 
@@ -223,22 +237,22 @@ function poseAir(input: AnimationInputs): void {
   const rising = input.verticalSpeed > 0.5;
 
   if (rising) {
-    // Take-off: arms up, knees drawn in.
+    // Take-off: arms up, thighs drawn forward, heels tucked up behind.
     pose.shoulderLeftPitch = -2.5;
     pose.shoulderRightPitch = -2.5;
     pose.shoulderLeftRoll = 0.22;
     pose.shoulderRightRoll = 0.22;
     pose.elbowLeft = -0.35;
     pose.elbowRight = -0.35;
-    pose.hipLeft = 0.72;
-    pose.hipRight = 0.45;
-    pose.kneeLeft = -1.0;
-    pose.kneeRight = -0.6;
+    pose.hipLeft = -0.55;
+    pose.hipRight = -0.3;
+    pose.kneeLeft = 1.05;
+    pose.kneeRight = 0.6;
     pose.bodyPitch = 0.12;
     pose.bodySquash = 1.06;
     pose.headPitch = -0.1;
   } else {
-    // Falling: arms out, legs reaching for the ground.
+    // Falling: arms out for balance, legs reaching for the ground.
     const fall = MathUtils.clamp(-input.verticalSpeed / 16, 0, 1);
     pose.shoulderLeftPitch = -1.1 - fall * 0.5;
     pose.shoulderRightPitch = -1.1 - fall * 0.5;
@@ -246,10 +260,10 @@ function poseAir(input: AnimationInputs): void {
     pose.shoulderRightRoll = 0.75 + fall * 0.3;
     pose.elbowLeft = -0.5;
     pose.elbowRight = -0.5;
-    pose.hipLeft = 0.3 - fall * 0.25;
-    pose.hipRight = -0.18;
-    pose.kneeLeft = -0.42;
-    pose.kneeRight = -0.2;
+    pose.hipLeft = -0.26 + fall * 0.2;
+    pose.hipRight = 0.16;
+    pose.kneeLeft = 0.4;
+    pose.kneeRight = 0.18;
     pose.bodyPitch = -0.06 - fall * 0.08;
     pose.bodySquash = 1 + fall * 0.04;
     pose.headPitch = fall * 0.12;
@@ -258,48 +272,58 @@ function poseAir(input: AnimationInputs): void {
 
 function poseSwim(input: AnimationInputs): void {
   if (input.submerged) {
-    // Face-down and horizontal, with a breaststroke tied to the stroke timer.
-    pose.bodyPitch = -1.28;
-    pose.bodyHeight = 0.42;
+    // Prone and face-down. A quarter turn (1.57) is exactly horizontal, so
+    // swimming forward sits just under it and a dive goes past it, angling
+    // the head downward in the direction the character is actually moving.
+    pose.bodyPitch = input.diving ? 1.85 : 1.26;
+    pose.bodyHeight = 0.26;
 
-    const stroke = MathUtils.clamp(input.strokeProgress, 0, 1);
-    // Pull out and back, then recover forward.
-    const pull = Math.sin(stroke * Math.PI);
-    pose.shoulderLeftPitch = -2.3 + pull * 1.9;
-    pose.shoulderRightPitch = -2.3 + pull * 1.9;
-    pose.shoulderLeftRoll = 0.3 + pull * 0.95;
-    pose.shoulderRightRoll = 0.3 + pull * 0.95;
-    pose.elbowLeft = -0.3 - pull * 0.8;
-    pose.elbowRight = -0.3 - pull * 0.8;
+    // A breaststroke that runs continuously, so the character is always
+    // swimming rather than drifting with their arms held still. Taking a
+    // stroke takes over the cycle and deepens it.
+    const stroking = input.strokeProgress < 1;
+    const cycle = stroking ? input.strokeProgress : (input.time * 0.72) % 1;
+    const amplitude = stroking ? 1 : 0.5;
+    const pull = Math.sin(cycle * Math.PI) * amplitude;
 
-    // Legs kick continuously, a little behind the arms.
-    const kick = Math.sin(input.time * 4.2);
-    pose.hipLeft = kick * 0.42;
-    pose.hipRight = -kick * 0.42;
-    pose.kneeLeft = -Math.max(0, kick) * 0.75;
-    pose.kneeRight = -Math.max(0, -kick) * 0.75;
+    // Arms reach forward, sweep out and back, then recover.
+    pose.shoulderLeftPitch = -2.45 + pull * 1.5;
+    pose.shoulderRightPitch = -2.45 + pull * 1.5;
+    pose.shoulderLeftRoll = 0.28 + pull * 1.0;
+    pose.shoulderRightRoll = 0.28 + pull * 1.0;
+    pose.elbowLeft = -0.25 - pull * 0.85;
+    pose.elbowRight = -0.25 - pull * 0.85;
 
-    pose.headPitch = 0.65;
+    // Legs flutter continuously, a little behind the arms.
+    const kick = Math.sin(input.time * 4.6);
+    pose.hipLeft = kick * 0.4;
+    pose.hipRight = -kick * 0.4;
+    pose.kneeLeft = Math.max(0, kick) * 0.8;
+    pose.kneeRight = Math.max(0, -kick) * 0.8;
+
+    // Looking ahead along the direction of travel rather than at the bottom.
+    pose.headPitch = -0.62;
   } else {
-    // Treading at the surface: upright, head clear of the water.
-    pose.bodyPitch = -0.34;
-    pose.bodyHeight = 0.08;
+    // Treading water: upright, head and shoulders clear, arms sculling.
+    pose.bodyPitch = 0.16;
+    pose.bodyHeight = 0.05;
 
-    const paddle = Math.sin(input.time * 3.4);
-    pose.shoulderLeftPitch = -1.35 + paddle * 0.42;
-    pose.shoulderRightPitch = -1.35 - paddle * 0.42;
-    pose.shoulderLeftRoll = 0.95;
-    pose.shoulderRightRoll = 0.95;
-    pose.elbowLeft = -0.95;
-    pose.elbowRight = -0.95;
+    const scull = Math.sin(input.time * 3.2);
+    pose.shoulderLeftPitch = -1.3 + scull * 0.4;
+    pose.shoulderRightPitch = -1.3 - scull * 0.4;
+    pose.shoulderLeftRoll = 0.9;
+    pose.shoulderRightRoll = 0.9;
+    pose.elbowLeft = -0.9 - Math.max(0, scull) * 0.3;
+    pose.elbowRight = -0.9 - Math.max(0, -scull) * 0.3;
 
-    const kick = Math.sin(input.time * 2.8);
-    pose.hipLeft = 0.5 + kick * 0.3;
-    pose.hipRight = 0.5 - kick * 0.3;
-    pose.kneeLeft = -0.7 - Math.max(0, kick) * 0.4;
-    pose.kneeRight = -0.7 - Math.max(0, -kick) * 0.4;
+    // A slow scissor kick underneath.
+    const kick = Math.sin(input.time * 2.6);
+    pose.hipLeft = -0.55 + kick * 0.3;
+    pose.hipRight = -0.55 - kick * 0.3;
+    pose.kneeLeft = 0.75 + Math.max(0, kick) * 0.4;
+    pose.kneeRight = 0.75 + Math.max(0, -kick) * 0.4;
 
-    pose.headPitch = -0.16;
+    pose.headPitch = -0.1;
   }
 }
 
@@ -311,17 +335,17 @@ function poseClimb(input: AnimationInputs): void {
   const swing = Math.sin(phase);
 
   pose.bodyPitch = 0.1;
-  pose.shoulderLeftPitch = -2.65 + swing * 0.5;
-  pose.shoulderRightPitch = -2.65 - swing * 0.5;
+  pose.shoulderLeftPitch = -2.6 + swing * 0.5;
+  pose.shoulderRightPitch = -2.6 - swing * 0.5;
   pose.shoulderLeftRoll = 0.3;
   pose.shoulderRightRoll = 0.3;
   pose.elbowLeft = -0.55 + swing * 0.3;
   pose.elbowRight = -0.55 - swing * 0.3;
 
-  pose.hipLeft = 0.85 - swing * 0.35;
-  pose.hipRight = 0.85 + swing * 0.35;
-  pose.kneeLeft = -1.15 + swing * 0.3;
-  pose.kneeRight = -1.15 - swing * 0.3;
+  pose.hipLeft = -0.8 - swing * 0.3;
+  pose.hipRight = -0.8 + swing * 0.3;
+  pose.kneeLeft = 1.15 + swing * 0.25;
+  pose.kneeRight = 1.15 - swing * 0.25;
 
   pose.headPitch = -0.22;
 }
@@ -340,10 +364,10 @@ function applyCarry(): void {
 function applyLandingSquash(): void {
   pose.bodySquash = 0.82;
   pose.bodyHeight = -0.12;
-  pose.hipLeft = 0.62;
-  pose.hipRight = 0.62;
-  pose.kneeLeft = -1.05;
-  pose.kneeRight = -1.05;
+  pose.hipLeft = -0.6;
+  pose.hipRight = -0.6;
+  pose.kneeLeft = 1.05;
+  pose.kneeRight = 1.05;
   pose.shoulderLeftPitch = -0.45;
   pose.shoulderRightPitch = -0.45;
   pose.shoulderLeftRoll = 0.55;

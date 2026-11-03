@@ -27,11 +27,12 @@ interface MenuItem {
   label: string;
   kind: ItemKind;
   primary?: boolean;
-  hint?: string;
+  /** True when the value wraps round, so repeated clicks cycle through it. */
+  cycle?: boolean;
   value?: () => string;
   activate?: () => void;
   adjust?: (direction: -1 | 1) => void;
-  element?: HTMLButtonElement;
+  element?: HTMLElement;
   valueElement?: HTMLSpanElement;
 }
 
@@ -78,9 +79,14 @@ export class Interface {
   private axisLatch = 0;
   private keyHandler: ((event: KeyboardEvent) => void) | null = null;
 
+  /**
+   * `getSettings` reads the live settings from the game rather than keeping a
+   * copy here. Two copies previously drifted apart, so the menu and the
+   * performance panel could disagree about the active quality level.
+   */
   constructor(
     container: HTMLElement,
-    private settings: UserSettings,
+    private readonly getSettings: () => UserSettings,
     private readonly callbacks: InterfaceCallbacks,
   ) {
     this.root = document.createElement('div');
@@ -257,17 +263,17 @@ export class Interface {
       id: 'quality',
       label: 'Graphics',
       kind: 'option',
-      hint: '← →',
-      value: () => QUALITY_LABEL[this.settings.quality],
+      cycle: true,
+      value: () => QUALITY_LABEL[this.getSettings().quality],
       adjust: (direction) => {
-        const index = QUALITY_ORDER.indexOf(this.settings.quality);
-        const next = QUALITY_ORDER[
-          Math.min(QUALITY_ORDER.length - 1, Math.max(0, index + direction))
-        ];
-        if (next === this.settings.quality) return;
-        this.settings = { ...this.settings, quality: next };
+        const current = this.getSettings().quality;
+        const index = QUALITY_ORDER.indexOf(current);
+        // Wraps round. Without this, clicking the row only ever stepped
+        // upward and stuck at High with no way back to Low.
+        const next =
+          QUALITY_ORDER[(index + direction + QUALITY_ORDER.length) % QUALITY_ORDER.length];
+        if (next === current) return;
         this.callbacks.onQualityChange(next);
-        this.callbacks.onSettingsChange(this.settings);
         this.refreshValues();
       },
     };
@@ -278,15 +284,15 @@ export class Interface {
       id: 'sensitivity',
       label: 'Camera sensitivity',
       kind: 'option',
-      hint: '← →',
-      value: () => `${this.settings.cameraSensitivity.toFixed(1)}×`,
+      value: () => `${this.getSettings().cameraSensitivity.toFixed(1)}×`,
       adjust: (direction) => {
+        const current = this.getSettings();
         const next = Math.min(
           3,
-          Math.max(0.2, Math.round((this.settings.cameraSensitivity + direction * 0.1) * 10) / 10),
+          Math.max(0.2, Math.round((current.cameraSensitivity + direction * 0.1) * 10) / 10),
         );
-        this.settings = { ...this.settings, cameraSensitivity: next };
-        this.callbacks.onSettingsChange(this.settings);
+        if (next === current.cameraSensitivity) return;
+        this.callbacks.onSettingsChange({ ...current, cameraSensitivity: next });
         this.refreshValues();
       },
     };
@@ -297,11 +303,11 @@ export class Interface {
       id: 'invert',
       label: 'Invert camera Y',
       kind: 'option',
-      hint: '← →',
-      value: () => (this.settings.invertCameraY ? 'On' : 'Off'),
+      cycle: true,
+      value: () => (this.getSettings().invertCameraY ? 'On' : 'Off'),
       adjust: () => {
-        this.settings = { ...this.settings, invertCameraY: !this.settings.invertCameraY };
-        this.callbacks.onSettingsChange(this.settings);
+        const current = this.getSettings();
+        this.callbacks.onSettingsChange({ ...current, invertCameraY: !current.invertCameraY });
         this.refreshValues();
       },
     };
@@ -309,48 +315,76 @@ export class Interface {
 
   private renderItems(items: MenuItem[], panel: HTMLElement): void {
     items.forEach((item, index) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `menu-item${item.primary ? ' menu-item--primary' : ''}`;
+      const focus = () => {
+        this.activeIndex = index;
+        this.highlight();
+      };
 
-      const label = document.createElement('span');
-      label.textContent = item.label;
-      button.appendChild(label);
-
-      if (item.kind === 'option') {
-        const right = document.createElement('span');
-        right.style.display = 'flex';
-        right.style.alignItems = 'center';
-        right.style.gap = '10px';
-
-        const value = document.createElement('span');
-        value.className = 'menu-item__value';
-        value.textContent = item.value ? item.value() : '';
-        right.appendChild(value);
-        item.valueElement = value;
-
-        if (item.hint) {
-          const hint = document.createElement('span');
-          hint.className = 'menu-item__hint';
-          hint.textContent = item.hint;
-          right.appendChild(hint);
-        }
-        button.appendChild(right);
+      if (item.kind === 'button') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `menu-item${item.primary ? ' menu-item--primary' : ''}`;
+        button.textContent = item.label;
+        button.addEventListener('click', () => {
+          focus();
+          item.activate?.();
+        });
+        button.addEventListener('mouseenter', focus);
+        item.element = button;
+        panel.appendChild(button);
+        return;
       }
 
-      button.addEventListener('click', () => {
-        this.activeIndex = index;
-        this.highlight();
-        if (item.kind === 'option') item.adjust?.(1);
-        else item.activate?.();
-      });
-      button.addEventListener('mouseenter', () => {
-        this.activeIndex = index;
-        this.highlight();
-      });
+      // Option rows carry their own arrow buttons, so a value can be stepped
+      // in either direction with the mouse as well as with a key or a stick.
+      const row = document.createElement('div');
+      row.className = 'menu-item menu-item--option';
+      row.addEventListener('mouseenter', focus);
 
-      item.element = button;
-      panel.appendChild(button);
+      const label = document.createElement('span');
+      label.className = 'menu-item__label';
+      label.textContent = item.label;
+      row.appendChild(label);
+
+      const controls = document.createElement('div');
+      controls.className = 'menu-item__controls';
+
+      const makeArrow = (direction: -1 | 1, glyph: string, title: string) => {
+        const arrow = document.createElement('button');
+        arrow.type = 'button';
+        arrow.className = 'menu-item__arrow';
+        arrow.textContent = glyph;
+        arrow.setAttribute('aria-label', `${title} ${item.label}`);
+        arrow.addEventListener('click', (event) => {
+          event.stopPropagation();
+          focus();
+          item.adjust?.(direction);
+        });
+        return arrow;
+      };
+
+      const value = document.createElement('span');
+      value.className = 'menu-item__value';
+      value.textContent = item.value ? item.value() : '';
+      item.valueElement = value;
+
+      controls.appendChild(makeArrow(-1, '\u25C0', 'Decrease'));
+      controls.appendChild(value);
+      controls.appendChild(makeArrow(1, '\u25B6', 'Increase'));
+      row.appendChild(controls);
+
+      // Clicking the row itself steps forward, but only where the value wraps,
+      // so a slider cannot be driven to its end and left stuck there.
+      if (item.cycle) {
+        row.addEventListener('click', () => {
+          focus();
+          item.adjust?.(1);
+        });
+        row.classList.add('menu-item--clickable');
+      }
+
+      item.element = row;
+      panel.appendChild(row);
     });
   }
 
@@ -518,8 +552,8 @@ export class Interface {
     this.loader.classList.remove('is-fading');
   }
 
-  updateSettings(settings: UserSettings): void {
-    this.settings = settings;
+  /** Re-reads the live settings into every menu row. */
+  refresh(): void {
     this.refreshValues();
   }
 

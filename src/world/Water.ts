@@ -77,10 +77,14 @@ const FRAGMENT = /* glsl */ `
 
     vec3 color = mix(baseColor, uSkyColor, fresnel * uReflectivity);
 
-    // Sun glitter.
+    // Sun glitter. The wave normal varies slowly, so an unbroken highlight
+    // showed up as one large white smear; fine ripples break it into glints.
     vec3 halfVector = normalize(uSunDirection + viewDirection);
-    float specular = pow(max(dot(normal, halfVector), 0.0), 220.0);
-    color += vec3(1.0, 0.97, 0.88) * specular * 1.8;
+    float specular = pow(max(dot(normal, halfVector), 0.0), 420.0);
+    float ripple = 0.5 + 0.5 *
+      sin(vWorldPosition.x * 8.3 + uTime * 2.6) *
+      sin(vWorldPosition.z * 7.1 - uTime * 2.1);
+    color += vec3(1.0, 0.97, 0.88) * specular * (0.25 + ripple * 0.7);
 
     // Fine sparkle so the surface is never completely still. Three
     // non-harmonic frequencies, so it does not settle into a visible grid.

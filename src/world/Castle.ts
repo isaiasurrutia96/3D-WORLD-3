@@ -34,6 +34,9 @@ const MAIN_HEIGHT = 13;
 const MAIN_MIN_Z = -24;
 const MAIN_MAX_Z = CASTLE_FRONT_Z;
 
+/** Centre of the plinth, sized so every tower base rests fully on it. */
+const PLINTH_CENTRE_Z = -13.5;
+
 const TOWER_RADIUS = 4.5;
 const TOWER_HEIGHT = 19;
 const KEEP_RADIUS = 8;
@@ -163,11 +166,13 @@ export function createCastle(): { group: Group; solid: Object3D } {
   const materials = createCastleMaterials();
 
   // ---- Plinth --------------------------------------------------------------
-  builder.add('stoneDark', new BoxGeometry(46, PLINTH_HEIGHT, 28), {
-    position: [0, PLINTH_HEIGHT / 2, -14],
+  builder.add('stoneDark', new BoxGeometry(47, PLINTH_HEIGHT, 31), {
+    position: [0, PLINTH_HEIGHT / 2, PLINTH_CENTRE_Z],
   });
-  builder.add('stone', new BoxGeometry(44.4, 0.3, 26.4), {
-    position: [0, PLINTH_HEIGHT, -14],
+  // Set flush with the plinth top rather than straddling it: a cap that
+  // stands 0.15 proud is a solid lip the player walks into.
+  builder.add('stone', new BoxGeometry(46.4, 0.3, 30.4), {
+    position: [0, PLINTH_HEIGHT - 0.15, PLINTH_CENTRE_Z],
   });
 
   // ---- Main hall -----------------------------------------------------------
@@ -199,17 +204,25 @@ export function createCastle(): { group: Group; solid: Object3D } {
   builder.add('stoneTrim', new BoxGeometry(6.4, 7.2, 0.5), {
     position: [0, PLINTH_HEIGHT + 3.6, doorZ],
   });
-  builder.add('stoneTrim', new CylinderGeometry(3.2, 3.2, 0.5, 18, 1, false, 0, Math.PI), {
-    position: [0, PLINTH_HEIGHT + 7.2, doorZ],
-    rotation: [Math.PI / 2, 0, 0],
-  });
+  builder.add(
+    'stoneTrim',
+    new CylinderGeometry(3.2, 3.2, 0.5, 18, 1, false, -Math.PI / 2, Math.PI),
+    {
+      position: [0, PLINTH_HEIGHT + 7.2, doorZ],
+      rotation: [-Math.PI / 2, 0, 0],
+    },
+  );
   builder.add('wood', new BoxGeometry(5.2, 6.6, 0.3), {
     position: [0, PLINTH_HEIGHT + 3.3, doorZ + 0.2],
   });
-  builder.add('wood', new CylinderGeometry(2.6, 2.6, 0.3, 18, 1, false, 0, Math.PI), {
-    position: [0, PLINTH_HEIGHT + 6.6, doorZ + 0.2],
-    rotation: [Math.PI / 2, 0, 0],
-  });
+  builder.add(
+    'wood',
+    new CylinderGeometry(2.6, 2.6, 0.3, 18, 1, false, -Math.PI / 2, Math.PI),
+    {
+      position: [0, PLINTH_HEIGHT + 6.6, doorZ + 0.2],
+      rotation: [-Math.PI / 2, 0, 0],
+    },
+  );
   // Door furniture.
   for (const x of [-1.5, 1.5]) {
     builder.add('gold', new TorusGeometry(0.42, 0.1, 6, 14), {
@@ -279,8 +292,10 @@ export function createCastle(): { group: Group; solid: Object3D } {
   // Plank seams.
   const plankCount = Math.round(deckLength / 1.5);
   for (let i = 0; i < plankCount; i += 1) {
+    // Flush with the deck surface. These used to stand 0.05 proud, which made
+    // a row of ridges across the bridge that stopped the character dead.
     bridgeBuilder.add('stoneDark', new BoxGeometry(BRIDGE_HALF_WIDTH * 2 + 0.05, 0.06, 0.1), {
-      position: [0, BRIDGE_DECK_Y + 0.22, BRIDGE_MIN_Z + (i + 0.5) * (deckLength / plankCount)],
+      position: [0, BRIDGE_DECK_Y + 0.17, BRIDGE_MIN_Z + (i + 0.5) * (deckLength / plankCount)],
     });
   }
 
@@ -306,12 +321,39 @@ export function createCastle(): { group: Group; solid: Object3D } {
     });
   }
 
-  // Stone abutments where the bridge meets each bank.
-  for (const z of [BRIDGE_MIN_Z - 0.4, BRIDGE_MAX_Z + 0.4]) {
-    bridgeBuilder.add('stoneDark', new BoxGeometry(BRIDGE_HALF_WIDTH * 2 + 1.6, 2.2, 2.4), {
-      position: [0, BRIDGE_DECK_Y - 0.9, z],
-    });
-  }
+  // Stone approach ramps where the bridge meets each bank.
+  //
+  // The deck sits 0.75 above the ground. These used to be plain blocks, which
+  // made the bridge a vertical step the character could only get onto by
+  // jumping — the first obstacle in the game, and an accidental one. Each ramp
+  // now climbs that 0.75 over 2.2 of ground, a slope of about nineteen
+  // degrees, which is comfortably walkable.
+  const deckTop = BRIDGE_DECK_Y + 0.2;
+  const rampRun = 2.2;
+  const rampAngle = Math.atan2(deckTop, rampRun);
+  const rampLength = Math.hypot(rampRun, deckTop);
+  const rampThickness = 0.5;
+  const rampWidth = BRIDGE_HALF_WIDTH * 2 + 1.6;
+
+  // Outer ramp: ground at the far end, deck height at the bridge end.
+  bridgeBuilder.add('stoneDark', new BoxGeometry(rampWidth, rampThickness, rampLength), {
+    position: [
+      0,
+      deckTop / 2 - (rampThickness / 2) * Math.cos(rampAngle),
+      BRIDGE_MAX_Z + rampRun / 2 - (rampThickness / 2) * Math.sin(rampAngle),
+    ],
+    rotation: [rampAngle, 0, 0],
+  });
+
+  // Inner ramp: the mirror image on the island side.
+  bridgeBuilder.add('stoneDark', new BoxGeometry(rampWidth, rampThickness, rampLength), {
+    position: [
+      0,
+      deckTop / 2 - (rampThickness / 2) * Math.cos(rampAngle),
+      BRIDGE_MIN_Z - rampRun / 2 + (rampThickness / 2) * Math.sin(rampAngle),
+    ],
+    rotation: [-rampAngle, 0, 0],
+  });
 
   bridgeBuilder.build(group, materials, { castShadow: true, receiveShadow: true });
 

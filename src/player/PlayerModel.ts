@@ -75,6 +75,16 @@ function part(
 /**
  * Builds the character facing +Z with its feet at y = 0, so the root's
  * y-rotation can be set directly from the character's facing angle.
+ *
+ * Heights are laid out deliberately rather than by eye, because the head used
+ * to sit inside the shirt. Reading upward from the feet:
+ *
+ *   0.00  soles          0.72  hip joints      1.10  shoulder joints
+ *   1.24  top of chest   1.21  base of neck    1.50  centre of head
+ *   1.82  top of the cap
+ *
+ * The chest ends below the head, and the neck bridges the gap, so no pose can
+ * drive the jaw into the collar.
  */
 export function createCharacterRig(): CharacterRig {
   const materials: MeshStandardMaterial[] = [];
@@ -97,55 +107,68 @@ export function createCharacterRig(): CharacterRig {
   const body = new Group();
   root.add(body);
 
-  // ---- Torso ---------------------------------------------------------------
+  // The torso's origin sits on the hip line, so leg offsets are read directly.
   const torso = new Group();
-  torso.position.y = 0.92;
+  torso.position.y = 0.72;
   body.add(torso);
 
-  // Overalls bib and trousers read as one rounded mass.
-  torso.add(part(new CapsuleGeometry(0.3, 0.26, 4, 12), overallMaterial, [0, -0.06, 0]));
-  // Shirt across the chest and shoulders.
-  torso.add(part(new CapsuleGeometry(0.295, 0.1, 4, 12), shirtMaterial, [0, 0.22, 0]));
-  // Straps.
-  for (const x of [-0.14, 0.14]) {
-    torso.add(part(new BoxGeometry(0.075, 0.3, 0.055), overallMaterial, [x, 0.21, 0.225]));
-    torso.add(part(new SphereGeometry(0.045, 8, 6), buckleMaterial, [x, 0.1, 0.258]));
+  // ---- Torso ---------------------------------------------------------------
+  // Trousers: wide and low. Local 0 is the hip line.
+  torso.add(part(new CapsuleGeometry(0.29, 0.1, 4, 12), overallMaterial, [0, 0, 0]));
+  // Chest: narrower, reaching up to 1.24 in world terms and no further.
+  torso.add(part(new CapsuleGeometry(0.285, 0.14, 4, 12), shirtMaterial, [0, 0.16, 0]));
+  // Bib across the front, so the overalls read as overalls from any angle.
+  torso.add(part(new BoxGeometry(0.33, 0.36, 0.1), overallMaterial, [0, 0.19, 0.225]));
+  for (const x of [-0.135, 0.135]) {
+    torso.add(part(new BoxGeometry(0.08, 0.26, 0.07), overallMaterial, [x, 0.4, 0.2]));
+    torso.add(part(new SphereGeometry(0.045, 8, 6), buckleMaterial, [x, 0.3, 0.265]));
   }
+
+  // ---- Neck ----------------------------------------------------------------
+  torso.add(part(new CylinderGeometry(0.105, 0.125, 0.2, 10), skinMaterial, [0, 0.58, 0.01]));
 
   // ---- Head ----------------------------------------------------------------
+  // The head group's origin is the centre of the head.
   const head = new Group();
-  head.position.y = 0.42;
+  head.position.set(0, 0.78, 0);
   torso.add(head);
 
-  head.add(part(new SphereGeometry(0.265, 16, 14), skinMaterial, [0, 0.07, 0]));
-  // Slight jaw so the profile is not a plain ball.
-  head.add(part(new SphereGeometry(0.2, 12, 10), skinMaterial, [0, -0.04, 0.03]));
+  head.add(part(new SphereGeometry(0.245, 16, 14), skinMaterial));
 
-  // Cap: a dome with a brim.
-  const capDome = part(new SphereGeometry(0.278, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), shirtMaterial, [0, 0.11, 0]);
-  head.add(capDome);
-  const brim = part(new CylinderGeometry(0.17, 0.2, 0.045, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5), shirtMaterial, [0, 0.125, 0.175]);
-  brim.rotation.x = -0.18;
+  // Cap: a dome with a brim, sitting above the eyes rather than over them.
+  head.add(
+    part(
+      new SphereGeometry(0.255, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.54),
+      shirtMaterial,
+      [0, 0.045, 0],
+    ),
+  );
+  const brim = part(
+    new CylinderGeometry(0.16, 0.19, 0.045, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5),
+    shirtMaterial,
+    [0, 0.055, 0.17],
+  );
+  brim.rotation.x = -0.16;
   head.add(brim);
-  // Cap badge.
-  head.add(part(new SphereGeometry(0.075, 10, 8), gloveMaterial, [0, 0.16, 0.225]));
+  head.add(part(new SphereGeometry(0.07, 10, 8), gloveMaterial, [0, 0.095, 0.21]));
 
-  // Sideburns keep the silhouette readable from behind.
-  for (const x of [-0.235, 0.235]) {
-    head.add(part(new SphereGeometry(0.055, 8, 7), hairMaterial, [x, -0.085, 0.015]));
+  // Hair at the back and sides, kept below the eyeline.
+  head.add(part(new SphereGeometry(0.1, 10, 8), hairMaterial, [0, -0.07, -0.2]));
+  for (const x of [-0.205, 0.205]) {
+    const sideburn = part(new SphereGeometry(0.045, 8, 7), hairMaterial, [x, -0.1, 0.035]);
+    sideburn.scale.set(0.8, 1.15, 1);
+    head.add(sideburn);
   }
-  head.add(part(new SphereGeometry(0.12, 10, 8), hairMaterial, [0, -0.02, -0.21]));
 
   // Face.
-  head.add(part(new SphereGeometry(0.082, 12, 10), skinMaterial, [0, -0.025, 0.248]));
-  for (const x of [-0.095, 0.095]) {
-    const eye = part(new SphereGeometry(0.042, 10, 8), eyeMaterial, [x, 0.045, 0.218]);
+  head.add(part(new SphereGeometry(0.08, 12, 10), skinMaterial, [0, -0.025, 0.228]));
+  for (const x of [-0.09, 0.09]) {
+    const eye = part(new SphereGeometry(0.04, 10, 8), eyeMaterial, [x, 0.055, 0.2]);
     eye.scale.set(0.8, 1.25, 0.6);
     head.add(eye);
   }
-  // Moustache, as two soft lobes under the nose.
-  for (const x of [-0.085, 0.085]) {
-    const lobe = part(new SphereGeometry(0.065, 10, 8), hairMaterial, [x, -0.085, 0.205]);
+  for (const x of [-0.08, 0.08]) {
+    const lobe = part(new SphereGeometry(0.062, 10, 8), hairMaterial, [x, -0.085, 0.19]);
     lobe.scale.set(1.05, 0.55, 0.75);
     head.add(lobe);
   }
@@ -153,16 +176,16 @@ export function createCharacterRig(): CharacterRig {
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.3 * side, 0.235, 0);
+    shoulder.position.set(0.3 * side, 0.38, 0);
     torso.add(shoulder);
 
-    shoulder.add(part(new CapsuleGeometry(0.093, 0.17, 4, 10), shirtMaterial, [0, -0.13, 0]));
+    shoulder.add(part(new CapsuleGeometry(0.095, 0.18, 4, 10), shirtMaterial, [0, -0.14, 0]));
 
     const elbow = new Group();
-    elbow.position.y = -0.255;
+    elbow.position.y = -0.29;
     shoulder.add(elbow);
-    elbow.add(part(new CapsuleGeometry(0.085, 0.14, 4, 10), shirtMaterial, [0, -0.1, 0]));
-    const glove = part(new SphereGeometry(0.125, 12, 10), gloveMaterial, [0, -0.23, 0]);
+    elbow.add(part(new CapsuleGeometry(0.087, 0.17, 4, 10), shirtMaterial, [0, -0.12, 0]));
+    const glove = part(new SphereGeometry(0.128, 12, 10), gloveMaterial, [0, -0.28, 0]);
     glove.scale.set(1, 0.95, 1.05);
     elbow.add(glove);
 
@@ -175,16 +198,16 @@ export function createCharacterRig(): CharacterRig {
   // ---- Legs ----------------------------------------------------------------
   const buildLeg = (side: -1 | 1) => {
     const hip = new Group();
-    hip.position.set(0.135 * side, -0.3, 0);
+    hip.position.set(0.135 * side, 0, 0);
     torso.add(hip);
-    hip.add(part(new CapsuleGeometry(0.115, 0.17, 4, 10), overallMaterial, [0, -0.13, 0]));
+    hip.add(part(new CapsuleGeometry(0.118, 0.2, 4, 10), overallMaterial, [0, -0.16, 0]));
 
     const knee = new Group();
-    knee.position.y = -0.26;
+    knee.position.y = -0.32;
     hip.add(knee);
-    knee.add(part(new CapsuleGeometry(0.1, 0.14, 4, 10), overallMaterial, [0, -0.1, 0]));
+    knee.add(part(new CapsuleGeometry(0.102, 0.17, 4, 10), overallMaterial, [0, -0.12, 0]));
 
-    const shoe = part(new SphereGeometry(0.15, 12, 10), shoeMaterial, [0, -0.225, 0.045]);
+    const shoe = part(new SphereGeometry(0.155, 12, 10), shoeMaterial, [0, -0.28, 0.05]);
     shoe.scale.set(1.0, 0.62, 1.45);
     knee.add(shoe);
 
@@ -196,7 +219,7 @@ export function createCharacterRig(): CharacterRig {
 
   // Where carried objects attach: out in front, at chest height.
   const carryAnchor = new Object3D();
-  carryAnchor.position.set(0, 0.07, 0.52);
+  carryAnchor.position.set(0, 0.26, 0.56);
   torso.add(carryAnchor);
 
   root.traverse((object) => {
@@ -225,5 +248,5 @@ export function createCharacterRig(): CharacterRig {
 }
 
 /** Total height of the rig in world units, used to size the collision capsule. */
-export const CHARACTER_HEIGHT = 1.72;
+export const CHARACTER_HEIGHT = 1.82;
 export const CHARACTER_RADIUS = 0.34;
