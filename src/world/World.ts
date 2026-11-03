@@ -129,7 +129,7 @@ export function buildWorld(
   for (const tree of treePlacements) {
     // The climbable section stops short of the canopy so the character lets
     // go at the top rather than disappearing into the leaves.
-    collision.addClimbable(
+    collision.addClimbablePost(
       tree.position.clone(),
       tree.trunkRadius,
       tree.trunkHeight + 1.1,

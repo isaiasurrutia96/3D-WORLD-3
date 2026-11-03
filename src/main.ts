@@ -1,141 +1,151 @@
 /**
- * LetsGo — Milestone 1: the character's body.
+ * LetsGo — Milestone: movement.
  *
- * A small floor slab and the figure standing on it, in one neutral clay
- * material. No clothing, no face, no colour and no movement — only the form,
- * so proportion and silhouette can be judged without anything else helping.
- *
- * The joints are all present and correctly parented, so the same rig animates
- * later without being rebuilt: neck, shoulders, elbows, hips, knees, ankles.
- *
- * Drag to orbit him. Scroll to move closer or further away.
+ * The same figure as the last milestone, still in one neutral material, now
+ * running, jumping and climbing on a bare test ground. Nothing here is
+ * decoration: the floor markings show speed, the blocks show jump height and
+ * distance, and the ladder up the box shows climbing and topping out.
  */
 
 import './styles.css';
-import { Group, MathUtils } from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './core/Engine.ts';
-import { loadSettings } from './core/Settings.ts';
+import { CameraRig } from './core/CameraRig.ts';
+import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
+import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
-import { createCharacterRig, CHARACTER_HEIGHT, type CharacterRig } from './player/PlayerModel.ts';
+import { Player } from './player/Player.ts';
+import { ParticleEffects } from './world/Effects.ts';
 import { buildSlab, type SlabWorld } from './world/Slab.ts';
+import { Hud } from './ui/Hud.ts';
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Missing #app container');
 
-/**
- * The resting pose. Not an animation — a single set of joint angles, so he
- * stands like a person rather than like a diagram with its arms welded to its
- * sides. Every value here is one the animation system will later drive.
- */
-const STANDING_POSE = {
-  shoulderPitch: 0.04,
-  shoulderRoll: 0.17,
-  elbow: -0.16,
-  hip: -0.02,
-  knee: 0.03,
-  ankle: 0.02,
-};
+/** Caps the step so a stall cannot teleport the character through the floor. */
+const MAX_DELTA = 1 / 20;
 
-class Viewer {
+class Game {
+  private settings: UserSettings = loadSettings();
   private readonly engine: Engine;
-  private readonly controls: OrbitControls;
-  private readonly rig: CharacterRig;
+  private readonly hud: Hud;
+  private readonly input = new Input();
+  private readonly collision = new CollisionWorld();
+  private readonly effects: ParticleEffects;
+
   private readonly world: SlabWorld;
-  private readonly subject = new Group();
+  private readonly player: Player;
+  private readonly cameraRig: CameraRig;
+
+  private running = true;
 
   constructor() {
-    const settings = loadSettings();
-    this.engine = new Engine(container as HTMLElement, settings.quality);
+    this.engine = new Engine(container as HTMLElement, this.settings.quality);
     this.engine.setStudioMode(true);
+    this.effects = new ParticleEffects(this.engine.scene);
 
-    // The collision world is not used here, but building the slab through it
-    // keeps this scene on the same path the playable ones use.
-    this.world = buildSlab(this.engine.scene, new CollisionWorld());
+    this.world = buildSlab(this.engine.scene, this.collision);
 
-    this.rig = createCharacterRig({ plain: true });
-    this.subject.add(this.rig.root);
-    this.subject.position.copy(this.world.spawn);
-    this.engine.scene.add(this.subject);
+    this.player = new Player(
+      this.collision,
+      this.world.spawn,
+      {
+        onLand: (position, strength) => {
+          if (strength > 0.25) this.effects.dust(position, strength);
+        },
+      },
+      // Still the plain clay figure: the form is settled, the movement is not.
+      { plain: true },
+    );
+    this.player.facing = this.world.spawnFacing;
+    this.engine.scene.add(this.player.object);
 
-    this.applyStandingPose();
+    this.cameraRig = new CameraRig(this.engine.camera, this.collision);
+    this.cameraRig.reset(this.player);
 
-    this.engine.camera.position.set(2.2, 1.35, 2.9);
-    this.controls = new OrbitControls(this.engine.camera, this.engine.renderer.domElement);
-    this.controls.target.set(0, CHARACTER_HEIGHT * 0.52, 0);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 1.4;
-    this.controls.maxDistance = 9;
-    // Stop the camera going under the floor or directly overhead.
-    this.controls.minPolarAngle = 0.2;
-    this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.controls.update();
+    this.hud = new Hud(container as HTMLElement);
+    this.input.attach(this.engine.renderer.domElement);
+    this.input.setPointerLockWanted(true);
 
-    this.addHint();
+    window.addEventListener('keydown', this.onGlobalKey);
+
     this.engine.clock.start();
     requestAnimationFrame(this.frame);
   }
 
-  /** Sets each joint once. Nothing moves after this. */
-  private applyStandingPose(): void {
-    const p = STANDING_POSE;
-    this.rig.shoulderLeft.rotation.set(p.shoulderPitch, 0, -p.shoulderRoll);
-    this.rig.shoulderRight.rotation.set(p.shoulderPitch, 0, p.shoulderRoll);
-    this.rig.elbowLeft.rotation.x = p.elbow;
-    this.rig.elbowRight.rotation.x = p.elbow;
-    this.rig.hipLeft.rotation.x = p.hip;
-    this.rig.hipRight.rotation.x = p.hip;
-    this.rig.kneeLeft.rotation.x = p.knee;
-    this.rig.kneeRight.rotation.x = p.knee;
-    this.rig.ankleLeft.rotation.x = p.ankle;
-    this.rig.ankleRight.rotation.x = p.ankle;
-  }
-
-  private addHint(): void {
-    const hint = document.createElement('div');
-    hint.className = 'viewer-hint';
-    hint.innerHTML = `
-      <b>Drag</b> to orbit · <b>Scroll</b> to zoom<br />
-      Height ${CHARACTER_HEIGHT.toFixed(2)}m ·
-      ${(CHARACTER_HEIGHT / 0.43).toFixed(1)} heads tall
-    `;
-    (container as HTMLElement).appendChild(hint);
-  }
-
-  private frame = (): void => {
-    requestAnimationFrame(this.frame);
-    const delta = Math.min(1 / 20, this.engine.clock.getDelta());
-    this.controls.update();
-    this.engine.focusShadowsOn(this.subject.position);
-    this.engine.render(delta);
+  private onGlobalKey = (event: KeyboardEvent): void => {
+    if (event.code === 'F3') {
+      event.preventDefault();
+      this.hud.toggleStats();
+    }
+    if (event.code === 'KeyR') {
+      this.player.teleport(this.world.spawn, this.world.spawnFacing);
+      this.cameraRig.reset(this.player);
+    }
+    if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3') {
+      const quality = (
+        { Digit1: 'low', Digit2: 'medium', Digit3: 'high' } as const
+      )[event.code as 'Digit1' | 'Digit2' | 'Digit3'];
+      this.settings = { ...this.settings, quality };
+      this.engine.applyQuality(quality);
+      this.engine.setStudioMode(true);
+      saveSettings(this.settings);
+    }
   };
 
-  /** Read-only handles for the headless verification pass. */
+  private frame = (): void => {
+    if (!this.running) return;
+    requestAnimationFrame(this.frame);
+
+    const delta = Math.min(MAX_DELTA, this.engine.clock.getDelta());
+
+    this.input.update(this.settings.cameraSensitivity, this.settings.invertCameraY);
+    this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
+    this.player.update(delta, this.input, this.cameraRig.movementYaw);
+    this.cameraRig.update(delta, this.player);
+
+    this.effects.update(delta);
+    this.engine.focusShadowsOn(this.player.position);
+    this.engine.render(delta);
+
+    this.hud.update({
+      fps: this.engine.fps,
+      quality: this.settings.quality,
+      drawCalls: this.engine.renderer.info.render.calls,
+      triangles: this.engine.renderer.info.render.triangles,
+      state: this.player.stateName,
+      speed: this.player.speed,
+      position: this.player.position,
+      gamepad: this.input.gamepadConnected,
+    });
+  };
+
+  /** Read-only handles, plus capture helpers, for the verification pass. */
   get debug() {
     return {
       engine: this.engine,
-      rig: this.rig,
-      controls: this.controls,
+      player: this.player,
+      world: this.world,
+      settings: this.settings,
+      rig: this.player.rig,
 
-      /** Renders one frame from a fixed angle around the character. */
-      viewFrom: (degrees: number, elevation: number, distance: number): void => {
-        const radians = MathUtils.degToRad(degrees);
+      freeze: (): void => {
+        this.running = false;
+      },
+
+      renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;
-        camera.position.set(
-          Math.sin(radians) * distance,
-          elevation,
-          Math.cos(radians) * distance,
-        );
-        camera.lookAt(0, CHARACTER_HEIGHT * 0.52, 0);
+        const target = this.player.position;
+        camera.position.set(target.x + dx, target.y + dy, target.z + dz);
+        camera.lookAt(target.x, target.y + lookHeight, target.z);
         camera.updateMatrixWorld();
+        this.engine.focusShadowsOn(target);
         this.engine.render(1 / 60);
       },
     };
   }
 }
 
-const viewer = new Viewer();
+const game = new Game();
 
-// Surfaced so the headless verification pass can inspect the running scene.
-(window as unknown as Record<string, unknown>).__letsgo = viewer;
+// Surfaced so the headless verification pass can inspect the running game.
+(window as unknown as Record<string, unknown>).__letsgo = game;

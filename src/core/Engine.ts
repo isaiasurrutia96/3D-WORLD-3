@@ -127,12 +127,14 @@ export class Engine {
     if (enabled) {
       this.scene.fog = null;
       (this.scene.background as Color).set(0x12161d);
-      this.sun.intensity = 2.0;
+      this.sun.intensity = 1.9;
       this.sun.color.set(0xfff4e2);
-      this.hemisphere.intensity = 0.5;
-      this.hemisphere.color.set(0x9fb6d4);
-      this.hemisphere.groundColor.set(0x3a3f4a);
-      this.ambient.intensity = 0.16;
+      // Enough fill that anything standing in the key light's shadow — on the
+      // far side of the box, or on the ladder — is still readable.
+      this.hemisphere.intensity = 0.95;
+      this.hemisphere.color.set(0xa8bdd8);
+      this.hemisphere.groundColor.set(0x474d58);
+      this.ambient.intensity = 0.3;
 
       if (!this.rimLight) {
         // Behind and slightly above, pointing back toward the camera side.

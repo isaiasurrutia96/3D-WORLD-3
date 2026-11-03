@@ -86,8 +86,12 @@ export const TUNING = {
 
   // ---- Climbing ----------------------------------------------------------
   climbSpeed: 2.6,
-  /** Radians per second the character circles the post. */
+  /** Radians per second the character circles a post. */
   climbRotateSpeed: 2.3,
+  /** Metres per second the character moves sideways along a ladder. */
+  climbSideSpeed: 1.4,
+  /** How hard topping out carries the character over the edge. */
+  climbTopOutPush: 3.6,
   /** Horizontal push given when jumping off a post. */
   climbDismountPush: 5.4,
   climbDismountLift: 7.2,

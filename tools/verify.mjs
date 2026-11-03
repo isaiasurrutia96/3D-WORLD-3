@@ -1,9 +1,9 @@
 /**
  * Headless verification for milestone 1: the character's body.
  *
- * Builds the page, loads it in a real browser, checks that every joint of the
- * rig is present, fails on any console error, and writes a turnaround of the
- * figure to tools/shots/.
+ * Builds the page, loads it in a real browser, drives running, walking,
+ * jumping and climbing the ladder onto the box, fails on any console error,
+ * and writes screenshots to tools/shots/.
  *
  * This runs on a cloud machine with software rendering, so the frame rate it
  * reports says nothing about real hardware. It answers "does it load, respond
@@ -66,49 +66,114 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
 await page.goto(BASE, { waitUntil: 'load', timeout: 60000 });
-await page.waitForFunction(() => window.__letsgo?.debug?.rig !== undefined, null, {
+await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
   timeout: 60000,
 });
 await page.waitForTimeout(1500);
 
-// ---- The scene must load and build the rig -------------------------------
-const rigJoints = await page.evaluate(() => {
-  const rig = window.__letsgo.debug.rig;
-  return Object.keys(rig).filter((key) => key !== 'materials');
+// ---- Running --------------------------------------------------------------
+const steps = [];
+await page.screenshot({ path: `${SHOTS}01-standing.png` });
+
+const beforeRun = await playerPosition(page);
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(1200);
+const runSpeed = (await snapshot(page, 'run')).speed;
+await page.screenshot({ path: `${SHOTS}02-running.png` });
+await page.keyboard.up('KeyW');
+steps.push(await snapshot(page, 'run'));
+const afterRun = await playerPosition(page);
+
+const travelled = Math.hypot(afterRun.x - beforeRun.x, afterRun.z - beforeRun.z);
+if (travelled < 3) problems.push(`holding W moved the character only ${travelled.toFixed(1)}m`);
+
+await resetPlayer(page);
+
+// ---- Walking must be clearly slower --------------------------------------
+await page.keyboard.down('ShiftLeft');
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(1400);
+const walkSpeed = (await snapshot(page, 'walk')).speed;
+await page.screenshot({ path: `${SHOTS}03-walking.png` });
+await page.keyboard.up('KeyW');
+await page.keyboard.up('ShiftLeft');
+steps.push(await snapshot(page, 'walk'));
+if (!(walkSpeed > 0.5 && walkSpeed < runSpeed * 0.8)) {
+  problems.push(`walk speed ${walkSpeed} is not clearly slower than run speed ${runSpeed}`);
+}
+
+await resetPlayer(page);
+
+// ---- Jumping --------------------------------------------------------------
+// The apex is recorded inside the page. Polling it over the wire missed it
+// entirely, because a screenshot between samples takes longer than the jump.
+await page.evaluate(() => {
+  window.__peak = 0;
+  window.__peakTimer = window.setInterval(() => {
+    window.__peak = Math.max(window.__peak, window.__letsgo.debug.player.position.y);
+  }, 16);
+});
+await page.keyboard.down('Space');
+await waitForState(page, (state) => state === 'jump');
+steps.push(await snapshot(page, 'jump'));
+await page.screenshot({ path: `${SHOTS}04-jump.png` });
+await page.waitForTimeout(1200);
+await page.keyboard.up('Space');
+const peak = await page.evaluate(() => {
+  window.clearInterval(window.__peakTimer);
+  return window.__peak;
+});
+await waitForState(page, (state) => state === 'idle');
+steps.push(await snapshot(page, 'landed'));
+if (peak < 1.0) problems.push(`a held jump only reached ${peak.toFixed(2)}m`);
+
+// ---- Climbing the ladder and topping out ---------------------------------
+await resetPlayer(page);
+await page.keyboard.down('KeyW');
+await waitForState(page, (state) => state === 'ladder', 30000);
+steps.push(await snapshot(page, 'grabbed'));
+await page.screenshot({ path: `${SHOTS}05-ladder.png` });
+
+// Keep holding up until the character leaves the ladder, then stop, or they
+// simply carry on running across the top of the box and off the far side.
+const boxTopY = await page.evaluate(() => window.__letsgo.debug.world.boxTopY);
+await page.evaluate(() => {
+  window.__climbPeak = 0;
+  window.__climbTimer = window.setInterval(() => {
+    window.__climbPeak = Math.max(window.__climbPeak, window.__letsgo.debug.player.position.y);
+  }, 16);
 });
 
-const expectedJoints = [
-  'root', 'body', 'torso', 'head',
-  'shoulderLeft', 'shoulderRight', 'elbowLeft', 'elbowRight',
-  'hipLeft', 'hipRight', 'kneeLeft', 'kneeRight',
-  'ankleLeft', 'ankleRight', 'carryAnchor',
-];
-for (const joint of expectedJoints) {
-  if (!rigJoints.includes(joint)) problems.push(`rig is missing the ${joint} joint`);
+let toppedOut = false;
+try {
+  await page.waitForFunction(() => window.__letsgo.debug.player.stateName !== 'ladder', null, {
+    timeout: 40000,
+    polling: 60,
+  });
+  toppedOut = true;
+} catch {
+  problems.push('the character never left the ladder');
 }
+await page.keyboard.up('KeyW');
+await page.waitForTimeout(1200);
 
-// ---- Turnaround ----------------------------------------------------------
-const angles = [
-  ['front', 0],
-  ['front-quarter', 45],
-  ['side', 90],
-  ['back-quarter', 135],
-  ['back', 180],
-];
+const climbPeak = await page.evaluate(() => {
+  window.clearInterval(window.__climbTimer);
+  return window.__climbPeak;
+});
 
-for (const [name, degrees] of angles) {
-  await page.evaluate(
-    ([degrees]) => window.__letsgo.debug.viewFrom(degrees, 1.15, 3.1),
-    [degrees],
+steps.push(await snapshot(page, toppedOut ? 'on-box' : 'stuck'));
+await page.screenshot({ path: `${SHOTS}06-on-box.png` });
+
+const standing = await playerPosition(page);
+if (climbPeak < boxTopY - 0.4) {
+  problems.push(`climbing only reached ${climbPeak.toFixed(2)}m, below the box top ${boxTopY}`);
+}
+if (Math.abs(standing.y - boxTopY) > 0.5) {
+  problems.push(
+    `came to rest at y=${standing.y.toFixed(2)} rather than on the box top ${boxTopY}`,
   );
-  await page.screenshot({ path: `${SHOTS}${name}.png` });
 }
-
-// A closer look at the upper body and at the legs.
-await page.evaluate(() => window.__letsgo.debug.viewFrom(35, 1.5, 1.9));
-await page.screenshot({ path: `${SHOTS}detail-upper.png` });
-await page.evaluate(() => window.__letsgo.debug.viewFrom(35, 0.55, 1.9));
-await page.screenshot({ path: `${SHOTS}detail-lower.png` });
 
 const report = await page.evaluate(() => {
   const engine = window.__letsgo.debug.engine;
@@ -116,15 +181,25 @@ const report = await page.evaluate(() => {
     fps: Math.round(engine.fps),
     drawCalls: engine.renderer.info.render.calls,
     triangles: engine.renderer.info.render.triangles,
-    joints: Object.keys(window.__letsgo.debug.rig).length,
+    worldTriangles: window.__letsgo.debug.world.triangleCount,
   };
 });
 
 await browser.close();
 shutdown();
 
-console.log('\n--- rig ---');
-console.log(` joints present: ${rigJoints.join(', ')}`);
+console.log('\n--- movement ---');
+for (const step of steps) {
+  console.log(
+    ` ${step.label.padEnd(9)} state=${String(step.state).padEnd(7)} ` +
+      `speed=${step.speed} pos=(${step.position.x}, ${step.position.y}, ${step.position.z})`,
+  );
+}
+console.log(
+  `\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, ` +
+    `jump peak ${peak.toFixed(2)}m, climb peak ${climbPeak.toFixed(2)}m`,
+);
+console.log(` distance covered holding W: ${travelled.toFixed(1)}m`);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));
@@ -135,6 +210,52 @@ if (problems.length) {
   process.exitCode = 1;
 } else {
   console.log('\nNo console errors or uncaught exceptions.');
+}
+
+async function playerPosition(page) {
+  return page.evaluate(() => {
+    const p = window.__letsgo.debug.player.position;
+    return { x: p.x, y: p.y, z: p.z };
+  });
+}
+
+async function resetPlayer(page) {
+  await page.evaluate(() => {
+    const g = window.__letsgo.debug;
+    g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
+  });
+  await page.waitForTimeout(500);
+}
+
+async function waitForState(page, predicate, timeout = 15000) {
+  try {
+    await page.waitForFunction(
+      (source) => {
+        const test = new Function('state', `return (${source})(state);`);
+        return test(window.__letsgo.debug.player.stateName);
+      },
+      predicate.toString(),
+      { timeout, polling: 60 },
+    );
+  } catch {
+    problems.push(`timed out waiting for state: ${predicate.toString()}`);
+  }
+}
+
+async function snapshot(page, label) {
+  const data = await page.evaluate(() => {
+    const player = window.__letsgo.debug.player;
+    return {
+      state: player.stateName,
+      speed: Math.round(player.speed * 10) / 10,
+      position: {
+        x: Math.round(player.position.x * 10) / 10,
+        y: Math.round(player.position.y * 10) / 10,
+        z: Math.round(player.position.z * 10) / 10,
+      },
+    };
+  });
+  return { label, ...data };
 }
 
 process.exit(process.exitCode ?? 0);

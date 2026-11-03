@@ -24,6 +24,8 @@ export interface AnimationInputs {
   submerged: boolean;
   /** True while the dive control is held. */
   diving: boolean;
+  /** Which kind of surface is being climbed, when the state is 'climb'. */
+  climbKind: 'post' | 'ladder';
   inputStrength: number;
   /** 0 at the start of a swim stroke, 1 when it has finished. */
   strokeProgress: number;
@@ -359,8 +361,13 @@ function poseSwim(input: AnimationInputs): void {
 }
 
 function poseClimb(input: AnimationInputs): void {
-  // Hugging the post: arms reach above, legs grip below, alternating as the
-  // character moves. The cycle is driven by time only while actually climbing.
+  if (input.climbKind === 'ladder') {
+    poseLadder(input);
+    return;
+  }
+
+  // Hugging a post: arms reach above and wrap round, legs grip below,
+  // alternating as the character moves. The cycle runs only while climbing.
   const climbing = input.inputStrength > 0.15;
   const phase = climbing ? input.time * 4.4 : 0;
   const swing = Math.sin(phase);
@@ -379,6 +386,41 @@ function poseClimb(input: AnimationInputs): void {
   pose.kneeRight = 1.15 - swing * 0.25;
 
   pose.headPitch = -0.22;
+}
+
+/**
+ * On a ladder the character faces the rungs and goes up hand over hand, so
+ * the limbs alternate on opposite phases rather than squeezing together the
+ * way they do round a post.
+ */
+function poseLadder(input: AnimationInputs): void {
+  const climbing = input.inputStrength > 0.15;
+  const phase = climbing ? input.time * 3.6 : 0;
+  const swing = Math.sin(phase);
+  const reach = climbing ? 1 : 0.45;
+
+  // Upright and close in to the rungs.
+  pose.bodyPitch = 0.07;
+  pose.bodyRoll = swing * 0.05 * reach;
+
+  // One hand high, the other at chest height, swapping each half cycle.
+  pose.shoulderLeftPitch = -2.45 - swing * 0.45 * reach;
+  pose.shoulderRightPitch = -2.45 + swing * 0.45 * reach;
+  pose.shoulderLeftRoll = 0.12;
+  pose.shoulderRightRoll = 0.12;
+  pose.elbowLeft = -0.3 + Math.max(0, -swing) * 0.85 * reach;
+  pose.elbowRight = -0.3 + Math.max(0, swing) * 0.85 * reach;
+
+  // The opposite foot rises as each hand does, which is what makes a climb
+  // read as hand over hand rather than as a frog hop.
+  pose.hipLeft = -0.35 - Math.max(0, swing) * 0.55 * reach;
+  pose.hipRight = -0.35 - Math.max(0, -swing) * 0.55 * reach;
+  pose.kneeLeft = 0.5 + Math.max(0, swing) * 0.75 * reach;
+  pose.kneeRight = 0.5 + Math.max(0, -swing) * 0.75 * reach;
+  pose.ankleLeft = -0.2;
+  pose.ankleRight = -0.2;
+
+  pose.headPitch = -0.3;
 }
 
 function applyCarry(): void {

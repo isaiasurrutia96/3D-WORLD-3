@@ -16,7 +16,13 @@ import type { CollisionWorld, ClimbSurface } from '../physics/CollisionWorld.ts'
 import type { Input } from '../input/Input.ts';
 import type { Carryable } from '../world/Carryable.ts';
 import { MAX_WALKABLE_NORMAL_Y, TUNING } from './Tuning.ts';
-import { CHARACTER_HEIGHT, CHARACTER_RADIUS, createCharacterRig, type CharacterRig } from './PlayerModel.ts';
+import {
+  CHARACTER_HEIGHT,
+  CHARACTER_RADIUS,
+  createCharacterRig,
+  type CharacterRig,
+  type RigOptions,
+} from './PlayerModel.ts';
 import { animateCharacter, type AnimationInputs } from './PlayerAnimation.ts';
 
 export type MovementState = 'ground' | 'air' | 'swim' | 'climb';
@@ -57,6 +63,8 @@ export class Player {
   private strokeTimer = 0;
   private climbSurface: ClimbSurface | null = null;
   private climbAngle = 0;
+  /** Position across a ladder, measured from its centre line. */
+  private climbLateral = 0;
   private climbRegrabTimer = 0;
   private submerged = false;
   private atSurface = false;
@@ -81,11 +89,16 @@ export class Player {
   private readonly blockedEnd = new Vector3();
   private readonly blockedVelocity = new Vector3();
 
-  constructor(world: CollisionWorld, spawn: Vector3, events: PlayerEvents = {}) {
+  constructor(
+    world: CollisionWorld,
+    spawn: Vector3,
+    events: PlayerEvents = {},
+    rigOptions: RigOptions = {},
+  ) {
     this.world = world;
     this.events = events;
 
-    this.rig = createCharacterRig();
+    this.rig = createCharacterRig(rigOptions);
     this.object = this.rig.root;
     this.object.position.copy(spawn);
 
@@ -117,7 +130,7 @@ export class Player {
 
   get stateName(): string {
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
-    if (this.state === 'climb') return 'climb';
+    if (this.state === 'climb') return this.climbSurface?.kind === 'ladder' ? 'ladder' : 'climb';
     if (this.state === 'air') return this.velocity.y > 0.5 ? 'jump' : 'fall';
     if (this.skidding) return 'skid';
     if (this.speed > TUNING.walkSpeed + 0.6) return 'run';
@@ -328,59 +341,93 @@ export class Player {
 
     this.velocity.set(0, 0, 0);
 
-    // Forward and back on the stick climb; left and right circle the post.
-    const forwardAmount = -input.move.y;
+    // Up and down on the stick climbs. Left and right move across: around a
+    // post, or sideways along a ladder.
+    const climbAmount = -input.move.y;
     const sideAmount = input.move.x;
 
-    this.object.position.y += forwardAmount * TUNING.climbSpeed * delta;
-    this.climbAngle += sideAmount * TUNING.climbRotateSpeed * delta;
-
+    this.object.position.y += climbAmount * TUNING.climbSpeed * delta;
     const minY = surface.base.y - 0.1;
     const maxY = surface.base.y + surface.height - CHARACTER_HEIGHT * 0.55;
     this.object.position.y = MathUtils.clamp(this.object.position.y, minY, maxY);
 
-    // Hug the post at a fixed distance, facing inward.
-    const holdRadius = surface.radius + CHARACTER_RADIUS * 1.05;
-    this.object.position.x = surface.base.x + Math.sin(this.climbAngle) * holdRadius;
-    this.object.position.z = surface.base.z + Math.cos(this.climbAngle) * holdRadius;
-    this.facing = this.climbAngle + Math.PI;
+    // `outward` is the direction that leads off the surface: away from a
+    // post's axis, or straight out from a ladder's wall. Topping out goes the
+    // other way, and jumping off goes along it.
+    const outward = this.scratchB;
+
+    if (surface.kind === 'post') {
+      this.climbAngle += sideAmount * TUNING.climbRotateSpeed * delta;
+      const holdRadius = surface.radius + CHARACTER_RADIUS * 1.05;
+      this.object.position.x = surface.base.x + Math.sin(this.climbAngle) * holdRadius;
+      this.object.position.z = surface.base.z + Math.cos(this.climbAngle) * holdRadius;
+      this.facing = this.climbAngle + Math.PI;
+      outward.set(Math.sin(this.climbAngle), 0, Math.cos(this.climbAngle));
+    } else {
+      this.climbLateral = MathUtils.clamp(
+        this.climbLateral + sideAmount * TUNING.climbSideSpeed * delta,
+        -surface.halfWidth,
+        surface.halfWidth,
+      );
+      const hold = CHARACTER_RADIUS * 1.05;
+      this.object.position.x =
+        surface.base.x + surface.right.x * this.climbLateral + surface.normal.x * hold;
+      this.object.position.z =
+        surface.base.z + surface.right.z * this.climbLateral + surface.normal.z * hold;
+      // Facing the wall means facing against the ladder's outward normal.
+      this.facing = Math.atan2(-surface.normal.x, -surface.normal.z);
+      outward.copy(surface.normal);
+    }
 
     this.syncCapsuleFromPosition();
 
-    // Reaching the top pulls the character up onto it rather than sticking.
-    if (this.object.position.y >= maxY - 0.01 && forwardAmount > 0.4) {
+    // Reaching the top steps the character over the edge rather than leaving
+    // them stuck at the last rung.
+    //
+    // This places them on the ledge directly rather than throwing them at it.
+    // An impulse used to carry them into the side of the box at climbing
+    // height, and a capsule fully inside a box touches none of its triangles,
+    // so collision found nothing and they dropped through the inside of it.
+    if (this.object.position.y >= maxY - 0.01 && climbAmount > 0.4) {
+      const step = CHARACTER_RADIUS + 0.55;
+      const landingX = this.object.position.x - outward.x * step;
+      const landingZ = this.object.position.z - outward.z * step;
+      const probe = this.scratchSide.set(
+        landingX,
+        surface.base.y + surface.height + 1.2,
+        landingZ,
+      );
+      const ledgeY = this.world.groundHeightBelow(probe, 3.2);
+
       this.releaseClimb();
-      this.velocity.y = TUNING.climbDismountLift * 0.8;
-      const outward = this.scratchB
-        .set(Math.sin(this.climbAngle), 0, Math.cos(this.climbAngle))
-        .multiplyScalar(-2.4);
-      this.velocity.x = outward.x;
-      this.velocity.z = outward.z;
+
+      if (Number.isFinite(ledgeY)) {
+        this.object.position.set(landingX, ledgeY + 0.06, landingZ);
+        this.syncCapsuleFromPosition();
+        this.velocity.set(0, 0, 0);
+        this.state = 'ground';
+        this.onGround = true;
+        this.coyoteTimer = TUNING.coyoteTime;
+      } else {
+        // Nothing to step onto up there, so push off instead of climbing into
+        // thin air.
+        this.velocity.copy(outward).multiplyScalar(-TUNING.climbTopOutPush);
+        this.velocity.y = TUNING.climbDismountLift;
+      }
       return;
     }
 
     if (input.wasPressed('jump')) {
       this.releaseClimb();
-      const away = this.scratchB
-        .set(Math.sin(this.climbAngle), 0, Math.cos(this.climbAngle))
-        .multiplyScalar(TUNING.climbDismountPush);
+      const away = outward.clone().multiplyScalar(TUNING.climbDismountPush);
       this.velocity.set(away.x, TUNING.climbDismountLift, away.z);
       this.facing = Math.atan2(away.x, away.z);
       this.jumpHeld = true;
       return;
     }
 
-    if (strength > 0.001 && wish.lengthSq() > 0) {
-      // Pushing directly away from the post lets go.
-      const outward = this.scratchB.set(
-        this.object.position.x - surface.base.x,
-        0,
-        this.object.position.z - surface.base.z,
-      );
-      if (outward.lengthSq() > 0.0001 && wish.dot(outward.normalize()) > 0.82) {
-        this.releaseClimb();
-      }
-    }
+    // Pushing directly away from the surface lets go.
+    if (strength > 0.4 && wish.dot(outward) > 0.82) this.releaseClimb();
   }
 
   // -------------------------------------------------------------------------
@@ -599,17 +646,36 @@ export class Player {
     const surface = this.world.climbableAt(this.object.position, CHARACTER_HEIGHT);
     if (!surface) return;
 
-    // Only grab when actually pushing toward the post.
-    const toward = this.scratchB
-      .set(surface.base.x - this.object.position.x, 0, surface.base.z - this.object.position.z);
-    if (toward.lengthSq() < 0.0001) return;
-    if (wish.dot(toward.normalize()) < 0.45) return;
+    // Only grab when actually pushing toward the surface.
+    const toward = this.scratchB;
+    if (surface.kind === 'post') {
+      toward.set(surface.base.x - this.object.position.x, 0, surface.base.z - this.object.position.z);
+      if (toward.lengthSq() < 0.0001) return;
+      toward.normalize();
+    } else {
+      // Toward a ladder means against the direction it faces.
+      toward.copy(surface.normal).multiplyScalar(-1);
+    }
+    if (wish.dot(toward) < 0.45) return;
 
     this.climbSurface = surface;
-    this.climbAngle = Math.atan2(
-      this.object.position.x - surface.base.x,
-      this.object.position.z - surface.base.z,
-    );
+    if (surface.kind === 'post') {
+      this.climbAngle = Math.atan2(
+        this.object.position.x - surface.base.x,
+        this.object.position.z - surface.base.z,
+      );
+    } else {
+      const offsetX = this.object.position.x - surface.base.x;
+      const offsetZ = this.object.position.z - surface.base.z;
+      this.climbLateral = MathUtils.clamp(
+        offsetX * surface.right.x + offsetZ * surface.right.z,
+        -surface.halfWidth,
+        surface.halfWidth,
+      );
+      // Start no lower than the foot of the ladder.
+      this.object.position.y = Math.max(this.object.position.y, surface.base.y);
+    }
+
     this.state = 'climb';
     this.velocity.set(0, 0, 0);
     this.skidding = false;
@@ -836,6 +902,7 @@ export class Player {
       carrying: this.carried !== null,
       submerged: this.submerged && !this.atSurface,
       diving: this.diving && this.state === 'swim',
+      climbKind: this.climbSurface?.kind ?? 'post',
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,
