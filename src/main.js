@@ -14,7 +14,8 @@ renderer.toneMappingExposure = 1.25;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#080e25');
 scene.fog = new THREE.Fog('#080e25', 35, 85);
-const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+let manualCameraUntil=0;
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.enablePan = false;
@@ -25,10 +26,12 @@ controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.target.set(0, 1.1, 0);
 function reset() {
   const position = controls.target.clone();
-  camera.position.copy(position).add(new THREE.Vector3(6.5,3.7,9));
+  camera.position.copy(position).add(new THREE.Vector3(0,3.3,-8.5));
   controls.update();
 }
 reset();
+controls.addEventListener('start',()=>{manualCameraUntil=performance.now()+1800;});
+controls.addEventListener('end',()=>{manualCameraUntil=performance.now()+1800;});
 document.querySelector('#reset').addEventListener('click', reset);
 canvas.addEventListener('keydown', event => {
   if (event.key.toLowerCase() === 'r') reset();
@@ -175,7 +178,7 @@ function resize() {
   const renderScale = Math.min(1, 480 / height);
   renderer.setSize(Math.round(width * renderScale),Math.round(height * renderScale),false);
   camera.aspect=width/height;
-  camera.fov = width < 700 ? 55 : 36;
+  camera.fov = width < 700 ? 55 : 45;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize); resize();
@@ -206,6 +209,7 @@ document.addEventListener('pointerlockerror', () => {
 });
 document.addEventListener('mousemove', event => {
   if (document.pointerLockElement !== canvas) return;
+  manualCameraUntil=performance.now()+1800;
   mouseOffset.subVectors(camera.position,controls.target);
   orbit.setFromVector3(mouseOffset);
   orbit.theta -= event.movementX*0.0025;
@@ -216,10 +220,10 @@ document.addEventListener('mousemove', event => {
 });
 const player = createPlayer();
 const keys = new Set();
-const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC','ControlLeft','ControlRight']);
+const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC']);
 function press(code) {
   if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
-  if (code === 'KeyC' && !keys.has(code)) player.interactQueued = true;
+  if (code === 'KeyC' && !keys.has(code) && player.mode!=='swim' && player.mode!=='exitPool') player.interactQueued = true;
   keys.add(code); player.jumpHeld = keys.has('Space');
 }
 function release(code) { keys.delete(code); player.jumpHeld = keys.has('Space'); }
@@ -243,7 +247,7 @@ function inputDirection() {
   const horizontal = Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
   const vertical = Number(keys.has('KeyE')||keys.has('ArrowUp'))-Number(keys.has('KeyD')||keys.has('ArrowDown'));
   moveDirection.copy(moveForward).multiplyScalar(vertical).addScaledVector(moveRight,horizontal);
-  return { x:moveDirection.x, z:moveDirection.z, climb:vertical, dive:keys.has('ControlLeft')||keys.has('ControlRight') };
+  return { x:moveDirection.x, z:moveDirection.z, climb:vertical, dive:keys.has('KeyC') };
 }
 const limbs = ['left','right'].map(side => Object.fromEntries(
   ['hip','knee','ankle','shoulder','elbow','wrist'].map(name => [name,izzy.getObjectByName(`${side}_${name}`)])));
@@ -251,6 +255,29 @@ function animatePlayer(dt) {
   const amount = Math.min(1, Math.hypot(player.vx,player.vz)/MAX_SPEED);
   const blend = 1-Math.exp(-18*dt);
   const pose = (joint, value) => joint.rotation.x = THREE.MathUtils.lerp(joint.rotation.x,value,blend);
+  if(player.mode==='exitPool') {
+    const t=player.poolExit.time/player.poolExit.duration;
+    const release=THREE.MathUtils.smoothstep(t,0.32,0.75);
+    limbs.forEach((limb,index)=>{
+      // Two-link arm reach toward the rim, then release as the torso clears it.
+      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,1.035,release)+0.57;
+      const dy=0.12-shoulderHeight, dz=0.36;
+      const upper=0.35, lower=0.34;
+      const distance=THREE.MathUtils.clamp(Math.hypot(dy,dz),0.08,upper+lower-0.001);
+      const shoulderAngle=Math.atan2(-dz,-dy)+Math.acos(THREE.MathUtils.clamp((upper*upper+distance*distance-lower*lower)/(2*upper*distance),-1,1));
+      const elbowAngle=-Math.acos(THREE.MathUtils.clamp((distance*distance-upper*upper-lower*lower)/(2*upper*lower),-1,1));
+      pose(limb.shoulder,THREE.MathUtils.lerp(shoulderAngle,0,release));
+      pose(limb.elbow,THREE.MathUtils.lerp(elbowAngle,0,release));
+      pose(limb.wrist,THREE.MathUtils.lerp(-0.7,0,release));
+      pose(limb.hip,(index===0?-0.85:-0.25)*(1-release));
+      pose(limb.knee,(index===0?1.2:0.55)*(1-release));
+      pose(limb.ankle,-0.25*(1-release));
+    });
+    pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,0,blend);
+    pelvis.position.y=THREE.MathUtils.lerp(0.68,1.035,release);
+    torso.rotation.x=0.3*(1-release);torso.rotation.y=0;
+    return;
+  }
   if(player.mode==='climb' || player.mode==='swim') {
     const climbing=player.mode==='climb';
     limbs.forEach((limb,index)=>{
@@ -288,6 +315,8 @@ function animatePlayer(dt) {
   torso.rotation.x = player.grounded ? amount*0.24 : -0.06;
   torso.rotation.y = player.grounded ? Math.sin(player.gait)*0.12*amount : 0;
 }
+const chaseOffset=new THREE.Vector3(), chaseSpherical=new THREE.Spherical();
+const cameraRay=new THREE.Raycaster(), cameraRayDirection=new THREE.Vector3();
 let previousTime, accumulator = 0;
 const fixedStep = 1/120;
 document.addEventListener('visibilitychange', () => { clearInput(); previousTime=undefined; accumulator=0; });
@@ -301,12 +330,31 @@ renderer.setAnimationLoop(time => {
   shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
   shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
   shadow.scale.setScalar(1+Math.max(0,player.y)*0.12); shadow.scale.y*=0.7;
-  const target = new THREE.Vector3(player.x,(player.mode==='swim' ? POOL.water : Math.max(0,player.y))+1.1,player.z);
+  const target = new THREE.Vector3(player.x,(player.mode==='swim' || player.mode==='exitPool' ? Math.max(POOL.water,player.y) : Math.max(0,player.y))+1.1,player.z);
   const offset = target.sub(controls.target);
   controls.target.add(offset); camera.position.add(offset);
-  controls.update(); renderer.render(scene,camera);
+  controls.update();
+  // Settle behind the character, preserving manual orbit/zoom for a short time.
+  chaseOffset.subVectors(camera.position,controls.target);
+  chaseSpherical.setFromVector3(chaseOffset);
+  const travelling=Math.hypot(player.vx,player.vz)>0.5 || player.mode==='climb';
+  if(time> manualCameraUntil && travelling){
+    const heading=player.yaw+Math.PI;
+    const difference=Math.atan2(Math.sin(heading-chaseSpherical.theta),Math.cos(heading-chaseSpherical.theta));
+    chaseSpherical.theta+=difference*(1-Math.exp(-2.5*dt));
+    chaseSpherical.phi=THREE.MathUtils.lerp(chaseSpherical.phi,1.18,1-Math.exp(-2*dt));
+    camera.position.copy(controls.target).add(chaseOffset.setFromSpherical(chaseSpherical));
+  }
+  // Keep the chase camera in front of the climbing box rather than inside it.
+  cameraRayDirection.subVectors(camera.position,controls.target);
+  const desiredDistance=cameraRayDirection.length();
+  cameraRay.set(controls.target,cameraRayDirection.normalize());cameraRay.far=desiredDistance;
+  const obstruction=cameraRay.intersectObject(tower)[0];
+  if(obstruction)camera.position.copy(controls.target).addScaledVector(cameraRayDirection,Math.max(0.6,obstruction.distance-0.25));
+  camera.lookAt(controls.target);
+  renderer.render(scene,camera);
   canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
   const label=document.querySelector('.scene-label');
-  label.textContent=player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / CTRL DIVE · SPACE AT EDGE TO EXIT' : 'LADDER: WALK OR JUMP ON · E UP / D DOWN';
+  label.textContent=player.mode==='exitPool' ? 'PULLING UP · PUSHING ONTO THE EDGE' : player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / C DIVE · TAP SPACE AT EDGE TO CLIMB OUT' : 'LADDER: WALK OR JUMP ON · E UP / D DOWN';
   canvas.dataset.position = `${player.x.toFixed(3)},${player.y.toFixed(3)},${player.z.toFixed(3)}`;
 });

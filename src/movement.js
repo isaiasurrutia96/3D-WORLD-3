@@ -17,6 +17,17 @@ export function createPlayer() {
 }
 
 export function stepPlayer(player, input, dt) {
+  if(player.mode==='exitPool') {
+    const exit=player.poolExit;exit.time=Math.min(exit.duration,exit.time+dt);
+    const t=exit.time/exit.duration;
+    const smooth=v=>{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);};
+    const across=smooth((t-0.48)/0.52);
+    player.x=exit.x+(exit.toX-exit.x)*across;player.z=exit.z+(exit.toZ-exit.z)*across;
+    player.y=t<0.7 ? exit.y+(0.18-exit.y)*smooth(t/0.7) : 0.18*(1-smooth((t-0.7)/0.3));
+    player.vx=player.vy=player.vz=0;player.jumpQueued=false;player.interactQueued=false;
+    if(t>=1){player.mode='land';player.y=0;player.grounded=true;player.landing=0.4;player.poolExit=null;}
+    return;
+  }
   player.ladderCooldown=Math.max(0,player.ladderCooldown-dt);
   const nearLadder = Math.abs(player.x-LADDER.x)<0.9 && Math.abs(player.z-LADDER.z)<1.4;
   const touchingFront=Math.abs(player.x-LADDER.x)<0.65 && player.z>LADDER.z-0.25 && player.z<LADDER.z+0.6;
@@ -66,6 +77,7 @@ export function stepPlayer(player, input, dt) {
     player.vy = 8.5 + Math.min(Math.hypot(player.vx,player.vz) * 0.12, 0.7);
     player.grounded = false;
   }
+  const jumpPressed=player.jumpQueued;
   if(swimming && player.jumpQueued) player.vy=Math.max(player.vy,3.2);
   player.jumpQueued = false;
   player.x += player.vx * dt; player.z += player.vz * dt;
@@ -80,11 +92,13 @@ export function stepPlayer(player, input, dt) {
   }
   if(swimming){
     const atEdge=player.x<POOL.minX+0.5||player.x>POOL.maxX-0.5||player.z<POOL.minZ+0.5||player.z>POOL.maxZ-0.5;
-    if(atEdge && player.jumpHeld && moving && !input.dive){
-      // A ledge exit places Izzy on the closest pool rim.
-      const exits=[[Math.abs(player.x-POOL.minX),'x',POOL.minX-0.5],[Math.abs(player.x-POOL.maxX),'x',POOL.maxX+0.5],
-        [Math.abs(player.z-POOL.minZ),'z',POOL.minZ-0.5],[Math.abs(player.z-POOL.maxZ),'z',POOL.maxZ+0.5]];
-      exits.sort((a,b)=>a[0]-b[0]);player[exits[0][1]]=exits[0][2];player.y=0.1;player.vy=4;player.mode='land';
+    if(atEdge && jumpPressed && !input.dive && player.y>=POOL.water-1.65){
+      const exits=[[Math.abs(player.x-POOL.minX),'x',POOL.minX-0.75,-1,0],[Math.abs(player.x-POOL.maxX),'x',POOL.maxX+0.75,1,0],
+        [Math.abs(player.z-POOL.minZ),'z',POOL.minZ-0.75,0,-1],[Math.abs(player.z-POOL.maxZ),'z',POOL.maxZ+0.75,0,1]];
+      exits.sort((a,b)=>a[0]-b[0]);const edge=exits[0];
+      player.poolExit={time:0,duration:1.15,x:player.x,y:player.y,z:player.z,toX:edge[1]==='x'?edge[2]:player.x,toZ:edge[1]==='z'?edge[2]:player.z};
+      player.yaw=Math.atan2(edge[3],edge[4]);player.mode='exitPool';player.grounded=false;player.vx=player.vy=player.vz=0;
+      return;
     }else{
       player.x=Math.max(POOL.minX+0.35,Math.min(POOL.maxX-0.35,player.x));
       player.z=Math.max(POOL.minZ+0.35,Math.min(POOL.maxZ-0.35,player.z));

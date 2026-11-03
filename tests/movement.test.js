@@ -34,7 +34,7 @@ test('ladder jump lets go without reattaching',async()=>{
 test('pool entry, buoyancy, diving and ledge exit',async()=>{
  const {POOL}=await import('../src/movement.js');const p=createPlayer();p.x=12;p.z=0;advance(p,2);assert.equal(p.mode,'swim');assert.ok(p.y<POOL.water);assert.ok(p.y>POOL.bottom);
  const surfaceY=p.y;advance(p,1,{x:0,z:0,dive:true});assert.ok(p.y<surfaceY-0.3);advance(p,2);assert.ok(p.y>POOL.bottom+0.2);
- p.x=POOL.minX+0.4;p.jumpHeld=true;stepPlayer(p,{x:-1,z:0},dt);assert.equal(p.mode,'land');assert.ok(p.x<POOL.minX);assert.ok(p.y>0);advance(p,1);assert.equal(p.y,0);assert.equal(p.grounded,true);
+ p.x=POOL.minX+0.4;p.jumpQueued=true;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'exitPool');const startX=p.x;advance(p,0.25);assert.equal(p.x,startX);assert.ok(p.y<0);advance(p,1.2);assert.equal(p.mode,'land');assert.ok(p.x<POOL.minX);assert.equal(p.y,0);assert.equal(p.grounded,true);
 });
 test('box sides are solid; roof supports a falling player',async()=>{
  const {TOWER}=await import('../src/movement.js');const p=createPlayer();p.x=-10.5;p.z=-1;advance(p,0.5,{x:0,z:-1});assert.ok(p.z>=TOWER.maxZ+0.34);
@@ -53,4 +53,14 @@ test('ladder release cooldown prevents immediate automatic reattachment',async()
 });
 test('merely standing near the ladder or moving away does not grab',async()=>{
  const {LADDER}=await import('../src/movement.js');const p=createPlayer();Object.assign(p,{x:LADDER.x,z:LADDER.z+0.4});stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'land');stepPlayer(p,{x:0,z:1},dt);assert.equal(p.mode,'land');
+});
+
+test('pool pull-up works at every edge without directional input',async()=>{
+ const {POOL,inPool}=await import('../src/movement.js');
+ for(const [x,z] of [[POOL.minX+0.4,0],[POOL.maxX-0.4,0],[17,POOL.minZ+0.4],[17,POOL.maxZ-0.4]]){
+  const p=createPlayer();Object.assign(p,{x,z,y:POOL.water-1.05,mode:'swim',grounded:false,jumpQueued:true});stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'exitPool');advance(p,1.3);assert.equal(p.mode,'land');assert.equal(p.y,0);assert.equal(p.grounded,true);assert.equal(inPool(p.x,p.z),false);
+ }
+});
+test('jumping from deep water does not teleport onto the deck',async()=>{
+ const {POOL}=await import('../src/movement.js');const p=createPlayer();Object.assign(p,{x:POOL.minX+0.4,z:0,y:POOL.bottom+0.5,mode:'swim',grounded:false,jumpQueued:true});stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'swim');assert.ok(p.y<-2);
 });

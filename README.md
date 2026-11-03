@@ -17,11 +17,11 @@ Build with `npm run build`; serve the result with `npm run preview`. Run the mov
 
 - E forward, D back, A left, F right (or arrow keys): camera-relative running, with acceleration and braking.
 - Space: jump. Hold for a higher jump; release early for a short hop.
-- Drag: orbit the following camera. Scroll/pinch: zoom.
+- The chase camera eases behind Izzy while moving. Drag or use locked mouse-look to look around; automatic recentering resumes after a short pause. Scroll/pinch zooms.
 - L: lock/unlock the mouse for mouse-look. Escape also releases it.
 - Maximum running speed: 13 world units/second.
 - Walk or jump toward the ladder to grab automatically. E climbs up; D climbs down. Space jumps away; C optionally releases. Approach the roof edge and press D to descend.
-- Walk into the rectangular pool to swim. E/D/A/F steer; Space strokes upward; Ctrl dives. Hold Space while moving near an edge to climb out.
+- Walk into the rectangular pool to swim. E/D/A/F steer; Space strokes upward; C dives. Tap Space near the surface at an edge to start a staged pull-up onto the deck; Izzy plants his arms, lifts his body, brings a knee up, and stands.
 - Touch devices have directional, jump/swim, grab, and dive buttons.
 
 Mouse/trackpad orbit changes the movement direction: E runs toward where the camera looks, D goes back, and A/F strafe relative to the view. The run cycle has a forward lean, higher knees, bent elbows, larger arm/leg swings, ankle compensation with toe-off and recovery flex, and a midnight blue sky.
