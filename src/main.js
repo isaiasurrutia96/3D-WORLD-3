@@ -78,7 +78,7 @@ for (const side of [-1,1]) {
   ball(elbow,body,[0,-0.095,0.02],[0.14,0.18,0.15]);
   const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23,0.03]);
   ball(wrist,body,[0,-0.055,0],[0.17,0.19,0.16]);
-  ball(wrist,body,[-side*0.12,0,0.07],[0.08,0.12,0.09]);
+  ball(wrist,body,[-side*0.13,-0.10,0.09],[0.075,0.10,0.085]);
 }
 const head = joint(torso,'neck',[0,0.77,0]);
 ball(head,body,[0,0.12,0.025],[0.41,0.4,0.33]);
