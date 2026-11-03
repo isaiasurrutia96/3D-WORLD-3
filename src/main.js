@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
-import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, MAX_SPEED } from './movement.js';
+import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, MAX_SPEED, POOL, TOWER, LADDER, floorHeight, inPool } from './movement.js';
 
 const canvas = document.querySelector('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -92,8 +92,42 @@ function mesh(geometry, mat, parent, position, scale) {
 }
 function ball(parent, mat, position, scale) { return mesh(new THREE.SphereGeometry(1, 10, 8), mat, parent, position, scale); }
 function joint(parent, name, position) { const group = new THREE.Group(); group.name = name; group.position.set(...position); parent.add(group); return group; }
-const slab = mesh(new THREE.BoxGeometry(FLOOR_HALF_SIZE * 2, 0.25, FLOOR_HALF_SIZE * 2), material('#e6e0cf'), scene, [0, -0.125, 0]);
-slab.name = 'Single floor slab';
+// Four ground pieces leave a real opening for the rectangular pool.
+const groundMaterial = material('#e6e0cf');
+function ground(x1,x2,z1,z2) {
+  return mesh(new THREE.BoxGeometry(x2-x1,0.25,z2-z1),groundMaterial,scene,[(x1+x2)/2,-0.125,(z1+z2)/2]);
+}
+ground(-FLOOR_HALF_SIZE,POOL.minX,-FLOOR_HALF_SIZE,FLOOR_HALF_SIZE);
+ground(POOL.maxX,FLOOR_HALF_SIZE,-FLOOR_HALF_SIZE,FLOOR_HALF_SIZE);
+ground(POOL.minX,POOL.maxX,-FLOOR_HALF_SIZE,POOL.minZ);
+ground(POOL.minX,POOL.maxX,POOL.maxZ,FLOOR_HALF_SIZE);
+const tower = mesh(new THREE.BoxGeometry(6,TOWER.height,6),material('#8a819b'),scene,[-9,TOWER.height/2,-5]);
+tower.name='Climbing box';
+const ladderMaterial = material('#ba9461');
+for(const x of [LADDER.x-0.43,LADDER.x+0.43]) {
+  mesh(new THREE.CylinderGeometry(0.065,0.065,5.8,8),ladderMaterial,scene,[x,2.9,-1.9]);
+}
+for(let y=0.3;y<5.6;y+=0.35){
+  const rung=mesh(new THREE.CylinderGeometry(0.045,0.045,0.86,8),ladderMaterial,scene,[LADDER.x,y,-1.9]);
+  rung.rotation.z=Math.PI/2;
+}
+const poolMaterial=material('#668c9b');
+mesh(new THREE.BoxGeometry(10,0.25,12),poolMaterial,scene,[12,POOL.bottom-0.125,0]);
+for(const x of [POOL.minX,POOL.maxX]) mesh(new THREE.BoxGeometry(0.2,4,12),poolMaterial,scene,[x,-2,0]);
+for(const z of [POOL.minZ,POOL.maxZ]) mesh(new THREE.BoxGeometry(10,4,0.2),poolMaterial,scene,[12,-2,z]);
+const water=mesh(new THREE.PlaneGeometry(10,12),new THREE.MeshBasicMaterial({color:'#3899b5',transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false}),scene,[12,POOL.water,0]);
+water.rotation.x=-Math.PI/2;
+const coping=material('#a9bac1');
+for(const x of [POOL.minX-0.15,POOL.maxX+0.15]) mesh(new THREE.BoxGeometry(0.3,0.12,12.6),coping,scene,[x,0.02,0]);
+for(const z of [POOL.minZ-0.15,POOL.maxZ+0.15]) mesh(new THREE.BoxGeometry(10.6,0.12,0.3),coping,scene,[12,0.02,z]);
+function worldLabel(text,position){
+  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=96;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='#101831dd';ctx.fillRect(0,0,512,96);ctx.font='bold 24px sans-serif';ctx.fillStyle='#e7edf9';ctx.textAlign='center';ctx.fillText(text,256,58);
+  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
+  const label=new THREE.Sprite(new THREE.SpriteMaterial({map,depthTest:true}));label.position.set(...position);label.scale.set(3.8,0.72,1);scene.add(label);
+}
+worldLabel('LADDER · C TO GRAB',[-9,6.3,-1.9]);
+worldLabel('POOL · SPACE TO STROKE',[12,1.5,-6.4]);
 // Simple era-style contact shadow, rather than modern real-time soft shadows.
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.61, 16),
   new THREE.MeshBasicMaterial({ color: '#36333c', transparent: true, opacity: 0.22, depthWrite: false }));
@@ -178,9 +212,10 @@ document.addEventListener('mousemove', event => {
 });
 const player = createPlayer();
 const keys = new Set();
-const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space']);
+const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC','ControlLeft','ControlRight']);
 function press(code) {
   if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
+  if (code === 'KeyC' && !keys.has(code)) player.interactQueued = true;
   keys.add(code); player.jumpHeld = keys.has('Space');
 }
 function release(code) { keys.delete(code); player.jumpHeld = keys.has('Space'); }
@@ -190,7 +225,7 @@ window.addEventListener('keydown', event => {
   if (!event.repeat) press(event.code);
 });
 window.addEventListener('keyup', event => { if (inputCodes.has(event.code)) { event.preventDefault(); release(event.code); } });
-function clearInput() { keys.clear(); player.jumpHeld = false; player.jumpQueued = false; }
+function clearInput() { keys.clear(); player.jumpHeld = false; player.jumpQueued = false; player.interactQueued=false; }
 window.addEventListener('blur',clearInput);
 for (const button of document.querySelectorAll('[data-key]')) {
   button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); press(button.dataset.key); });
@@ -204,7 +239,7 @@ function inputDirection() {
   const horizontal = Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
   const vertical = Number(keys.has('KeyE')||keys.has('ArrowUp'))-Number(keys.has('KeyD')||keys.has('ArrowDown'));
   moveDirection.copy(moveForward).multiplyScalar(vertical).addScaledVector(moveRight,horizontal);
-  return { x:moveDirection.x, z:moveDirection.z };
+  return { x:moveDirection.x, z:moveDirection.z, climb:vertical, dive:keys.has('ControlLeft')||keys.has('ControlRight') };
 }
 const limbs = ['left','right'].map(side => Object.fromEntries(
   ['hip','knee','ankle','shoulder','elbow','wrist'].map(name => [name,izzy.getObjectByName(`${side}_${name}`)])));
@@ -212,6 +247,23 @@ function animatePlayer(dt) {
   const amount = Math.min(1, Math.hypot(player.vx,player.vz)/MAX_SPEED);
   const blend = 1-Math.exp(-18*dt);
   const pose = (joint, value) => joint.rotation.x = THREE.MathUtils.lerp(joint.rotation.x,value,blend);
+  if(player.mode==='climb' || player.mode==='swim') {
+    const climbing=player.mode==='climb';
+    limbs.forEach((limb,index)=>{
+      const stroke=Math.sin(player.gait+index*Math.PI);
+      pose(limb.shoulder,climbing ? -2.3+stroke*0.45 : -1.5+stroke*1.1);
+      pose(limb.elbow,climbing ? -0.4-stroke*0.25 : -0.45);
+      pose(limb.wrist,climbing ? -0.25 : 0);
+      pose(limb.hip,climbing ? -0.55-stroke*0.35 : stroke*0.4);
+      pose(limb.knee,climbing ? 0.75+stroke*0.45 : 0.2+Math.max(0,-stroke)*0.45);
+      pose(limb.ankle,climbing ? -0.2 : 0.25);
+    });
+    pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,climbing ? 0 : 1.05,blend);
+    pelvis.position.y=0.9;
+    torso.rotation.x=0;torso.rotation.y=0;
+    return;
+  }
+  pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,0,blend);
   limbs.forEach((limb,index) => {
     const phase = player.gait+index*Math.PI;
     const stride = Math.sin(phase);
@@ -241,14 +293,16 @@ renderer.setAnimationLoop(time => {
   while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep); accumulator-=fixedStep; }
   izzy.position.set(player.x,player.y,player.z); izzy.rotation.y=player.yaw;
   animatePlayer(dt);
-  shadow.position.set(player.x,0.004,player.z);
-  shadow.visible = Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
+  shadow.position.set(player.x,floorHeight(player.x,player.z)+0.004,player.z);
+  shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
   shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
   shadow.scale.setScalar(1+Math.max(0,player.y)*0.12); shadow.scale.y*=0.7;
-  const target = new THREE.Vector3(player.x,Math.max(0,player.y)*0.55+1.1,player.z);
+  const target = new THREE.Vector3(player.x,(player.mode==='swim' ? POOL.water : Math.max(0,player.y))+1.1,player.z);
   const offset = target.sub(controls.target);
   controls.target.add(offset); camera.position.add(offset);
   controls.update(); renderer.render(scene,camera);
-  canvas.dataset.state = player.grounded ? 'grounded' : 'airborne';
+  canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
+  const label=document.querySelector('.scene-label');
+  label.textContent=player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / CTRL DIVE · SPACE AT EDGE TO EXIT' : 'RUN & JUMP · C NEAR LADDER TO GRAB';
   canvas.dataset.position = `${player.x.toFixed(3)},${player.y.toFixed(3)},${player.z.toFixed(3)}`;
 });

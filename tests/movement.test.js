@@ -21,3 +21,22 @@ test('running jump retains momentum without input',()=>{
 test('walking off the slab falls and respawns',()=>{
  const p=createPlayer();p.x=FLOOR_HALF_SIZE+0.1;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.grounded,false);assert.ok(p.y<0);advance(p,2);assert.equal(p.x,0);assert.equal(p.y,0);assert.equal(p.grounded,true);
 });
+
+test('ladder grabs, pauses, climbs onto roof and supports descent',async()=>{
+ const { LADDER,TOWER }=await import('../src/movement.js');const p=createPlayer();p.x=LADDER.x;p.z=LADDER.z+0.3;p.interactQueued=true;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'climb');
+ const y=p.y;advance(p,0.2);assert.equal(p.y,y);
+ advance(p,3.1,{x:0,z:0,climb:1});assert.equal(p.mode,'land');assert.equal(p.y,TOWER.height);assert.equal(p.grounded,true);
+ p.interactQueued=true;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'climb');advance(p,3.1,{x:0,z:0,climb:-1});assert.equal(p.y,0);assert.equal(p.mode,'land');
+});
+test('ladder jump lets go without reattaching',async()=>{
+ const {LADDER}=await import('../src/movement.js');const p=createPlayer();p.x=LADDER.x;p.z=LADDER.z;p.interactQueued=true;stepPlayer(p,{x:0,z:0},dt);advance(p,0.5,{x:0,z:0,climb:1});p.jumpQueued=true;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'land');assert.ok(p.vy>0);assert.ok(p.z>LADDER.z);
+});
+test('pool entry, buoyancy, diving and ledge exit',async()=>{
+ const {POOL}=await import('../src/movement.js');const p=createPlayer();p.x=12;p.z=0;advance(p,2);assert.equal(p.mode,'swim');assert.ok(p.y<POOL.water);assert.ok(p.y>POOL.bottom);
+ const surfaceY=p.y;advance(p,1,{x:0,z:0,dive:true});assert.ok(p.y<surfaceY-0.3);advance(p,2);assert.ok(p.y>POOL.bottom+0.2);
+ p.x=POOL.minX+0.4;p.jumpHeld=true;stepPlayer(p,{x:-1,z:0},dt);assert.equal(p.mode,'land');assert.ok(p.x<POOL.minX);assert.ok(p.y>0);advance(p,1);assert.equal(p.y,0);assert.equal(p.grounded,true);
+});
+test('box sides are solid; roof supports a falling player',async()=>{
+ const {TOWER}=await import('../src/movement.js');const p=createPlayer();p.x=-9;p.z=-1;advance(p,0.5,{x:0,z:-1});assert.ok(p.z>=TOWER.maxZ+0.34);
+ p.x=-9;p.z=-5;p.y=6;p.vy=-1;p.grounded=false;advance(p,0.5);assert.equal(p.y,TOWER.height);assert.equal(p.grounded,true);
+});
