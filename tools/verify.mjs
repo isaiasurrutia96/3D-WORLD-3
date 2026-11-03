@@ -89,6 +89,33 @@ if (travelled < 3) problems.push(`holding E moved the character only ${travelled
 
 await resetPlayer(page);
 
+// ---- Movement must not depend on the frame rate -------------------------
+// Running used to stall completely above about thirty frames a second: the
+// capsule caught on the seams between floor triangles, and the push that
+// resolved it cancelled the frame's movement. A cloud machine renders this
+// at twenty frames a second and never saw it.
+const rateResults = [];
+for (const fps of [20, 30, 60, 90, 144, 240]) {
+  const result = await page.evaluate((fps) => {
+    const g = window.__letsgo.debug;
+    g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
+    const frames = Math.round(fps * 1.2);
+    const samples = g.simulateMove(frames, 1 / fps, 0, -1);
+    const last = samples[samples.length - 1];
+    return { fps, z: last.z, speed: last.speed, state: last.state };
+  }, fps);
+  rateResults.push(result);
+
+  // 1.2 seconds of running from a standstill covers roughly eight metres.
+  const covered = 5 - result.z;
+  if (covered < 6) {
+    problems.push(
+      `at ${fps} frames a second, 1.2s of running covered only ${covered.toFixed(1)}m`,
+    );
+  }
+}
+await resetPlayer(page);
+
 // ---- Backward must go backward, not round in circles --------------------
 // Holding back used to spin on the spot: the character turned to face the
 // way you pushed, the camera swung round behind them, and backward then
@@ -244,6 +271,11 @@ console.log(
   ` holding back: ${backTravel.toFixed(1)}m travelled, ` +
     `${spinDegrees.toFixed(0)} degrees of turning`,
 );
+
+console.log('\n--- frame rate ---');
+for (const r of rateResults) {
+  console.log(` ${String(r.fps).padStart(3)} fps: covered ${(5 - r.z).toFixed(1)}m in 1.2s`);
+}
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

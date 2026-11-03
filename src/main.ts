@@ -150,6 +150,36 @@ class Game {
         this.running = false;
       },
 
+      /**
+       * Steps the character controller directly, at a fixed time step and
+       * with a fixed movement input, independent of how fast this machine can
+       * render. Frame-rate dependent movement bugs do not show up otherwise:
+       * a cloud machine runs this at twenty frames a second, and a real one
+       * at sixty.
+       */
+      simulateMove: (frames: number, dt: number, x: number, y: number) => {
+        const stub = {
+          move: { x, y },
+          look: { x: 0, y: 0 },
+          isDown: () => false,
+          wasPressed: () => false,
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const samples: Array<{ x: number; z: number; speed: number; state: string }> = [];
+        const yaw = this.cameraRig.movementYaw;
+        for (let i = 0; i < frames; i += 1) {
+          this.player.update(dt, stub, yaw);
+          samples.push({
+            x: Math.round(this.player.position.x * 1000) / 1000,
+            z: Math.round(this.player.position.z * 1000) / 1000,
+            speed: Math.round(this.player.speed * 100) / 100,
+            state: this.player.stateName,
+          });
+        }
+        return samples;
+      },
+
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;
         const target = this.player.position;

@@ -183,6 +183,26 @@ export class CollisionWorld {
   }
 
   /**
+   * Ground height and surface normal directly below `point`, or null.
+   *
+   * A downward ray is a far more dependable way to find the floor than the
+   * contact normal of an overlapping capsule: a capsule resting across the
+   * seam between two triangles of a flat surface can report a sideways
+   * normal, which is right for a wall and badly wrong for a floor.
+   */
+  groundProbe(point: Vector3, maxDrop: number): { y: number; normal: Vector3 } | null {
+    this.scratchVector.set(0, -1, 0);
+    this.scratchRay.set(point, this.scratchVector);
+    const hit = this.octree.rayIntersect(this.scratchRay);
+    if (!hit || hit.distance > maxDrop) return null;
+
+    const normal = hit.triangle.getNormal(new Vector3());
+    // Triangles may be wound either way; the ground always faces upward.
+    if (normal.y < 0) normal.negate();
+    return { y: point.y - hit.distance, normal };
+  }
+
+  /**
    * Height of the ground directly below `point`, or -Infinity if the ray
    * escapes. Used for the soft shadow blob and for respawn safety checks.
    */

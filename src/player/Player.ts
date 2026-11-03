@@ -75,19 +75,18 @@ export class Player {
   private readonly lastSafePosition = new Vector3();
   private safePositionTimer = 0;
 
+  /** Counters from the last frame, for diagnosing movement problems. */
+  readonly diagnostics = {
+    collisions: 0,
+    lastNormalY: 0,
+    lastDepth: 0,
+  };
+
   private readonly scratchA = new Vector3();
   private readonly scratchB = new Vector3();
   private readonly scratchMove = new Vector3();
   private readonly scratchSide = new Vector3();
 
-  // Saved capsule and velocity states, used when attempting a step up over a
-  // low lip. Fields rather than locals so walking allocates nothing.
-  private readonly preStart = new Vector3();
-  private readonly preEnd = new Vector3();
-  private readonly preVelocity = new Vector3();
-  private readonly blockedStart = new Vector3();
-  private readonly blockedEnd = new Vector3();
-  private readonly blockedVelocity = new Vector3();
 
   constructor(
     world: CollisionWorld,
@@ -443,29 +442,21 @@ export class Player {
     const wasOnGround = this.onGround;
     const previousFallSpeed = this.velocity.y;
 
+    this.diagnostics.collisions = 0;
+    this.onGround = false;
+
     for (let step = 0; step < steps; step += 1) {
-      this.preStart.copy(this.capsule.start);
-      this.preEnd.copy(this.capsule.end);
-      this.preVelocity.copy(this.velocity);
+      this.moveHorizontally(stepDelta, wasOnGround);
+      this.moveVertically(stepDelta);
+    }
 
-      const move = this.scratchMove.copy(this.velocity).multiplyScalar(stepDelta);
-      const intended = Math.hypot(move.x, move.z);
-
-      this.capsule.translate(move);
-      this.resolveCollisions();
-
-      if (!wasOnGround || intended < 1e-4) continue;
-
-      const achieved = Math.hypot(
-        this.capsule.start.x - this.preStart.x,
-        this.capsule.start.z - this.preStart.z,
-      );
-      // Losing most of the intended movement means something is in the way.
-      // It may be a wall, or it may be a kerb, a step edge or the seam
-      // between two pieces of scenery, which should simply be walked over.
-      if (achieved >= intended * 0.75) continue;
-
-      this.tryStepUp(stepDelta, achieved);
+    // Ground contact is decided here, by probing downward, and only while
+    // the character is not moving upward. Walking down a slope follows it
+    // rather than launching off, because the probe reaches a little below
+    // the feet.
+    if (this.velocity.y <= 0.1) {
+      const reach = wasOnGround ? TUNING.groundSnapDistance : 0.04;
+      this.settleOnGround(reach);
     }
 
     if (this.onGround) {
@@ -475,13 +466,6 @@ export class Player {
       }
       this.coyoteTimer = TUNING.coyoteTime;
       if (this.state === 'air') this.state = 'ground';
-    } else if (wasOnGround && this.state === 'ground') {
-      // Walking down a slope should follow it rather than launching off it.
-      if (this.velocity.y <= 0.1 && this.snapToGround()) {
-        this.coyoteTimer = TUNING.coyoteTime;
-      } else {
-        this.state = 'air';
-      }
     } else if (this.state === 'ground') {
       this.state = 'air';
     }
@@ -490,100 +474,121 @@ export class Player {
   }
 
   /**
-   * Retries a blocked sub-step from a raised position, then settles back down.
-   * If the obstruction was lower than the step height the character walks
-   * over it; if it was a real wall, nothing changes.
+   * Horizontal movement, with the capsule lifted clear of whatever it is
+   * standing on.
+   *
+   * The lift is what makes this work. A capsule resting on a tiled floor is
+   * always slightly inside it, and when its lower sphere crosses the seam
+   * between two triangles the collision resolution can push it back the way
+   * it came — the character runs on the spot. It only appeared at higher
+   * frame rates, where each step is short enough to stay on one seam.
+   *
+   * Lifting clear of the floor for the sideways move means floor seams are
+   * never touched, and it gives stepping over for free: anything shorter
+   * than the lift is simply walked onto.
    */
-  private tryStepUp(stepDelta: number, blockedProgress: number): void {
-    this.blockedStart.copy(this.capsule.start);
-    this.blockedEnd.copy(this.capsule.end);
-    this.blockedVelocity.copy(this.velocity);
-
-    const restore = (): void => {
-      this.capsule.start.copy(this.blockedStart);
-      this.capsule.end.copy(this.blockedEnd);
-      this.velocity.copy(this.blockedVelocity);
-    };
-
-    // Back to the start of the sub-step, then lift.
-    this.capsule.start.copy(this.preStart);
-    this.capsule.end.copy(this.preEnd);
-    this.capsule.translate(this.scratchMove.set(0, TUNING.stepHeight, 0));
-
-    // No headroom means this is not a step, it is a gap under something.
-    if (this.world.capsuleIntersect(this.capsule)) {
-      restore();
-      return;
-    }
-
-    // Move horizontally only; the vertical part was handled by the lift.
-    this.velocity.copy(this.preVelocity);
-    this.capsule.translate(
-      this.scratchMove.set(this.preVelocity.x * stepDelta, 0, this.preVelocity.z * stepDelta),
+  private moveHorizontally(stepDelta: number, onGround: boolean): void {
+    const move = this.scratchMove.set(
+      this.velocity.x * stepDelta,
+      0,
+      this.velocity.z * stepDelta,
     );
-    this.resolveCollisions();
+    if (Math.hypot(move.x, move.z) < 1e-6) return;
 
-    // Settle back down onto whatever is underneath.
-    const drop = TUNING.stepHeight + 0.06;
-    this.capsule.translate(this.scratchMove.set(0, -drop, 0));
-    const landing = this.world.capsuleIntersect(this.capsule);
-    if (!landing || landing.normal.y < MAX_WALKABLE_NORMAL_Y) {
-      restore();
-      return;
-    }
-    this.capsule.translate(this.scratchMove.copy(landing.normal).multiplyScalar(landing.depth));
+    const lift = onGround ? TUNING.stepHeight : 0;
+    if (lift > 0) this.capsule.translate(this.scratchSide.set(0, lift, 0));
 
-    const gained = Math.hypot(
-      this.capsule.start.x - this.preStart.x,
-      this.capsule.start.z - this.preStart.z,
-    );
-    if (gained <= blockedProgress + 1e-3) {
-      restore();
-      return;
-    }
+    this.capsule.translate(move);
+    this.resolveWalls();
 
-    // The step worked: keep the horizontal speed the wall would have eaten.
-    this.onGround = true;
-    this.groundNormal.copy(landing.normal);
-    this.velocity.set(this.preVelocity.x, 0, this.preVelocity.z);
+    if (lift > 0) this.capsule.translate(this.scratchSide.set(0, -lift, 0));
   }
 
-  private resolveCollisions(): void {
-    this.onGround = false;
+  private moveVertically(stepDelta: number): void {
+    this.capsule.translate(this.scratchMove.set(0, this.velocity.y * stepDelta, 0));
+    this.resolveVertical();
+  }
 
+  /**
+   * Pushes the capsule out of walls, horizontally only. Floors and ceilings
+   * are left to the vertical pass, so a floor contact can never deflect the
+   * character sideways.
+   */
+  private resolveWalls(): void {
     for (let iteration = 0; iteration < 4; iteration += 1) {
       const hit = this.world.capsuleIntersect(this.capsule);
       if (!hit) break;
+      if (Math.abs(hit.normal.y) > 0.7) break;
 
-      this.capsule.translate(this.scratchMove.copy(hit.normal).multiplyScalar(hit.depth));
+      const push = this.scratchB.copy(hit.normal).multiplyScalar(hit.depth);
+      push.y = 0;
+      if (push.lengthSq() < 1e-10) break;
 
-      if (hit.normal.y >= MAX_WALKABLE_NORMAL_Y) {
-        this.onGround = true;
-        this.groundNormal.copy(hit.normal);
-        if (this.velocity.y < 0) this.velocity.y = 0;
-      } else {
-        // Walls and steep slopes remove only the velocity pushing into them,
-        // so the character slides along rather than sticking.
-        const into = this.velocity.dot(hit.normal);
-        if (into < 0) this.velocity.addScaledVector(hit.normal, -into);
+      this.diagnostics.collisions += 1;
+      this.diagnostics.lastNormalY = hit.normal.y;
+      this.diagnostics.lastDepth = hit.depth;
+      this.capsule.translate(push);
+
+      // Remove only the velocity pushing into the wall, so the character
+      // slides along it rather than sticking.
+      const into = this.velocity.x * hit.normal.x + this.velocity.z * hit.normal.z;
+      if (into < 0) {
+        this.velocity.x -= hit.normal.x * into;
+        this.velocity.z -= hit.normal.z * into;
       }
     }
   }
 
-  /** Probes a short distance downward; returns true if the feet found ground. */
-  private snapToGround(): boolean {
-    const probe = this.scratchMove.set(0, -TUNING.groundSnapDistance, 0);
-    this.capsule.translate(probe);
-    const hit = this.world.capsuleIntersect(this.capsule);
-    if (hit && hit.normal.y >= MAX_WALKABLE_NORMAL_Y) {
-      this.capsule.translate(this.scratchB.copy(hit.normal).multiplyScalar(hit.depth));
-      this.onGround = true;
-      this.groundNormal.copy(hit.normal);
-      this.velocity.y = 0;
-      return true;
+  /**
+   * Settles the capsule onto the ground, or stops it against a ceiling.
+   *
+   * Only the vertical part of the push is applied. The two passes each own
+   * one axis: a floor contact can never move the character sideways, and a
+   * wall contact can never move them up or down. Mixing the two is what let
+   * a floor seam cancel a frame of running.
+   */
+  private resolveVertical(): void {
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const hit = this.world.capsuleIntersect(this.capsule);
+      if (!hit) break;
+      // Nearly horizontal: that is a wall, and the horizontal pass owns it.
+      if (Math.abs(hit.normal.y) < 0.25) break;
+
+      const lift = hit.normal.y * hit.depth;
+      if (Math.abs(lift) < 1e-6) break;
+
+      this.diagnostics.collisions += 1;
+      this.diagnostics.lastNormalY = hit.normal.y;
+      this.diagnostics.lastDepth = hit.depth;
+      this.capsule.translate(this.scratchB.set(0, lift, 0));
+
+      if (hit.normal.y < -0.5 && this.velocity.y > 0) this.velocity.y = 0;
     }
-    this.capsule.translate(probe.multiplyScalar(-1));
-    return false;
+  }
+
+  /**
+   * Places the feet on the ground below, if it is within `reach`.
+   *
+   * Only the vertical position changes. Deciding ground contact from the
+   * capsule's own contact normal used to undo a frame of running whenever
+   * the character crossed the seam between two floor triangles, because the
+   * push to resolve that contact pointed sideways.
+   */
+  private settleOnGround(reach: number): boolean {
+    const feetY = this.capsule.start.y - CHARACTER_RADIUS;
+    const origin = this.scratchSide.set(
+      this.capsule.start.x,
+      feetY + 0.25,
+      this.capsule.start.z,
+    );
+    const ground = this.world.groundProbe(origin, 0.25 + reach);
+    if (!ground || ground.normal.y < MAX_WALKABLE_NORMAL_Y) return false;
+
+    this.capsule.translate(this.scratchMove.set(0, ground.y - feetY, 0));
+    this.onGround = true;
+    this.groundNormal.copy(ground.normal);
+    if (this.velocity.y < 0) this.velocity.y = 0;
+    return true;
   }
 
   private updateJumpTimers(delta: number, input: Input): void {
