@@ -42,7 +42,8 @@ export function stepPlayer(player, input, dt) {
       player.y = 0; player.vy = 0; player.grounded = true; player.landing = 1;
     }
   }
-  player.gait += Math.hypot(player.vx,player.vz) * dt * 3.7;
+  // A readable running cadence instead of rapidly shuffling through tiny steps.
+  player.gait += Math.min(18, Math.hypot(player.vx,player.vz) * 2.3) * dt;
   player.landing = Math.max(0, player.landing - dt * 7);
   if (player.y < -12) Object.assign(player, createPlayer());
 }

@@ -12,8 +12,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 renderer.toneMappingExposure = 1.25;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#dbe6ed');
-scene.fog = new THREE.Fog('#dbe6ed', 22, 50);
+scene.background = new THREE.Color('#080e25');
+scene.fog = new THREE.Fog('#080e25', 35, 85);
 const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -178,7 +178,7 @@ document.addEventListener('mousemove', event => {
 });
 const player = createPlayer();
 const keys = new Set();
-const inputCodes = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space']);
+const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space']);
 function press(code) {
   if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
   keys.add(code); player.jumpHeld = keys.has('Space');
@@ -196,14 +196,12 @@ for (const button of document.querySelectorAll('[data-key]')) {
   button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); press(button.dataset.key); });
   for (const type of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(type, () => release(button.dataset.key));
 }
-const forward = new THREE.Vector3(), right = new THREE.Vector3(), direction = new THREE.Vector3();
+// Fixed world directions: rotating the camera never changes movement heading.
 function inputDirection() {
-  forward.subVectors(controls.target,camera.position).setY(0).normalize();
-  right.crossVectors(forward, camera.up).normalize();
-  const horizontal = Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
-  const vertical = Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
-  direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
-  return { x:direction.x, z:direction.z };
+  return {
+    x: Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),
+    z: Number(keys.has('KeyD')||keys.has('ArrowDown'))-Number(keys.has('KeyE')||keys.has('ArrowUp')),
+  };
 }
 const limbs = ['left','right'].map(side => Object.fromEntries(
   ['hip','knee','ankle','shoulder','elbow','wrist'].map(name => [name,izzy.getObjectByName(`${side}_${name}`)])));
@@ -214,15 +212,16 @@ function animatePlayer(dt) {
   limbs.forEach((limb,index) => {
     const stride = Math.sin(player.gait+index*Math.PI);
     const running = player.grounded;
-    pose(limb.hip,running ? stride*0.85*amount : (index===0 ? -0.65 : 0.3));
-    pose(limb.knee,running ? Math.max(0,-stride)*0.95*amount : 0.85);
-    pose(limb.ankle,running ? -stride*0.2*amount : 0.2);
-    pose(limb.shoulder,running ? -stride*0.7*amount : -1.1);
-    pose(limb.elbow,running ? -0.4*amount : -0.6);
+    pose(limb.hip,running ? stride*1.25*amount : (index===0 ? -0.65 : 0.3));
+    pose(limb.knee,running ? (0.18+Math.max(0,-stride)*1.45)*amount : 0.85);
+    pose(limb.ankle,running ? -stride*0.35*amount : 0.2);
+    pose(limb.shoulder,running ? -stride*1.15*amount : -1.1);
+    pose(limb.elbow,running ? -(0.9+stride*0.2)*amount : -0.6);
     pose(limb.wrist,0);
   });
-  pelvis.position.y = 0.9 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.045*amount-player.landing*0.09 : 0);
-  torso.rotation.x = player.grounded ? amount*0.09 : -0.06;
+  pelvis.position.y = 0.9 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.14*amount-player.landing*0.09 : 0);
+  torso.rotation.x = player.grounded ? amount*0.24 : -0.06;
+  torso.rotation.y = player.grounded ? Math.sin(player.gait)*0.12*amount : 0;
 }
 let previousTime, accumulator = 0;
 const fixedStep = 1/120;
