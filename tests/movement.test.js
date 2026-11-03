@@ -37,6 +37,20 @@ test('pool entry, buoyancy, diving and ledge exit',async()=>{
  p.x=POOL.minX+0.4;p.jumpHeld=true;stepPlayer(p,{x:-1,z:0},dt);assert.equal(p.mode,'land');assert.ok(p.x<POOL.minX);assert.ok(p.y>0);advance(p,1);assert.equal(p.y,0);assert.equal(p.grounded,true);
 });
 test('box sides are solid; roof supports a falling player',async()=>{
- const {TOWER}=await import('../src/movement.js');const p=createPlayer();p.x=-9;p.z=-1;advance(p,0.5,{x:0,z:-1});assert.ok(p.z>=TOWER.maxZ+0.34);
+ const {TOWER}=await import('../src/movement.js');const p=createPlayer();p.x=-10.5;p.z=-1;advance(p,0.5,{x:0,z:-1});assert.ok(p.z>=TOWER.maxZ+0.34);
  p.x=-9;p.z=-5;p.y=6;p.vy=-1;p.grounded=false;advance(p,0.5);assert.equal(p.y,TOWER.height);assert.equal(p.grounded,true);
+});
+
+test('walking or jumping toward the ladder grabs without an interaction key',async()=>{
+ const {LADDER}=await import('../src/movement.js');
+ for(const height of [0,1.4]){
+  const p=createPlayer();Object.assign(p,{x:LADDER.x,z:LADDER.z+0.45,y:height,grounded:height===0,vy:3});
+  stepPlayer(p,{x:0,z:-1,climb:1},dt);assert.equal(p.mode,'climb');assert.equal(p.z,LADDER.z);assert.equal(p.vy,0);
+ }
+});
+test('ladder release cooldown prevents immediate automatic reattachment',async()=>{
+ const {LADDER}=await import('../src/movement.js');const p=createPlayer();Object.assign(p,{x:LADDER.x,z:LADDER.z+0.4});stepPlayer(p,{x:0,z:-1},dt);p.jumpQueued=true;stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'land');stepPlayer(p,{x:0,z:-1},dt);assert.equal(p.mode,'land');assert.ok(p.ladderCooldown>0);
+});
+test('merely standing near the ladder or moving away does not grab',async()=>{
+ const {LADDER}=await import('../src/movement.js');const p=createPlayer();Object.assign(p,{x:LADDER.x,z:LADDER.z+0.4});stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'land');stepPlayer(p,{x:0,z:1},dt);assert.equal(p.mode,'land');
 });

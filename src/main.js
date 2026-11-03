@@ -112,22 +112,24 @@ for(let y=0.3;y<5.6;y+=0.35){
   rung.rotation.z=Math.PI/2;
 }
 const poolMaterial=material('#668c9b');
-mesh(new THREE.BoxGeometry(10,0.25,12),poolMaterial,scene,[12,POOL.bottom-0.125,0]);
-for(const x of [POOL.minX,POOL.maxX]) mesh(new THREE.BoxGeometry(0.2,4,12),poolMaterial,scene,[x,-2,0]);
-for(const z of [POOL.minZ,POOL.maxZ]) mesh(new THREE.BoxGeometry(10,4,0.2),poolMaterial,scene,[12,-2,z]);
-const water=mesh(new THREE.PlaneGeometry(10,12),new THREE.MeshBasicMaterial({color:'#3899b5',transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false}),scene,[12,POOL.water,0]);
+const poolWidth=POOL.maxX-POOL.minX, poolDepth=POOL.maxZ-POOL.minZ;
+const poolX=(POOL.minX+POOL.maxX)/2, poolZ=(POOL.minZ+POOL.maxZ)/2;
+mesh(new THREE.BoxGeometry(poolWidth,0.25,poolDepth),poolMaterial,scene,[poolX,POOL.bottom-0.125,poolZ]);
+for(const x of [POOL.minX,POOL.maxX]) mesh(new THREE.BoxGeometry(0.2,4,poolDepth),poolMaterial,scene,[x,-2,poolZ]);
+for(const z of [POOL.minZ,POOL.maxZ]) mesh(new THREE.BoxGeometry(poolWidth,4,0.2),poolMaterial,scene,[poolX,-2,z]);
+const water=mesh(new THREE.PlaneGeometry(poolWidth,poolDepth),new THREE.MeshBasicMaterial({color:'#3899b5',transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false}),scene,[poolX,POOL.water,poolZ]);
 water.rotation.x=-Math.PI/2;
 const coping=material('#a9bac1');
-for(const x of [POOL.minX-0.15,POOL.maxX+0.15]) mesh(new THREE.BoxGeometry(0.3,0.12,12.6),coping,scene,[x,0.02,0]);
-for(const z of [POOL.minZ-0.15,POOL.maxZ+0.15]) mesh(new THREE.BoxGeometry(10.6,0.12,0.3),coping,scene,[12,0.02,z]);
+for(const x of [POOL.minX-0.15,POOL.maxX+0.15]) mesh(new THREE.BoxGeometry(0.3,0.12,poolDepth+0.6),coping,scene,[x,0.02,poolZ]);
+for(const z of [POOL.minZ-0.15,POOL.maxZ+0.15]) mesh(new THREE.BoxGeometry(poolWidth+0.6,0.12,0.3),coping,scene,[poolX,0.02,z]);
 function worldLabel(text,position){
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=96;
   const ctx=canvas.getContext('2d');ctx.fillStyle='#101831dd';ctx.fillRect(0,0,512,96);ctx.font='bold 24px sans-serif';ctx.fillStyle='#e7edf9';ctx.textAlign='center';ctx.fillText(text,256,58);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
   const label=new THREE.Sprite(new THREE.SpriteMaterial({map,depthTest:true}));label.position.set(...position);label.scale.set(3.8,0.72,1);scene.add(label);
 }
-worldLabel('LADDER · C TO GRAB',[-9,6.3,-1.9]);
-worldLabel('POOL · SPACE TO STROKE',[12,1.5,-6.4]);
+worldLabel('LADDER · WALK OR JUMP ON',[-9,6.3,-1.9]);
+worldLabel('POOL · SPACE TO STROKE',[poolX,1.5,POOL.minZ-0.4]);
 // Simple era-style contact shadow, rather than modern real-time soft shadows.
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.61, 16),
   new THREE.MeshBasicMaterial({ color: '#36333c', transparent: true, opacity: 0.22, depthWrite: false }));
@@ -137,7 +139,7 @@ shadow.scale.y = 0.7;
 scene.add(shadow);
 const izzy = joint(scene, 'Izzy', [0,0,0]);
 // Limb pivots drive the run cycle and airborne pose.
-const pelvis = joint(izzy, 'pelvis', [0,0.9,0]);
+const pelvis = joint(izzy, 'pelvis', [0,1.035,0]);
 ball(pelvis,blue, [0,0.1,0], [0.43,0.4,0.29]);
 const torso = joint(pelvis, 'spine', [0,0.25,0]);
 ball(torso, overalls, [0,0.15,0], [0.45,0.48,0.3]);
@@ -146,12 +148,14 @@ for (const side of [-1,1]) {
   button.name = `${side<0?'left':'right'}_overall_button`;
   button.rotation.x = Math.PI/2;
   const hip = joint(pelvis, `${side<0?'left':'right'}_hip`, [side*0.23,-0.15,0]);
+  hip.scale.y=1.18;
   ball(hip,blue,[0,-0.13,0],[0.205,0.29,0.21]);
   const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29,0]);
   ball(knee,blue,[0,-0.12,0],[0.18,0.22,0.18]);
   const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25,0]);
   ball(ankle,shoes,[0,-0.08,0.11],[0.23,0.13,0.36]);
   const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.43,0.32,0]);
+  shoulder.scale.y=1.18;
   shoulder.rotation.z = side*0.16;
   ball(shoulder,yellow,[side*0.045,-0.14,0],[0.17,0.25,0.18]);
   const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29,0]);
@@ -259,7 +263,7 @@ function animatePlayer(dt) {
       pose(limb.ankle,climbing ? -0.2 : 0.25);
     });
     pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,climbing ? 0 : 1.05,blend);
-    pelvis.position.y=0.9;
+    pelvis.position.y=1.035;
     torso.rotation.x=0;torso.rotation.y=0;
     return;
   }
@@ -280,7 +284,7 @@ function animatePlayer(dt) {
     pose(limb.elbow,running ? -(0.9+stride*0.2)*amount : -0.6);
     pose(limb.wrist,0);
   });
-  pelvis.position.y = 0.9 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.14*amount-player.landing*0.09 : 0);
+  pelvis.position.y = 1.035 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.14*amount-player.landing*0.09 : 0);
   torso.rotation.x = player.grounded ? amount*0.24 : -0.06;
   torso.rotation.y = player.grounded ? Math.sin(player.gait)*0.12*amount : 0;
 }
@@ -303,6 +307,6 @@ renderer.setAnimationLoop(time => {
   controls.update(); renderer.render(scene,camera);
   canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
   const label=document.querySelector('.scene-label');
-  label.textContent=player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / CTRL DIVE · SPACE AT EDGE TO EXIT' : 'RUN & JUMP · C NEAR LADDER TO GRAB';
+  label.textContent=player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / CTRL DIVE · SPACE AT EDGE TO EXIT' : 'LADDER: WALK OR JUMP ON · E UP / D DOWN';
   canvas.dataset.position = `${player.x.toFixed(3)},${player.y.toFixed(3)},${player.z.toFixed(3)}`;
 });

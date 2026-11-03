@@ -1,8 +1,8 @@
 // World units are approximately meters. These are independently tuned prototype
 // values, not a port of the original game's physics or animation code.
 export const FLOOR_HALF_SIZE = 40;
-export const MAX_SPEED = 10;
-export const POOL = { minX: 7, maxX: 17, minZ: -6, maxZ: 6, bottom: -4, water: -0.35 };
+export const MAX_SPEED = 13;
+export const POOL = { minX: 7, maxX: 27, minZ: -10, maxZ: 10, bottom: -4, water: -0.35 };
 export const TOWER = { minX: -12, maxX: -6, minZ: -8, maxZ: -2, height: 5 };
 export const LADDER = { x: -9, z: -1.45, height: 5 };
 export const inPool = (x,z) => x>POOL.minX && x<POOL.maxX && z>POOL.minZ && z<POOL.maxZ;
@@ -13,13 +13,21 @@ const approach = (value, target, step) => value < target
 
 export function createPlayer() {
   return { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0,
-    mode: 'land', interactQueued: false, grounded: true, jumpQueued: false, jumpHeld: false, gait: 0, landing: 0 };
+    mode: 'land', ladderCooldown: 0, interactQueued: false, grounded: true, jumpQueued: false, jumpHeld: false, gait: 0, landing: 0 };
 }
 
 export function stepPlayer(player, input, dt) {
+  player.ladderCooldown=Math.max(0,player.ladderCooldown-dt);
   const nearLadder = Math.abs(player.x-LADDER.x)<0.9 && Math.abs(player.z-LADDER.z)<1.4;
+  const touchingFront=Math.abs(player.x-LADDER.x)<0.65 && player.z>LADDER.z-0.25 && player.z<LADDER.z+0.6;
+  const approachingFront=touchingFront && input.z<-0.05 && player.y<LADDER.height-0.1;
+  const descendingFromRoof=nearLadder && player.y>=LADDER.height-0.1 && (input.climb||0)<0;
+  if(player.mode==='land' && player.ladderCooldown===0 && player.y>=-0.1 && player.y<=LADDER.height+0.1 && (approachingFront||descendingFromRoof)){
+    player.mode='climb';player.x=LADDER.x;player.z=LADDER.z;player.vx=player.vy=player.vz=0;player.grounded=false;
+    player.jumpQueued=false;
+  }
   if (player.interactQueued) {
-    if (player.mode==='climb') { player.mode='land'; player.z=LADDER.z+0.65; player.grounded=false; }
+    if (player.mode==='climb') { player.mode='land'; player.z=LADDER.z+0.65; player.grounded=false; player.ladderCooldown=0.65; }
     else if (nearLadder && player.y>=-0.1 && player.y<=LADDER.height+0.1) {
       player.mode='climb'; player.x=LADDER.x; player.z=LADDER.z; player.vx=player.vy=player.vz=0; player.grounded=false;
     }
@@ -29,9 +37,9 @@ export function stepPlayer(player, input, dt) {
     player.yaw=Math.PI;
     const climb=input.climb||0;
     player.y+=climb*1.8*dt; player.gait=player.y*Math.PI/0.35;
-    if(player.jumpQueued){player.mode='land';player.vy=6;player.vz=4;player.z+=0.5;}
-    else if(player.y>=LADDER.height && climb>0){player.mode='land';player.y=LADDER.height;player.z=TOWER.maxZ-0.7;player.grounded=true;}
-    else if(player.y<=0 && climb<0){player.mode='land';player.y=0;player.z=LADDER.z+0.5;player.grounded=true;}
+    if(player.jumpQueued){player.mode='land';player.vy=6;player.vz=4;player.z+=0.5;player.ladderCooldown=0.65;}
+    else if(player.y>=LADDER.height && climb>0){player.mode='land';player.y=LADDER.height;player.z=TOWER.maxZ-0.7;player.grounded=true;player.ladderCooldown=0.65;}
+    else if(player.y<=0 && climb<0){player.mode='land';player.y=0;player.z=LADDER.z+0.5;player.grounded=true;player.ladderCooldown=0.65;}
     player.jumpQueued=false;
     return;
   }
@@ -42,7 +50,7 @@ export function stepPlayer(player, input, dt) {
   const magnitude = Math.hypot(x, z);
   if (magnitude > 1) { x /= magnitude; z /= magnitude; }
   const moving = magnitude > 0.01;
-  const acceleration = swimming ? 8 : player.grounded ? (moving ? 34 : 40) : (moving ? 10 : 0);
+  const acceleration = swimming ? 8 : player.grounded ? (moving ? 44 : 48) : (moving ? 10 : 0);
   // Limit the whole velocity change, so diagonals accelerate at the same rate.
   const speed = swimming ? 3.7 : MAX_SPEED;
   const dx = x * speed - player.vx, dz = z * speed - player.vz;
