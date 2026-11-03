@@ -72,9 +72,8 @@ bloom. Chosen as the default for the Intel Iris Graphics 6100 test machine.
 scenery.
 
 The performance panel on `F3` reports frame rate, draw calls and triangle
-count. Measured on a 13-inch MacBook Pro (Early 2015, Intel Iris Graphics
-6100, macOS Monterey) in Firefox, milestone 1 runs at **60 frames per second
-at Medium quality**.
+count. The target is an older laptop with integrated graphics running Firefox,
+where the castle build measured **60 frames per second at Medium quality**.
 
 ## D) Project layout
 

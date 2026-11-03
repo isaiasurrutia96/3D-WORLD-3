@@ -4,11 +4,11 @@ The authoritative record of what has been decided for this project. Update it
 whenever a material decision changes, recording the date, the previous choice,
 the new choice, and the reason.
 
-Labels used throughout: **Confirmed** means Isaias stated the choice.
-**Proposed** means a practical answer awaiting review. **Deferred** means
-planned for later. **Open** means the answer is still needed.
+Labels used throughout: **Confirmed** means the project owner stated the
+choice. **Proposed** means a practical answer awaiting review. **Deferred**
+means planned for later. **Open** means the answer is still needed.
 
-Last updated: 3 November 2026 (third entry).
+Last updated: 3 November 2026 (sixth entry).
 
 ---
 
@@ -16,8 +16,8 @@ Last updated: 3 November 2026 (third entry).
 
 **1. Confirmed.** LetsGo is an interactive free-roam 3D game: explore,
 complete platforming challenges, drive karts, and play minigames against NPCs
-or friends. Later, in-game computers may connect to LifeSheet and other online
-tools.
+or friends. In-game computers are intended to connect to outside services at
+some later point.
 
 **2. Confirmed.** Genre: a 3D free-roam platformer with kart racing and a
 collection of minigames.
@@ -27,23 +27,22 @@ camera; Mario Kart Double Dash for driving and visual style.
 
 **4. Confirmed.** Target feeling: enjoyment, curiosity and competitiveness.
 
-**5. Confirmed.** Platform: desktop web browser first, tested in Firefox on
-Isaias's Mac.
+**5. Confirmed.** Platform: desktop web browser first, tested in Firefox.
 
 **6. Confirmed.** Technology: Three.js with TypeScript, built by Vite, on
 Node.js. Versions in use are recorded in `package.json` and pinned by
 `package-lock.json`.
 
-**7. Confirmed.** Budget: nothing beyond the existing Claude and ChatGPT
-subscriptions. Any paid asset, service, hosting or API needs its own approval.
+**7. Confirmed.** No paid asset, service, hosting or API is to be added
+without approval first.
 
 ---
 
 ## B) Milestone 1 — scope as agreed on 3 November 2026
 
-This narrows the Game Foundation section of the original questionnaire.
-Isaias set this scope explicitly, and it supersedes the earlier foundation
-plan for this milestone only.
+This narrows the Game Foundation section of the original questionnaire. It
+was set explicitly, and supersedes the earlier foundation plan for this
+milestone only.
 
 **1. Confirmed, in scope.** A home menu screen.
 
@@ -74,8 +73,8 @@ intended game, but not being built yet.
 | Swimming, climbing, carrying | Deferred | Brought forward |
 | Multiplayer feasibility test | In the foundation | Moved later |
 
-Reason: Isaias wanted the time spent on how movement and the world actually
-feel, before any content is layered on top.
+Reason: the time was to be spent on how movement and the world actually feel,
+before any content is layered on top.
 
 ---
 
@@ -84,11 +83,10 @@ feel, before any content is layered on top.
 These were judgement calls taken during the build. Each can be changed.
 
 **1.** The character is an original model in the Super Mario 64 visual style —
-not Nintendo's assets. Isaias said he is not selling the game and would accept
-copied assets; Claude builds original models regardless. This matches the
+not Nintendo's assets. Everything visual in this project is generated in code,
+and that holds regardless of how the game is eventually used. This matches the
 original questionnaire, which already confirmed "original models and
-environments". Changing the outfit colours, proportions or the castle is
-trivial from here.
+environments".
 
 **2.** Everything visual is generated in code. There are no model, texture or
 sound files in the repository, so there is no licensing to track yet.
@@ -102,9 +100,9 @@ triple jump, wall kick, long jump or ground pound — those belong to the full
 move set, which is deferred.
 
 **5.** Three graphics presets exist (high, medium, low) and default to medium,
-because the frame rate on the Intel Iris Graphics 6100 cannot be measured from
-a cloud machine. The performance panel on `F3` exists so a real reading can be
-taken and reported.
+because frame rate on the target machine cannot be measured from a cloud
+machine. The performance panel on `F3` exists so a real reading can be taken
+and reported.
 
 **6.** The title screen is the live world with the camera orbiting the castle,
 rather than a separate menu scene, so there is only one world to maintain.
@@ -115,19 +113,25 @@ yet.
 
 ---
 
-## D) The test machine
+## D) The performance target
 
-**1. Confirmed.** MacBook Pro, 13-inch, Early 2015. 2.7 GHz dual-core Intel
-Core i5, 8 GB RAM, Intel Iris Graphics 6100, macOS Monterey 12.7.6, tested in
-Firefox.
+**1. Confirmed.** The game must run well on an older laptop with integrated
+graphics, in Firefox. That is the machine it is developed against, and it is
+deliberately modest.
 
-**2. Measured on that machine, 3 November 2026.** Milestone 1 runs at **60
-frames per second at Medium quality**, with 52 to 74 draw calls and roughly
-125,000 to 130,000 triangles on screen. This was read from the in-game
-performance panel by Isaias, not estimated.
+**2. Measured, 3 November 2026.** The castle build ran at **60 frames per
+second at Medium quality** on that machine, with 52 to 74 draw calls and
+roughly 125,000 to 130,000 triangles on screen. Read from the in-game
+performance panel, not estimated.
 
-**3. Not yet measured.** Frame rate at High quality, and frame rate while
-swimming or during heavy particle effects.
+**3. Not yet measured.** Frame rate at High quality, and frame rate during
+heavy particle effects.
+
+**4.** Frame rate is also a correctness concern, not only a comfort one. A
+movement bug that only appeared above about thirty frames a second went
+unnoticed for several milestones because the machine the automated checks run
+on renders at twenty. The verification pass now drives the character
+controller at fixed time steps from 20 to 240 frames a second.
 
 ---
 
@@ -136,19 +140,12 @@ swimming or during heavy particle effects.
 **1. Open.** Whether the movement actually feels right. Every tuning number
 lives in `src/player/Tuning.ts` and is meant to be adjusted after play.
 
-**2. Open.** Whether the movement actually feels right. Every tuning number
-lives in `src/player/Tuning.ts` and is meant to be adjusted after play.
+**2. Open.** Any deadline for a first playable version.
 
-**3. Open.** Weekly hours, working days, and any deadline for a first playable
-version.
+**3. Open.** Multiplayer hosting. Six-player browser multiplayer needs a
+server; free tiers may cover testing, but this has not been checked.
 
-**4. Open.** Multiplayer hosting and its cost. Six-player browser multiplayer
-needs a server; free tiers may cover testing, but this has not been checked.
-
-**5. Open.** Price, commercial model and wider audience.
-
-**6. Open.** Final character appearance, music and sound sources, and named
-testers.
+**4. Open.** Final character appearance, and music and sound sources.
 
 ---
 
@@ -160,8 +157,8 @@ style: simple low-polygon shapes, basic lighting, and minimal visual effects.
 **2. Confirmed.** The castle build was more polished than necessary. Effects
 such as bloom, reflective water and dense scenery are to be kept out unless
 there is a reason for them, so there is performance headroom as content is
-added. The measured 60 frames per second on the test machine is a starting
-budget to protect, not a ceiling to spend.
+added. The measured 60 frames per second is a starting budget to protect, not
+a ceiling to spend.
 
 **3. Scope.** This applies when the world is rebuilt. It does not change the
 character milestones, where a neutral studio setup is being used so the form
@@ -171,9 +168,9 @@ can be judged.
 
 ## G) Deferred features
 
-**1. Custom key bindings.** Isaias will specify which keys he wants for each
-movement in a later milestone. Until then the defaults listed in the README
-stand. The input layer already maps physical keys and gamepad buttons to
+**1. Further control customisation.** Movement is bound to E, D, S and F, with
+R and Q reserved for picking up and interacting. Remaining bindings are to be
+specified in a later milestone; until then the defaults in the README stand. The input layer already maps physical keys and gamepad buttons to
 named actions, so remapping is a matter of editing that one table rather
 than touching the character controller.
 
@@ -183,10 +180,9 @@ surfaces registered with the collision world. A ladder would be another
 registered surface with a flat facing rather than a round post, so the state
 machine does not need restructuring to support it.
 
-**3. Still deferred from the original plan.** LifeSheet and productivity
-services, the floor plan editor, company events, the full tournament system,
-extensive clothing, saving and progression, the full carnival, and the
-complete Super Mario 64 move set.
+**3. Still deferred from the original plan.** Connected outside services, the
+floor plan editor, the full tournament system, extensive clothing, saving and
+progression, the full carnival, and the complete Super Mario 64 move set.
 
 ---
 
@@ -204,14 +200,14 @@ layer to preserve.
 ## I) How the work is structured, from 3 November 2026
 
 **1. Confirmed.** Milestones are small — thirty to sixty minutes of work — and
-each one ends with Isaias playing it before anything is built on top.
+each one ends with the owner playing it before anything is built on top.
 
 **2. Confirmed.** Each milestone keeps what came before and adds to it. The
 character controller from milestone 1 is the same one the world is later built
 around; nothing is rebuilt twice.
 
-**3. Confirmed.** The castle, the moat and the title screen are kept. Isaias
-approved that look. They are not loaded during the character milestones, but
+**3. Confirmed.** The castle, the moat and the title screen are kept. That
+look was approved. They are not loaded during the character milestones, but
 they remain in the repository and return once the character is settled.
 
 **4. Reason for the change.** The first attempt delivered the menu, six moves,
@@ -226,8 +222,7 @@ that something works; it cannot tell that something looks or feels wrong.
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
-milestones; multiplayer taken out of scope for now. Reason: Isaias asked for
-the time to go into movement and world feel first.
+milestones; multiplayer taken out of scope for now. Reason: the time was asked to go into movement and world feel first.
 
 **3 November 2026, fifth entry.** Super Mario 64 visual style confirmed for
 the world, as in section F. Character proportions moved toward a chunkier,
@@ -244,5 +239,5 @@ running and jumping, no sky, scenery or menu.
 
 **3 November 2026, later.** Test machine specification recorded, and 60 frames
 per second measured on it at Medium quality. Custom key bindings and ladder
-climbing recorded as deferred. A round of bug fixes applied after Isaias
-played the build; they are listed in the commit for that change.
+climbing recorded as deferred. A round of bug fixes applied after the build
+was played; they are listed in the commit for that change.
