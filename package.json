@@ -1,0 +1,30 @@
+{
+  "name": "letsgo",
+  "version": "1.0.0",
+  "description": "interactive world for LifeSheet",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/isaiasurrutia96/LetsGo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/isaiasurrutia96/LetsGo/issues"
+  },
+  "homepage": "https://github.com/isaiasurrutia96/LetsGo#readme",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  },
+  "private": true
+}
