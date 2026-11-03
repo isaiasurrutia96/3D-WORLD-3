@@ -47,45 +47,7 @@ sun.shadow.bias = -0.0002;
 sun.shadow.radius = 4;
 scene.add(sun);
 const material = color => new THREE.MeshLambertMaterial({ color });
-const blue = material('#245dad');
-const yellow = material('#f4c342');
-const shoes = material('#50372b');
-const gloves = material('#eee9db');
-function paintedMaterial(draw) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  draw(canvas.getContext('2d'));
-  const map = new THREE.CanvasTexture(canvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.magFilter = THREE.NearestFilter;
-  map.minFilter = THREE.NearestFilter;
-  return new THREE.MeshLambertMaterial({ map });
-}
-const overalls = paintedMaterial(paint => {
-  paint.fillStyle = '#f4c342'; paint.fillRect(0,0,128,128);
-  paint.fillStyle = '#245dad'; paint.fillRect(0,78,128,50);
-  for (const center of [32,96]) {
-    paint.fillRect(center-16,54,32,34);
-    paint.fillRect(center-16,20,6,40);
-    paint.fillRect(center+10,20,6,40);
-  }
-});
-const face = paintedMaterial(paint => {
-  paint.fillStyle = '#efb483'; paint.fillRect(0,0,128,128);
-  // Features are painted directly on the head; +Z is the face, -Z the back.
-  for (const x of [24,40]) {
-    paint.fillStyle = '#fff8e9'; paint.beginPath(); paint.ellipse(x,51,5,8,0,0,Math.PI*2); paint.fill();
-    paint.fillStyle = '#3585b0'; paint.fillRect(x-1,47,3,10);
-    paint.fillStyle = '#182c3d'; paint.fillRect(x,48,2,8);
-    paint.fillStyle = '#47312a'; paint.fillRect(x-4,40,8,2);
-  }
-  paint.fillStyle = '#d68d62'; paint.beginPath(); paint.ellipse(32,65,4,4,0,0,Math.PI*2); paint.fill();
-  // Narrow, small mustache in place of the earlier thick 3D lobes.
-  paint.fillStyle = '#47312a';
-  paint.fillRect(25,71,6,2); paint.fillRect(33,71,6,2);
-  paint.fillRect(27,73,10,1);
-  paint.fillStyle = '#ad7055'; paint.fillRect(29,79,6,1);
-});
+const mannequin = material('#88939f');
 function mesh(geometry, mat, parent, position, scale) {
   const object = new THREE.Mesh(geometry, mat);
   object.position.set(...position);
@@ -145,34 +107,34 @@ const STANDING_HIP_HEIGHT=0.15+0.54*LIMB_LENGTH+0.21;
 const izzy = joint(scene, 'Izzy', [0,0,0]);
 // Limb pivots drive the run cycle and airborne pose.
 const pelvis = joint(izzy, 'pelvis', [0,STANDING_HIP_HEIGHT,0]);
-ball(pelvis,blue, [0,0.1,0], [0.43,0.4,0.29]);
+ball(pelvis,mannequin,[0,0.04,0],[0.34,0.23,0.24]);
 const torso = joint(pelvis, 'spine', [0,0.25,0]);
-ball(torso, overalls, [0,0.15,0], [0.45,0.48,0.3]);
+// Broad shoulders and a rounded, tapered base match the mannequin reference.
+const bodyProfile=[ [0,-0.32],[0.22,-0.31],[0.34,-0.25],[0.41,-0.12],
+  [0.46,0.13],[0.47,0.38],[0.43,0.46],[0.28,0.49],[0,0.49] ];
+mesh(new THREE.LatheGeometry(bodyProfile.map(([r,y])=>new THREE.Vector2(r,y)),16),
+  mannequin,torso,[0,0.15,0],[1,1,0.7]);
+function segment(parent,position,radius,length){
+  return mesh(new THREE.CapsuleGeometry(radius,length,4,12),mannequin,parent,position);
+}
 for (const side of [-1,1]) {
-  const button = mesh(new THREE.CylinderGeometry(0.047,0.047,0.028,10), yellow, torso, [side*0.23,0.24,0.258]);
-  button.name = `${side<0?'left':'right'}_overall_button`;
-  button.rotation.x = Math.PI/2;
   const hip = joint(pelvis, `${side<0?'left':'right'}_hip`, [side*0.23,-0.15,0]);
-  ball(hip,blue,[0,-0.13*LIMB_LENGTH,0],[0.205,0.29*LIMB_LENGTH,0.21]);
+  segment(hip,[0,-0.145*LIMB_LENGTH,0],0.195,0.29*LIMB_LENGTH-0.2);
   const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29*LIMB_LENGTH,0]);
-  ball(knee,blue,[0,-0.12*LIMB_LENGTH,0],[0.18,0.22*LIMB_LENGTH,0.18]);
+  segment(knee,[0,-0.125*LIMB_LENGTH,0],0.155,0.25*LIMB_LENGTH-0.17);
   const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25*LIMB_LENGTH,0]);
-  ball(ankle,shoes,[0,-0.08,0.11],[0.23,0.13,0.36]);
+  ball(ankle,mannequin,[0,-0.08,0.11],[0.23,0.13,0.36]);
   const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.43,0.32,0]);
   shoulder.rotation.z = side*0.16;
-  ball(shoulder,yellow,[side*0.045,-0.14*LIMB_LENGTH,0],[0.17,0.25*LIMB_LENGTH,0.18]);
+  segment(shoulder,[side*0.025,-0.145*LIMB_LENGTH,0],0.16,0.29*LIMB_LENGTH-0.21);
   const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*LIMB_LENGTH,0]);
-  ball(elbow,yellow,[0,-0.095*LIMB_LENGTH,0.02],[0.14,0.18*LIMB_LENGTH,0.15]);
+  segment(elbow,[0,-0.115*LIMB_LENGTH,0.02],0.145,0.23*LIMB_LENGTH-0.16);
   const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23*LIMB_LENGTH,0.03]);
-  ball(wrist,gloves,[0,-0.055,0],[0.17,0.19,0.16]);
-  ball(wrist,gloves,[-side*0.13,-0.10,0.09],[0.075,0.10,0.085]);
+  ball(wrist,mannequin,[0,-0.075,0.025],[0.205,0.20,0.18]);
 }
-const head = joint(torso,'neck',[0,0.77,0]);
-ball(head,face,[0,0.12,0.025],[0.41,0.4,0.33]);
-// The cap follows the head. Its bill points behind Izzy, along -Z.
-const cap = joint(head,'backward_hat',[0,0.32,0.025]);
-mesh(new THREE.SphereGeometry(1,10,4,0,Math.PI*2,0,Math.PI/2),yellow,cap,[0,0,0],[0.42,0.20,0.345]);
-ball(cap,yellow,[0,-0.005,-0.28],[0.34,0.03,0.24]);
+const head = joint(torso,'neck',[0,0.80,0]);
+mesh(new THREE.CylinderGeometry(0.135,0.17,0.23,12),mannequin,head,[0,-0.065,0]);
+mesh(new THREE.SphereGeometry(0.38,20,16),mannequin,head,[0,0.30,0]);
 function resize() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
   const renderScale = Math.min(1, 480 / height);
@@ -331,7 +293,7 @@ function updateBubbles(dt){
       bubbleTimer=0;
       const bubble=bubbles.find(b=>b.life<=0);
       if(bubble){
-        head.updateWorldMatrix(true,false);head.getWorldPosition(bubbleOrigin);
+        head.updateWorldMatrix(true,false);bubbleOrigin.set(0,0.30,0);head.localToWorld(bubbleOrigin);
         bubble.mesh.position.copy(bubbleOrigin);bubble.mesh.position.y=Math.min(POOL.water-0.1,bubbleOrigin.y);
         bubble.mesh.position.x+=(Math.random()-0.5)*0.22;bubble.mesh.position.z+=(Math.random()-0.5)*0.22;
         bubble.life=2.5;bubble.speed=0.6+Math.random()*0.5;bubble.wobble=Math.random()*6.28;
