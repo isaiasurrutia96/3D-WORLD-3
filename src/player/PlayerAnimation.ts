@@ -107,8 +107,12 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
 
   rig.head.rotation.set(current.headPitch, current.headYaw, 0);
 
-  rig.shoulderLeft.rotation.set(current.shoulderLeftPitch, 0, current.shoulderLeftRoll);
-  rig.shoulderRight.rotation.set(current.shoulderRightPitch, 0, -current.shoulderRightRoll);
+  // Rotating a downward-hanging arm about +Z swings it toward +X, so the left
+  // arm needs a negative roll and the right a positive one to move *away*
+  // from the body. With the signs the other way round, every increase in roll
+  // tucked both arms further into the torso.
+  rig.shoulderLeft.rotation.set(current.shoulderLeftPitch, 0, -current.shoulderLeftRoll);
+  rig.shoulderRight.rotation.set(current.shoulderRightPitch, 0, current.shoulderRightRoll);
   rig.elbowLeft.rotation.x = current.elbowLeft;
   rig.elbowRight.rotation.x = current.elbowRight;
 
@@ -154,8 +158,8 @@ function reset(target: Pose): void {
   target.shoulderRightPitch = 0;
   // The body is widest at the belly, so the arms need to hang a little clear
   // of it or they disappear into the torso.
-  target.shoulderLeftRoll = 0.2;
-  target.shoulderRightRoll = 0.2;
+  target.shoulderLeftRoll = 0.17;
+  target.shoulderRightRoll = 0.17;
   target.elbowLeft = 0;
   target.elbowRight = 0;
   target.hipLeft = 0;
@@ -205,8 +209,8 @@ function poseGround(input: AnimationInputs): void {
     pose.headPitch = Math.sin(input.time * 0.33) * 0.05;
     pose.shoulderLeftPitch = 0.06;
     pose.shoulderRightPitch = -0.06;
-    pose.shoulderLeftRoll = 0.23;
-    pose.shoulderRightRoll = 0.23;
+    pose.shoulderLeftRoll = 0.2;
+    pose.shoulderRightRoll = 0.2;
     pose.elbowLeft = -0.16;
     pose.elbowRight = -0.16;
     return;
@@ -241,8 +245,8 @@ function poseGround(input: AnimationInputs): void {
   pose.elbowRight = -0.22 - Math.max(0, -swing) * armAmplitude * 0.6;
   // Arms tuck in across the body as they come forward, rather than swinging
   // like two pendulums hung off the sides.
-  pose.shoulderLeftRoll = 0.21 + normalised * 0.05 - Math.max(0, -counterSwing) * 0.16;
-  pose.shoulderRightRoll = 0.21 + normalised * 0.05 - Math.max(0, -swing) * 0.16;
+  pose.shoulderLeftRoll = 0.18 + normalised * 0.04 - Math.max(0, -counterSwing) * 0.1;
+  pose.shoulderRightRoll = 0.18 + normalised * 0.04 - Math.max(0, -swing) * 0.1;
 
   // Lean into the run, bob twice per stride, and roll slightly with each step.
   pose.bodyPitch = normalised * 0.26;

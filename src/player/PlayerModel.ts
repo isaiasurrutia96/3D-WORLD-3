@@ -115,19 +115,19 @@ function taperedLimb(topRadius: number, bottomRadius: number, length: number): L
  */
 const TORSO_PROFILE: Array<[number, number]> = [
   [0.0, -0.3],
-  [0.12, -0.295],
-  [0.21, -0.26],
-  [0.272, -0.18],
-  [0.3, -0.08],
-  [0.308, 0.04], // belly, the widest point
-  [0.296, 0.14],
-  [0.282, 0.2], // waist
-  [0.292, 0.27],
-  [0.296, 0.33], // chest
-  [0.282, 0.4],
-  [0.232, 0.45],
-  [0.15, 0.475], // shoulder line, tapering to the neck
-  [0.1, 0.49],
+  [0.1, -0.295],
+  [0.175, -0.26],
+  [0.228, -0.18],
+  [0.25, -0.08],
+  [0.258, 0.04], // belly, the widest point
+  [0.248, 0.14],
+  [0.234, 0.2], // waist
+  [0.243, 0.27],
+  [0.249, 0.33], // chest
+  [0.238, 0.4],
+  [0.198, 0.45],
+  [0.138, 0.475], // shoulder line, tapering to the neck
+  [0.094, 0.49],
   [0.0, 0.5],
 ];
 
@@ -178,7 +178,6 @@ export function createCharacterRig(): CharacterRig {
   const shirtMaterial = make(PALETTE.shirt, 0.78);
   const overallMaterial = make(PALETTE.overalls, 0.74);
   const skinMaterial = make(PALETTE.skin, 0.68);
-  const hairMaterial = make(PALETTE.hair, 0.8);
   const gloveMaterial = make(PALETTE.glove, 0.66);
   const shoeMaterial = make(PALETTE.shoe, 0.7);
   const buckleMaterial = make(PALETTE.buckle, 0.35, 0.55);
@@ -231,22 +230,23 @@ export function createCharacterRig(): CharacterRig {
   brim.rotation.x = -0.16;
   head.add(brim);
 
-  head.add(part(new SphereGeometry(0.1, 10, 8), hairMaterial, [0, -0.06, -0.175]));
+  // The hair at the back of the head is gone. With no face to frame, it read
+  // as a dark lump stuck to his skull rather than as hair.
   // The nose stays: without it the head is a ball and the facing is unreadable.
   head.add(part(new SphereGeometry(0.068, 12, 10), skinMaterial, [0, -0.045, 0.2]));
 
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.305 * side, 0.355, 0);
+    shoulder.position.set(0.288 * side, 0.355, 0);
     torso.add(shoulder);
 
-    shoulder.add(part(taperedLimb(0.088, 0.105, 0.14), shirtMaterial, [0, -0.15, 0]));
+    shoulder.add(part(taperedLimb(0.082, 0.098, 0.14), shirtMaterial, [0, -0.15, 0]));
 
     const elbow = new Group();
     elbow.position.y = -0.3;
     shoulder.add(elbow);
-    elbow.add(part(taperedLimb(0.076, 0.088, 0.13), shirtMaterial, [0, -0.13, 0]));
+    elbow.add(part(taperedLimb(0.071, 0.082, 0.13), shirtMaterial, [0, -0.13, 0]));
 
     // Big round gloves: one of the most recognisable things about him.
     const glove = part(new SphereGeometry(0.152, 14, 12), gloveMaterial, [0, -0.29, 0]);
@@ -262,14 +262,14 @@ export function createCharacterRig(): CharacterRig {
   // ---- Legs ----------------------------------------------------------------
   const buildLeg = (side: -1 | 1) => {
     const hip = new Group();
-    hip.position.set(0.135 * side, -0.02, 0);
+    hip.position.set(0.118 * side, -0.02, 0);
     torso.add(hip);
-    hip.add(part(taperedLimb(0.118, 0.148, 0.2), overallMaterial, [0, -0.18, 0]));
+    hip.add(part(taperedLimb(0.105, 0.132, 0.2), overallMaterial, [0, -0.18, 0]));
 
     const knee = new Group();
     knee.position.y = -0.36;
     hip.add(knee);
-    knee.add(part(taperedLimb(0.098, 0.12, 0.18), overallMaterial, [0, -0.15, 0]));
+    knee.add(part(taperedLimb(0.09, 0.108, 0.18), overallMaterial, [0, -0.15, 0]));
 
     const ankle = new Group();
     ankle.position.y = -0.32;
