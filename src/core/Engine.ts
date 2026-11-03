@@ -30,6 +30,12 @@ import { Sky } from './Sky.ts';
 
 export const SUN_DIRECTION = new Vector3(0.55, 0.72, 0.42).normalize();
 
+/**
+ * Studio mode lights the character from the front rather than from the world
+ * sun, which sits behind them and left the face in shadow.
+ */
+export const STUDIO_SUN_DIRECTION = new Vector3(-0.45, 0.8, -0.75).normalize();
+
 export class Engine {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
@@ -42,6 +48,8 @@ export class Engine {
   private readonly ambient: AmbientLight;
   private readonly fog: FogExp2;
 
+  private rimLight: DirectionalLight | null = null;
+  private studio = false;
   private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private preset: QualityPreset;
@@ -108,6 +116,45 @@ export class Engine {
     window.addEventListener('resize', this.resize);
   }
 
+  /**
+   * Strips the scene back to a character turntable: dark background, no sky,
+   * no fog, and a cool rim light behind the subject so the silhouette reads
+   * against the dark. Used while the character itself is what is being judged.
+   */
+  setStudioMode(enabled: boolean): void {
+    this.studio = enabled;
+    this.sky.visible = !enabled;
+
+    if (enabled) {
+      this.scene.fog = null;
+      (this.scene.background as Color).set(0x12161d);
+      this.sun.intensity = 2.0;
+      this.sun.color.set(0xfff4e2);
+      this.hemisphere.intensity = 0.5;
+      this.hemisphere.color.set(0x9fb6d4);
+      this.hemisphere.groundColor.set(0x3a3f4a);
+      this.ambient.intensity = 0.16;
+
+      if (!this.rimLight) {
+        // Behind and slightly above, pointing back toward the camera side.
+        const rim = new DirectionalLight(0xbfd8ff, 1.6);
+        rim.position.set(0.6, 0.5, 1).multiplyScalar(40);
+        rim.castShadow = false;
+        this.rimLight = rim;
+        this.scene.add(rim);
+      }
+      this.rimLight.visible = true;
+    } else {
+      this.scene.fog = this.fog;
+      (this.scene.background as Color).set(0xbfe4f7);
+      this.sun.intensity = 2.15;
+      this.hemisphere.intensity = 1.0;
+      this.hemisphere.color.set(0xcfe8ff);
+      this.ambient.intensity = 0.22;
+      if (this.rimLight) this.rimLight.visible = false;
+    }
+  }
+
   applyQuality(quality: QualityLevel): void {
     this.quality = quality;
     const preset = QUALITY_PRESETS[quality];
@@ -131,7 +178,7 @@ export class Engine {
     shadowCamera.far = preset.shadowDistance * 3.2;
     shadowCamera.updateProjectionMatrix();
 
-    if (!this.underwater) this.fog.density = preset.fogDensity;
+    if (!this.underwater && !this.studio) this.fog.density = preset.fogDensity;
     this.camera.far = preset.viewDistance;
     this.camera.updateProjectionMatrix();
 
@@ -177,9 +224,10 @@ export class Engine {
 
   /** Keeps the shadow frustum centred on the player so it stays sharp. */
   focusShadowsOn(target: Vector3): void {
+    const direction = this.studio ? STUDIO_SUN_DIRECTION : SUN_DIRECTION;
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();
-    this.sun.position.copy(target).addScaledVector(SUN_DIRECTION, this.preset.shadowDistance * 1.4);
+    this.sun.position.copy(target).addScaledVector(direction, this.preset.shadowDistance * 1.4);
   }
 
   /**
@@ -188,7 +236,7 @@ export class Engine {
    * fills the screen with the flat colour of the water surface.
    */
   setUnderwater(underwater: boolean): void {
-    if (underwater === this.underwater) return;
+    if (this.studio || underwater === this.underwater) return;
     this.underwater = underwater;
 
     if (underwater) {
@@ -221,8 +269,8 @@ export class Engine {
       this.fpsFrames = 0;
     }
 
-    this.sky.visible = !this.underwater;
-    if (!this.underwater) {
+    this.sky.visible = !this.underwater && !this.studio;
+    if (!this.underwater && !this.studio) {
       this.sky.position.copy(this.camera.position);
       this.sky.update(delta, this.camera.position);
     }

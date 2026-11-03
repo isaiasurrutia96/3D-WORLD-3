@@ -1,13 +1,12 @@
 /**
- * Headless verification pass.
+ * Headless verification for milestone 1: the character on a slab.
  *
- * Builds the game, serves it, loads it in a real browser, drives it through
- * the title screen and a short gameplay script, fails on any console error or
- * uncaught exception, and writes screenshots to tools/shots/.
+ * Builds the game, loads it in a real browser, drives walking, running and
+ * jumping, fails on any console error, and writes screenshots to tools/shots/.
  *
  * This runs on a cloud machine with software rendering, so the frame rate it
- * reports is NOT representative of real hardware. It answers "does it load,
- * render and respond without errors", not "is it fast enough".
+ * reports says nothing about real hardware. It answers "does it load, respond
+ * and move", not "is it fast enough".
  *
  *   node tools/verify.mjs
  */
@@ -56,7 +55,7 @@ const browser = await chromium.launch({
 });
 
 const problems = [];
-const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
+const page = await browser.newPage({ viewport: { width: 900, height: 880 } });
 page.on('console', (message) => {
   if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
   if (message.type() === 'warning' && /three|webgl|shader/i.test(message.text())) {
@@ -66,181 +65,118 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
 await page.goto(BASE, { waitUntil: 'load', timeout: 60000 });
+await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
+  timeout: 60000,
+});
+await page.waitForTimeout(1500);
 
 const steps = [];
+await page.screenshot({ path: `${SHOTS}01-standing.png` });
+steps.push(await snapshot(page, 'idle'));
 
-// ---- Title screen ---------------------------------------------------------
-await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
-  timeout: 60000,
-});
-await page.waitForTimeout(2500);
-await page.screenshot({ path: `${SHOTS}01-title.png` });
-
-// ---- Graphics quality must cycle through all three levels ---------------
-const qualitySequence = [];
-for (let i = 0; i < 4; i += 1) {
-  qualitySequence.push(
-    await page.evaluate(() => ({
-      menu: document.querySelectorAll('.menu--title .menu-item__value')[0].textContent,
-      engine: window.__letsgo.debug.engine.currentQuality,
-      stored: window.__letsgo.debug.settings.quality,
-    })),
-  );
-  await page.click('.menu--title .menu-item--option .menu-item__arrow:last-child');
-  await page.waitForTimeout(350);
-}
-steps.push({
-  label: 'quality-cycle',
-  state: qualitySequence.map((q) => q.engine).join(' > '),
-  speed: 0,
-  carrying: qualitySequence.every((q) => q.engine === q.stored),
-  position: { x: 0, y: 0, z: 0 },
-});
-if (new Set(qualitySequence.map((q) => q.engine)).size < 3) {
-  problems.push(`quality did not cycle: ${qualitySequence.map((q) => q.engine).join(' > ')}`);
-}
-for (const entry of qualitySequence) {
-  if (entry.menu.toLowerCase() !== entry.engine) {
-    problems.push(`menu shows ${entry.menu} but engine is ${entry.engine}`);
-  }
-}
-
-// Return to Low so the rest of the run is quick, then confirm it persists.
-await page.evaluate(() => {
-  const ui = window.__letsgo.ui;
-  void ui;
-  window.__letsgo.applyQualityForTest('low');
-});
-await page.waitForTimeout(300);
-await page.reload({ waitUntil: 'load' });
-await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
-  timeout: 60000,
-});
-await page.waitForTimeout(1200);
-const persisted = await page.evaluate(() => window.__letsgo.debug.engine.currentQuality);
-if (persisted !== 'low') problems.push(`quality did not persist across reload: ${persisted}`);
-
-// ---- Start the game -------------------------------------------------------
-await page.click('.menu-item--primary');
-await page.waitForTimeout(1200);
-await page.screenshot({ path: `${SHOTS}02-spawn.png` });
-
-// ---- Run forward, toward the castle --------------------------------------
-await hold(page, 'KeyW', 1400);
-steps.push(await snapshot(page, 'run'));
-await page.screenshot({ path: `${SHOTS}03-running.png` });
-
-// ---- Jump: held, so the full height is used ------------------------------
+// ---- Running: W alone must move the character forward --------------------
+const beforeRun = await position(page);
 await page.keyboard.down('KeyW');
+await page.waitForTimeout(2600);
+const runSpeed = (await snapshot(page, 'run')).speed;
+await page.screenshot({ path: `${SHOTS}02-running.png` });
+await page.keyboard.up('KeyW');
+const afterRun = await position(page);
+steps.push(await snapshot(page, 'run'));
+
+const travelled = Math.hypot(afterRun.x - beforeRun.x, afterRun.z - beforeRun.z);
+if (travelled < 4) {
+  problems.push(`holding W moved the character only ${travelled.toFixed(1)}m`);
+}
+
+await resetPlayer(page);
+
+// ---- Walking: Shift must be slower than running --------------------------
+await page.keyboard.down('ShiftLeft');
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(2200);
+const walkSpeed = (await snapshot(page, 'walk')).speed;
+await page.screenshot({ path: `${SHOTS}03-walking.png` });
+await page.keyboard.up('KeyW');
+await page.keyboard.up('ShiftLeft');
+steps.push(await snapshot(page, 'walk'));
+
+if (!(walkSpeed > 0.5 && walkSpeed < runSpeed * 0.8)) {
+  problems.push(`walk speed ${walkSpeed} is not clearly slower than run speed ${runSpeed}`);
+}
+
+await resetPlayer(page);
+
+// ---- Jumping --------------------------------------------------------------
 await page.keyboard.down('Space');
 await waitForState(page, (state) => state === 'jump');
 steps.push(await snapshot(page, 'jump'));
 await page.screenshot({ path: `${SHOTS}04-jump.png` });
 await page.keyboard.up('Space');
-await waitForState(page, (state) => state !== 'jump' && state !== 'fall');
+await waitForState(page, (state) => state === 'idle');
 steps.push(await snapshot(page, 'landed'));
-await page.keyboard.up('KeyW');
 
-// ---- Cross the bridge on foot, with no jumping ---------------------------
-// The bridge used to have a row of solid plank seams standing proud of the
-// deck, which stopped the character unless they jumped over each one.
-await teleport(page, 0, 1, 34);
-await page.waitForTimeout(600);
-await page.keyboard.down('KeyW');
-let crossed = false;
-try {
-  // The bridge spans z = 10.5 to 28.5, so clearing z = 9 means the character
-  // walked the whole length of it and stepped off onto the island.
-  await page.waitForFunction(() => window.__letsgo.debug.player.position.z < 9, null, {
-    timeout: 60000,
-    polling: 100,
-  });
-  crossed = true;
-} catch {
-  problems.push('could not walk from the spawn across the bridge without jumping');
+// ---- Character turnaround, for looking at the model ----------------------
+await resetPlayer(page);
+await page.waitForTimeout(400);
+
+// The frame loop drives the chase camera every frame, so it has to stop
+// before a fixed capture camera will survive to the screenshot.
+await page.evaluate(() => window.__letsgo.debug.freeze());
+await page.waitForTimeout(200);
+
+const angles = [
+  ['front', 0, 1.0, -2.1, 0.92],
+  ['three-quarter', -1.45, 1.05, -1.55, 0.92],
+  ['side', 2.1, 1.0, 0, 0.92],
+  ['back', 0, 1.0, 2.1, 0.92],
+];
+
+for (const [name, dx, dy, dz, lookHeight] of angles) {
+  await page.evaluate(
+    ([dx, dy, dz, lookHeight]) => window.__letsgo.debug.renderFrom(dx, dy, dz, lookHeight),
+    [dx, dy, dz, lookHeight],
+  );
+  await page.screenshot({ path: `${SHOTS}05-${name}.png` });
 }
-await page.keyboard.up('KeyW');
-steps.push(await snapshot(page, crossed ? 'bridge-ok' : 'bridge-stuck'));
-await page.screenshot({ path: `${SHOTS}03b-bridge.png` });
 
-// ---- Drop into the moat, clear of the bridge ------------------------------
-await teleport(page, 18, 3, 20);
-await waitForState(page, (state) => state.startsWith('swim'));
-await page.waitForTimeout(900);
-steps.push(await snapshot(page, 'swim-float'));
-await page.screenshot({ path: `${SHOTS}05-swim.png` });
-
-// Diving should take the character under the surface.
-await page.keyboard.down('ControlLeft');
-await page.waitForTimeout(2500);
-steps.push(await snapshot(page, 'swim-dive'));
-await page.screenshot({ path: `${SHOTS}05b-underwater.png` });
-await page.keyboard.up('ControlLeft');
-
-// ---- Climb a tree: stand south of it and walk into the trunk -------------
-await teleport(page, -9.5, 1, 39.5);
-await page.waitForTimeout(500);
-await page.keyboard.down('KeyW');
-await waitForState(page, (state) => state === 'climb', 15000);
-await page.waitForTimeout(1500);
-steps.push(await snapshot(page, 'climb'));
-await page.screenshot({ path: `${SHOTS}06-climb.png` });
-await page.keyboard.up('KeyW');
-
-// ---- Pick up a crate, then throw it --------------------------------------
-await teleport(page, 6.5, 1, 37.8);
-await page.waitForTimeout(700);
-const promptBefore = await page.evaluate(
-  () => document.querySelector('.hud__prompt')?.textContent ?? '',
-);
-if (!promptBefore.includes('pick up')) {
-  problems.push(`no pick-up prompt next to a crate, prompt was "${promptBefore}"`);
+// Again with the readouts hidden, for a clean look at the model.
+await page.evaluate(() => {
+  document.querySelector('.hud__stats')?.setAttribute('hidden', '');
+  document.querySelector('.hud__hints')?.setAttribute('hidden', '');
+});
+for (const [name, dx, dy, dz, lookHeight] of angles) {
+  await page.evaluate(
+    ([dx, dy, dz, lookHeight]) => window.__letsgo.debug.renderFrom(dx, dy, dz, lookHeight),
+    [dx, dy, dz, lookHeight],
+  );
+  await page.screenshot({ path: `${SHOTS}06-clean-${name}.png` });
 }
-await page.keyboard.press('KeyE');
-await page.waitForTimeout(500);
-steps.push(await snapshot(page, 'carry'));
-await page.screenshot({ path: `${SHOTS}07-carry.png` });
-
-await page.keyboard.press('KeyE');
-await page.waitForTimeout(700);
-steps.push(await snapshot(page, 'after-throw'));
-
-// ---- Courtyard obstacles --------------------------------------------------
-await teleport(page, 15, 2, 11);
-await page.waitForTimeout(900);
-await page.screenshot({ path: `${SHOTS}07b-courtyard.png` });
-
-// ---- Pause menu -----------------------------------------------------------
-await page.keyboard.press('Escape');
-await page.waitForTimeout(600);
-await page.screenshot({ path: `${SHOTS}08-pause.png` });
 
 const report = await page.evaluate(() => {
-  const game = window.__letsgo;
-  const engine = game.debug.engine;
+  const engine = window.__letsgo.debug.engine;
   return {
     fps: Math.round(engine.fps),
     drawCalls: engine.renderer.info.render.calls,
     triangles: engine.renderer.info.render.triangles,
-    worldTriangles: game.debug.world.triangleCount,
-    screen: game.debug.ui.currentScreen,
-    carryables: game.debug.world.carryables.length,
+    quality: engine.currentQuality,
   };
 });
 
 await browser.close();
 shutdown();
 
-console.log('\n--- gameplay steps ---');
+console.log('\n--- movement ---');
 for (const step of steps) {
   console.log(
-    ` ${step.label.padEnd(14)} state=${String(step.state).padEnd(12)} ` +
-      `pos=(${step.position.x}, ${step.position.y}, ${step.position.z}) ` +
-      `speed=${step.speed} carrying=${step.carrying}`,
+    ` ${step.label.padEnd(8)} state=${String(step.state).padEnd(6)} ` +
+      `speed=${step.speed} pos=(${step.position.x}, ${step.position.y}, ${step.position.z})`,
   );
 }
+console.log(`\n distance covered holding W: ${travelled.toFixed(1)}m`);
+console.log(` run ${runSpeed} m/s, walk ${walkSpeed} m/s`);
 
-console.log('\n--- verification report ---');
+console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));
 
 if (problems.length) {
@@ -251,13 +187,26 @@ if (problems.length) {
   console.log('\nNo console errors or uncaught exceptions.');
 }
 
-// The preview server keeps the event loop alive, so exit explicitly.
 process.exit(process.exitCode ?? 0);
 
 // ---------------------------------------------------------------------------
 
-/** Waits until the player's state satisfies `predicate`, or gives up. */
-async function waitForState(page, predicate, timeout = 10000) {
+async function position(page) {
+  return page.evaluate(() => {
+    const p = window.__letsgo.debug.player.position;
+    return { x: p.x, y: p.y, z: p.z };
+  });
+}
+
+async function resetPlayer(page) {
+  await page.evaluate(() => {
+    const g = window.__letsgo.debug;
+    g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
+  });
+  await page.waitForTimeout(500);
+}
+
+async function waitForState(page, predicate, timeout = 15000) {
   try {
     await page.waitForFunction(
       (source) => {
@@ -272,29 +221,12 @@ async function waitForState(page, predicate, timeout = 10000) {
   }
 }
 
-async function hold(page, key, milliseconds) {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(milliseconds);
-  await page.keyboard.up(key);
-}
-
-async function teleport(page, x, y, z) {
-  await page.evaluate(
-    ([tx, ty, tz]) => {
-      const player = window.__letsgo.debug.player;
-      player.teleport(new (player.position.constructor)(tx, ty, tz), Math.PI);
-    },
-    [x, y, z],
-  );
-}
-
 async function snapshot(page, label) {
   const data = await page.evaluate(() => {
     const player = window.__letsgo.debug.player;
     return {
       state: player.stateName,
       speed: Math.round(player.speed * 10) / 10,
-      carrying: player.carried !== null,
       position: {
         x: Math.round(player.position.x * 10) / 10,
         y: Math.round(player.position.y * 10) / 10,

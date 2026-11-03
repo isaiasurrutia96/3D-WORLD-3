@@ -35,6 +35,9 @@ export interface CharacterRig {
   hipRight: Group;
   kneeLeft: Group;
   kneeRight: Group;
+  /** Lets the foot roll through a stride instead of staying welded to the shin. */
+  ankleLeft: Group;
+  ankleRight: Group;
   /** Where a carried object is parented. */
   carryAnchor: Object3D;
   materials: Material[];
@@ -117,11 +120,27 @@ export function createCharacterRig(): CharacterRig {
   torso.add(part(new CapsuleGeometry(0.29, 0.1, 4, 12), overallMaterial, [0, 0, 0]));
   // Chest: narrower, reaching up to 1.24 in world terms and no further.
   torso.add(part(new CapsuleGeometry(0.285, 0.14, 4, 12), shirtMaterial, [0, 0.16, 0]));
-  // Bib across the front, so the overalls read as overalls from any angle.
-  torso.add(part(new BoxGeometry(0.33, 0.36, 0.1), overallMaterial, [0, 0.19, 0.225]));
-  for (const x of [-0.135, 0.135]) {
-    torso.add(part(new BoxGeometry(0.08, 0.26, 0.07), overallMaterial, [x, 0.4, 0.2]));
-    torso.add(part(new SphereGeometry(0.045, 8, 6), buckleMaterial, [x, 0.3, 0.265]));
+  // Bib across the front. A flat box read as a board strapped to the chest,
+  // so it is a flattened sphere instead: it bulges out at the centre and
+  // tapers back into the body at the edges, the way cloth over a chest does.
+  const bib = part(new SphereGeometry(1, 16, 12), overallMaterial, [0, 0.18, 0.145]);
+  bib.scale.set(0.2, 0.25, 0.185);
+  torso.add(bib);
+  // Straps run from the top of the bib, back and up over the shoulders. They
+  // have to lean steeply, because the shoulder sits well behind the chest;
+  // standing them upright left two blue posts floating in front of the body.
+  for (const x of [-0.13, 0.13]) {
+    const strap = part(new BoxGeometry(0.085, 0.235, 0.08), overallMaterial, [x, 0.45, 0.15]);
+    strap.rotation.x = -1.02;
+    torso.add(strap);
+
+    // A shorter piece continuing down the back, so the strap does not simply
+    // stop at the top of the shoulder.
+    const back = part(new BoxGeometry(0.085, 0.2, 0.075), overallMaterial, [x, 0.4, -0.14]);
+    back.rotation.x = 0.55;
+    torso.add(back);
+
+    torso.add(part(new SphereGeometry(0.046, 8, 6), buckleMaterial, [x, 0.345, 0.312]));
   }
 
   // ---- Neck ----------------------------------------------------------------
@@ -138,45 +157,51 @@ export function createCharacterRig(): CharacterRig {
   // Cap: a dome with a brim, sitting above the eyes rather than over them.
   head.add(
     part(
-      new SphereGeometry(0.255, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.54),
+      new SphereGeometry(0.253, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52),
       shirtMaterial,
-      [0, 0.045, 0],
+      [0, 0.085, 0],
     ),
   );
   const brim = part(
     new CylinderGeometry(0.16, 0.19, 0.045, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5),
     shirtMaterial,
-    [0, 0.055, 0.17],
+    [0, 0.082, 0.172],
   );
   brim.rotation.x = -0.16;
   head.add(brim);
-  head.add(part(new SphereGeometry(0.07, 10, 8), gloveMaterial, [0, 0.095, 0.21]));
+  head.add(part(new SphereGeometry(0.05, 10, 8), gloveMaterial, [0, 0.145, 0.197]));
 
   // Hair at the back and sides, kept below the eyeline.
   head.add(part(new SphereGeometry(0.1, 10, 8), hairMaterial, [0, -0.07, -0.2]));
-  for (const x of [-0.205, 0.205]) {
-    const sideburn = part(new SphereGeometry(0.045, 8, 7), hairMaterial, [x, -0.1, 0.035]);
-    sideburn.scale.set(0.8, 1.15, 1);
+  for (const x of [-0.2, 0.2]) {
+    const sideburn = part(new SphereGeometry(0.04, 8, 7), hairMaterial, [x, -0.115, 0.04]);
+    sideburn.scale.set(0.8, 1.2, 1);
     head.add(sideburn);
   }
 
   // Face.
-  head.add(part(new SphereGeometry(0.08, 12, 10), skinMaterial, [0, -0.025, 0.228]));
-  for (const x of [-0.09, 0.09]) {
-    const eye = part(new SphereGeometry(0.04, 10, 8), eyeMaterial, [x, 0.055, 0.2]);
-    eye.scale.set(0.8, 1.25, 0.6);
+  // The face sits in the band of skin between the cap brim and the jaw.
+  // Everything here is measured from that band rather than from the centre of
+  // the head, because the cap is what decides how much face there is.
+  head.add(part(new SphereGeometry(0.076, 12, 10), skinMaterial, [0, -0.05, 0.228]));
+
+  for (const x of [-0.08, 0.08]) {
+    const eye = part(new SphereGeometry(0.036, 10, 8), eyeMaterial, [x, 0.0, 0.212]);
+    eye.scale.set(0.82, 1.35, 0.6);
     head.add(eye);
   }
-  for (const x of [-0.08, 0.08]) {
-    const lobe = part(new SphereGeometry(0.062, 10, 8), hairMaterial, [x, -0.085, 0.19]);
-    lobe.scale.set(1.05, 0.55, 0.75);
+
+  // Moustache: wide, and clearly below the nose.
+  for (const x of [-0.076, 0.076]) {
+    const lobe = part(new SphereGeometry(0.057, 10, 8), hairMaterial, [x, -0.12, 0.186]);
+    lobe.scale.set(1.2, 0.52, 0.78);
     head.add(lobe);
   }
 
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.3 * side, 0.38, 0);
+    shoulder.position.set(0.275 * side, 0.38, 0);
     torso.add(shoulder);
 
     shoulder.add(part(new CapsuleGeometry(0.095, 0.18, 4, 10), shirtMaterial, [0, -0.14, 0]));
@@ -207,11 +232,15 @@ export function createCharacterRig(): CharacterRig {
     hip.add(knee);
     knee.add(part(new CapsuleGeometry(0.102, 0.17, 4, 10), overallMaterial, [0, -0.12, 0]));
 
-    const shoe = part(new SphereGeometry(0.155, 12, 10), shoeMaterial, [0, -0.28, 0.05]);
-    shoe.scale.set(1.0, 0.62, 1.45);
-    knee.add(shoe);
+    const ankle = new Group();
+    ankle.position.y = -0.28;
+    knee.add(ankle);
 
-    return { hip, knee };
+    const shoe = part(new SphereGeometry(0.155, 12, 10), shoeMaterial, [0, 0, 0.05]);
+    shoe.scale.set(1.0, 0.62, 1.45);
+    ankle.add(shoe);
+
+    return { hip, knee, ankle };
   };
 
   const legLeft = buildLeg(-1);
@@ -242,6 +271,8 @@ export function createCharacterRig(): CharacterRig {
     hipRight: legRight.hip,
     kneeLeft: legLeft.knee,
     kneeRight: legRight.knee,
+    ankleLeft: legLeft.ankle,
+    ankleRight: legRight.ankle,
     carryAnchor,
     materials,
   };

@@ -48,6 +48,8 @@ interface Pose {
   hipRight: number;
   kneeLeft: number;
   kneeRight: number;
+  ankleLeft: number;
+  ankleRight: number;
 }
 
 const pose: Pose = createPose();
@@ -73,6 +75,8 @@ function createPose(): Pose {
     hipRight: 0,
     kneeLeft: 0,
     kneeRight: 0,
+    ankleLeft: 0,
+    ankleRight: 0,
   };
 }
 
@@ -112,6 +116,8 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   rig.hipRight.rotation.x = current.hipRight;
   rig.kneeLeft.rotation.x = current.kneeLeft;
   rig.kneeRight.rotation.x = current.kneeRight;
+  rig.ankleLeft.rotation.x = current.ankleLeft;
+  rig.ankleRight.rotation.x = current.ankleRight;
 }
 
 function buildTargetPose(input: AnimationInputs): void {
@@ -154,6 +160,8 @@ function reset(target: Pose): void {
   target.hipRight = 0;
   target.kneeLeft = 0;
   target.kneeRight = 0;
+  target.ankleLeft = 0;
+  target.ankleRight = 0;
 }
 
 /*
@@ -217,19 +225,29 @@ function poseGround(input: AnimationInputs): void {
   pose.kneeLeft = Math.max(0, swing) * legAmplitude * 1.25;
   pose.kneeRight = Math.max(0, counterSwing) * legAmplitude * 1.25;
 
+  // The foot rolls through the stride: toes point down at push-off, when the
+  // thigh is furthest back, and come up again as the heel reaches forward.
+  pose.ankleLeft = swing * 0.42 + 0.08;
+  pose.ankleRight = counterSwing * 0.42 + 0.08;
+
   pose.shoulderLeftPitch = counterSwing * armAmplitude;
   pose.shoulderRightPitch = swing * armAmplitude;
   // Elbows stay slightly bent, and bend more as the arm comes forward.
   pose.elbowLeft = -0.22 - Math.max(0, -counterSwing) * armAmplitude * 0.6;
   pose.elbowRight = -0.22 - Math.max(0, -swing) * armAmplitude * 0.6;
-  pose.shoulderLeftRoll = 0.1 + normalised * 0.06;
-  pose.shoulderRightRoll = 0.1 + normalised * 0.06;
+  // Arms tuck in across the body as they come forward, rather than swinging
+  // like two pendulums hung off the sides.
+  pose.shoulderLeftRoll = 0.12 + normalised * 0.05 - Math.max(0, -counterSwing) * 0.16;
+  pose.shoulderRightRoll = 0.12 + normalised * 0.05 - Math.max(0, -swing) * 0.16;
 
   // Lean into the run, bob twice per stride, and roll slightly with each step.
   pose.bodyPitch = normalised * 0.26;
   pose.bodyHeight = Math.abs(Math.sin(phase)) * 0.05 * normalised - 0.02 * normalised;
   pose.bodyRoll = Math.sin(phase) * 0.055 * normalised;
   pose.bodyYaw = Math.sin(phase) * 0.09 * normalised;
+  // The shoulders twist with the stride, so the head turns back against them
+  // to keep looking where the character is going.
+  pose.headYaw = -pose.bodyYaw * 0.7;
   pose.headPitch = -normalised * 0.12;
 }
 
@@ -248,6 +266,8 @@ function poseAir(input: AnimationInputs): void {
     pose.hipRight = -0.3;
     pose.kneeLeft = 1.05;
     pose.kneeRight = 0.6;
+    pose.ankleLeft = 0.5;
+    pose.ankleRight = 0.42;
     pose.bodyPitch = 0.12;
     pose.bodySquash = 1.06;
     pose.headPitch = -0.1;
@@ -264,6 +284,9 @@ function poseAir(input: AnimationInputs): void {
     pose.hipRight = 0.16;
     pose.kneeLeft = 0.4;
     pose.kneeRight = 0.18;
+    // Toes come up to meet the ground on the way down.
+    pose.ankleLeft = -0.22;
+    pose.ankleRight = -0.18;
     pose.bodyPitch = -0.06 - fall * 0.08;
     pose.bodySquash = 1 + fall * 0.04;
     pose.headPitch = fall * 0.12;
@@ -368,6 +391,8 @@ function applyLandingSquash(): void {
   pose.hipRight = -0.6;
   pose.kneeLeft = 1.05;
   pose.kneeRight = 1.05;
+  pose.ankleLeft = -0.3;
+  pose.ankleRight = -0.3;
   pose.shoulderLeftPitch = -0.45;
   pose.shoulderRightPitch = -0.45;
   pose.shoulderLeftRoll = 0.55;

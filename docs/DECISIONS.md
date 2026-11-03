@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means Isaias stated the choice.
 **Proposed** means a practical answer awaiting review. **Deferred** means
 planned for later. **Open** means the answer is still needed.
 
-Last updated: 3 November 2026 (second entry).
+Last updated: 3 November 2026 (third entry).
 
 ---
 
@@ -184,12 +184,37 @@ layer to preserve.
 
 ---
 
-## H) Change log
+## H) How the work is structured, from 3 November 2026
+
+**1. Confirmed.** Milestones are small — thirty to sixty minutes of work — and
+each one ends with Isaias playing it before anything is built on top.
+
+**2. Confirmed.** Each milestone keeps what came before and adds to it. The
+character controller from milestone 1 is the same one the world is later built
+around; nothing is rebuilt twice.
+
+**3. Confirmed.** The castle, the moat and the title screen are kept. Isaias
+approved that look. They are not loaded during the character milestones, but
+they remain in the repository and return once the character is settled.
+
+**4. Reason for the change.** The first attempt delivered the menu, six moves,
+the whole castle and the graphics in one go. Every one of the automated checks
+passed while the character was swimming backwards, wearing its head inside its
+shirt, and unable to get onto the bridge without jumping. A script can confirm
+that something works; it cannot tell that something looks or feels wrong.
+
+---
+
+## I) Change log
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
 milestones; multiplayer taken out of scope for now. Reason: Isaias asked for
 the time to go into movement and world feel first.
+
+**3 November 2026, third entry.** Work restructured into small milestones, as
+in section H. Milestone 1 is the character alone on a floor slab: walking,
+running and jumping, no sky, scenery or menu.
 
 **3 November 2026, later.** Test machine specification recorded, and 60 frames
 per second measured on it at Medium quality. Custom key bindings and ladder
