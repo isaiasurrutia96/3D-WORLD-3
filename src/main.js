@@ -48,6 +48,7 @@ sun.shadow.radius = 4;
 scene.add(sun);
 const material = color => new THREE.MeshLambertMaterial({ color });
 const mannequin = material('#88939f');
+const shirt=material('#f5f4ee'), chinos=material('#34363a'), sneakers=material('#f6f5f0'), capFabric=material('#141b29');
 function mesh(geometry, mat, parent, position, scale) {
   const object = new THREE.Mesh(geometry, mat);
   object.position.set(...position);
@@ -108,26 +109,35 @@ const STANDING_HIP_HEIGHT=0.15+0.54*LIMB_LENGTH+0.21;
 const izzy = joint(scene, 'Izzy', [0,0,0]);
 // Limb pivots drive the run cycle and airborne pose.
 const pelvis = joint(izzy, 'pelvis', [0,STANDING_HIP_HEIGHT,0]);
-ball(pelvis,mannequin,[0,0.04,0],[0.34,0.23,0.24]);
+ball(pelvis,chinos,[0,0.04,0],[0.34,0.23,0.24]);
 const torso = joint(pelvis, 'spine', [0,0.25,0]);
 // Broad shoulders and a rounded, tapered base match the mannequin reference.
 const bodyProfile=[ [0,-0.32],[0.22,-0.31],[0.34,-0.25],[0.41,-0.12],
   [0.46,0.13],[0.47,0.38],[0.43,0.46],[0.28,0.49],[0,0.49] ];
 mesh(new THREE.LatheGeometry(bodyProfile.map(([r,y])=>new THREE.Vector2(r,y)),16),
-  mannequin,torso,[0,0.12,0],[0.8,0.78,0.56]);
-function segment(parent,position,radius,length){
-  return mesh(new THREE.CapsuleGeometry(radius,length,4,12),mannequin,parent,position);
+  shirt,torso,[0,0.12,0],[0.8,0.78,0.56]);
+function segment(parent,position,radius,length,mat=mannequin){
+  return mesh(new THREE.CapsuleGeometry(radius,length,4,12),mat,parent,position);
 }
 for (const side of [-1,1]) {
   const hip = joint(pelvis, `${side<0?'left':'right'}_hip`, [side*0.23,-0.15,0]);
-  segment(hip,[0,-0.145*LIMB_LENGTH,0],0.195,0.29*LIMB_LENGTH-0.2);
+  segment(hip,[0,-0.145*LIMB_LENGTH,0],0.195,0.29*LIMB_LENGTH-0.2,chinos);
   const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29*LIMB_LENGTH,0]);
-  segment(knee,[0,-0.125*LIMB_LENGTH,0],0.155,0.25*LIMB_LENGTH-0.17);
+  segment(knee,[0,-0.125*LIMB_LENGTH,0],0.155,0.25*LIMB_LENGTH-0.17,chinos);
   const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25*LIMB_LENGTH,0]);
-  ball(ankle,mannequin,[0,-0.08,0.11],[0.23,0.13,0.36]);
-  const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.31,0]);
+  ball(ankle,sneakers,[0,-0.08,0.11],[0.23,0.13,0.36]);
+  const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.43,0]);
   shoulder.rotation.z = side*0.16;
-  segment(shoulder,[side*0.025,-0.145*ARM_LENGTH,0],0.16,0.29*ARM_LENGTH-0.21);
+  const upperArm=segment(shoulder,[side*0.025,-0.145*ARM_LENGTH,0],0.16,0.29*ARM_LENGTH-0.21);
+  // Paint short sleeves onto the arm geometry, without adding clothing bulk.
+  const positions=upperArm.geometry.attributes.position;
+  const sleeveColors=[];
+  for(let vertex=0;vertex<positions.count;vertex++){
+    const color=positions.getY(vertex)>-0.035 ? shirt.color : mannequin.color;
+    sleeveColors.push(color.r,color.g,color.b);
+  }
+  upperArm.geometry.setAttribute('color',new THREE.Float32BufferAttribute(sleeveColors,3));
+  upperArm.material=new THREE.MeshLambertMaterial({vertexColors:true});
   const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*ARM_LENGTH,0]);
   segment(elbow,[0,-0.115*ARM_LENGTH,0.02],0.145,0.23*ARM_LENGTH-0.16);
   const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23*ARM_LENGTH,0.03]);
@@ -136,6 +146,15 @@ for (const side of [-1,1]) {
 const head = joint(torso,'neck',[0,0.66,0]);
 mesh(new THREE.CylinderGeometry(0.135,0.17,0.23,12),mannequin,head,[0,-0.065,0]);
 mesh(new THREE.SphereGeometry(0.34,20,16),mannequin,head,[0,0.26,0]);
+// A fitted, flat-bill LA cap. The simple mannequin face stays featureless.
+const cap=joint(head,'la_cap',[0,0.44,0]);
+mesh(new THREE.SphereGeometry(1,16,6,0,Math.PI*2,0,Math.PI/2),capFabric,cap,[0,0,0],[0.355,0.21,0.345]);
+ball(cap,capFabric,[0,-0.005,0.27],[0.34,0.028,0.27]);
+const logoCanvas=document.createElement('canvas');logoCanvas.width=logoCanvas.height=128;
+const logoPaint=logoCanvas.getContext('2d');logoPaint.fillStyle='#ffffff';logoPaint.font='bold 74px Arial';
+logoPaint.fillText('L',24,83);logoPaint.fillText('A',52,103);
+const logoMap=new THREE.CanvasTexture(logoCanvas);logoMap.colorSpace=THREE.SRGBColorSpace;
+mesh(new THREE.PlaneGeometry(0.20,0.17),new THREE.MeshLambertMaterial({map:logoMap,transparent:true,depthWrite:false}),cap,[0,0.105,0.35]);
 function resize() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
   const renderScale = Math.min(1, 480 / height);
@@ -223,7 +242,7 @@ function animatePlayer(dt) {
     const release=THREE.MathUtils.smoothstep(t,0.32,0.75);
     limbs.forEach((limb,index)=>{
       // Two-link arm reach toward the rim, then release as the torso clears it.
-      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release)+0.56;
+      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release)+0.68;
       const dy=0.12-shoulderHeight, dz=0.36;
       const upper=0.29*ARM_LENGTH, lower=0.23*ARM_LENGTH+0.07;
       const distance=THREE.MathUtils.clamp(Math.hypot(dy,dz),0.08,upper+lower-0.001);
