@@ -1,13 +1,18 @@
+import { COURSE_SURFACES, contains, surfaceHeight } from './course.js';
 // World units are approximately meters. These are independently tuned prototype
 // values, not a port of the original game's physics or animation code.
-export const FLOOR_HALF_SIZE = 40;
-export const MAX_SPEED = 13;
+export const FLOOR_HALF_SIZE = 100;
+export const MAX_SPEED = 11.5;
 export const POOL = { minX: 7, maxX: 27, minZ: -10, maxZ: 10, bottom: -4, water: -0.35 };
 export const TOWER = { minX: -12, maxX: -6, minZ: -8, maxZ: -2, height: 5 };
 export const LADDER = { x: -9, z: -1.45, height: 5 };
 export const inPool = (x,z) => x>POOL.minX && x<POOL.maxX && z>POOL.minZ && z<POOL.maxZ;
 const onTower = (x,z) => x>TOWER.minX && x<TOWER.maxX && z>TOWER.minZ && z<TOWER.maxZ;
-export const floorHeight = (x,z) => onTower(x,z) ? TOWER.height : inPool(x,z) ? POOL.bottom : 0;
+export const floorHeight = (x,z) => {
+  let height=onTower(x,z)?TOWER.height:inPool(x,z)?POOL.bottom:0;
+  for(const surface of COURSE_SURFACES)if(contains(surface,x,z))height=Math.max(height,surfaceHeight(surface,z));
+  return height;
+};
 const approach = (value, target, step) => value < target
   ? Math.min(target, value + step) : Math.max(target, value - step);
 
@@ -80,7 +85,18 @@ export function stepPlayer(player, input, dt) {
   const jumpPressed=player.jumpQueued;
   if(swimming && player.jumpQueued) player.vy=Math.max(player.vy,3.2);
   player.jumpQueued = false;
+  const previousX=player.x,previousZ=player.z;
   player.x += player.vx * dt; player.z += player.vz * dt;
+  // Small stair risers are walkable; raised platform sides block entry.
+  for(const surface of COURSE_SURFACES){
+    if(!contains(surface,player.x,player.z))continue;
+    const height=surfaceHeight(surface,player.z);
+    const canStep=player.grounded && height-player.y<=0.34;
+    if(height>player.y+0.04 && !canStep){
+      player.x=previousX;player.z=previousZ;player.vx=player.vz=0;
+      break;
+    }
+  }
   // Solid tower sides; the roof is a walkable landing surface.
   if(player.y<TOWER.height-0.05 && player.y+2.4>0 &&
     player.x>TOWER.minX-0.35 && player.x<TOWER.maxX+0.35 && player.z>TOWER.minZ-0.35 && player.z<TOWER.maxZ+0.35){
@@ -96,7 +112,7 @@ export function stepPlayer(player, input, dt) {
       const exits=[[Math.abs(player.x-POOL.minX),'x',POOL.minX-0.75,-1,0],[Math.abs(player.x-POOL.maxX),'x',POOL.maxX+0.75,1,0],
         [Math.abs(player.z-POOL.minZ),'z',POOL.minZ-0.75,0,-1],[Math.abs(player.z-POOL.maxZ),'z',POOL.maxZ+0.75,0,1]];
       exits.sort((a,b)=>a[0]-b[0]);const edge=exits[0];
-      player.poolExit={time:0,duration:1.15,x:player.x,y:player.y,z:player.z,toX:edge[1]==='x'?edge[2]:player.x,toZ:edge[1]==='z'?edge[2]:player.z};
+      player.poolExit={time:0,duration:0.65,x:player.x,y:player.y,z:player.z,toX:edge[1]==='x'?edge[2]:player.x,toZ:edge[1]==='z'?edge[2]:player.z};
       player.yaw=Math.atan2(edge[3],edge[4]);player.mode='exitPool';player.grounded=false;player.vx=player.vy=player.vz=0;
       return;
     }else{
@@ -112,7 +128,8 @@ export function stepPlayer(player, input, dt) {
   }
   const aboveFloor = Math.abs(player.x) <= FLOOR_HALF_SIZE && Math.abs(player.z) <= FLOOR_HALF_SIZE;
   const ground = floorHeight(player.x,player.z);
-  if (!aboveFloor || player.y>ground+0.01) player.grounded = false;
+  if(player.grounded && aboveFloor && ground-player.y<=0.34 && player.y-ground<=0.5)player.y=ground;
+  else if (!aboveFloor || player.y>ground+0.01) player.grounded = false;
   if (!player.grounded) {
     // Releasing jump early increases downward acceleration for a short hop.
     player.vy -= (player.vy > 0 && !player.jumpHeld ? 42 : 24) * dt;

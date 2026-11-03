@@ -64,3 +64,33 @@ test('pool pull-up works at every edge without directional input',async()=>{
 test('jumping from deep water does not teleport onto the deck',async()=>{
  const {POOL}=await import('../src/movement.js');const p=createPlayer();Object.assign(p,{x:POOL.minX+0.4,z:0,y:POOL.bottom+0.5,mode:'swim',grounded:false,jumpQueued:true});stepPlayer(p,{x:0,z:0},dt);assert.equal(p.mode,'swim');assert.ok(p.y<-2);
 });
+
+test('stairs can be climbed and descended without jumping',()=>{
+ const p=createPlayer();p.z=7;advance(p,0.95,{x:0,z:1});assert.ok(p.z>16);assert.equal(p.y,2.4);assert.equal(p.grounded,true);
+ advance(p,1.5,{x:0,z:-1});assert.ok(p.z<8);assert.equal(p.y,0);assert.equal(p.grounded,true);
+});
+test('ramp supports grounded movement up and down',()=>{
+ const p=createPlayer();p.z=45;advance(p,0.6,{x:0,z:-1});assert.ok(p.y>1);assert.equal(p.grounded,true);
+ advance(p,1.5,{x:0,z:1});assert.ok(p.z>46);assert.equal(p.y,0);assert.equal(p.grounded,true);
+});
+test('platform sides block ground entry, but jumps land on top',()=>{
+ const p=createPlayer();p.x=4;p.z=25;advance(p,0.6,{x:-1,z:0});assert.ok(p.x>=3);
+ Object.assign(p,{x:0,z:25,y:3.2,vy:-1,grounded:false,vx:0,vz:0});advance(p,0.5);assert.equal(p.y,2.4);assert.equal(p.grounded,true);
+});
+test('timed short hops can cross both platform gaps',()=>{
+ const p=createPlayer();Object.assign(p,{z:19,y:2.4,vz:MAX_SPEED,grounded:true});
+ for(const landing of [25,32]){
+  p.jumpQueued=true;p.jumpHeld=false;
+  let airborne=false;
+  for(let frame=0;frame<150;frame++){
+   stepPlayer(p,{x:0,z:1},dt);if(!p.grounded)airborne=true;else if(airborne)break;
+  }
+  assert.equal(p.y,2.4);assert.equal(p.grounded,true);assert.ok(Math.abs(p.z-landing)<2);
+ }
+});
+test('course requires ordered checkpoints, then records completion',async()=>{
+ const {createCourse,updateCourse,CHECKPOINTS}=await import('../src/course.js');const course=createCourse(),p=createPlayer();
+ Object.assign(p,CHECKPOINTS.at(-1));updateCourse(course,p,dt);assert.equal(course.next,0);
+ for(const checkpoint of CHECKPOINTS){Object.assign(p,{x:checkpoint.x,y:checkpoint.y,z:checkpoint.z,mode:checkpoint.name==='SWIM'?'swim':'land',grounded:true,vx:1});updateCourse(course,p,dt);}
+ assert.equal(course.finished,true);assert.equal(course.next,CHECKPOINTS.length);const time=course.elapsed;updateCourse(course,p,1);assert.equal(course.elapsed,time);
+});

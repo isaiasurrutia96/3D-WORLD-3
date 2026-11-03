@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
+import {COURSE_SURFACES,CHECKPOINTS,createCourse,updateCourse} from './course.js';
 import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, MAX_SPEED, POOL, TOWER, LADDER, floorHeight, inPool } from './movement.js';
 
 const canvas = document.querySelector('canvas');
@@ -88,14 +89,49 @@ water.rotation.x=-Math.PI/2;
 const coping=material('#a9bac1');
 for(const x of [POOL.minX-0.15,POOL.maxX+0.15]) mesh(new THREE.BoxGeometry(0.3,0.12,poolDepth+0.6),coping,scene,[x,0.02,poolZ]);
 for(const z of [POOL.minZ-0.15,POOL.maxZ+0.15]) mesh(new THREE.BoxGeometry(poolWidth+0.6,0.12,0.3),coping,scene,[poolX,0.02,z]);
+const worldLabels=[];
 function worldLabel(text,position){
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=96;
   const ctx=canvas.getContext('2d');ctx.fillStyle='#101831dd';ctx.fillRect(0,0,512,96);ctx.font='bold 24px sans-serif';ctx.fillStyle='#e7edf9';ctx.textAlign='center';ctx.fillText(text,256,58);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
-  const label=new THREE.Sprite(new THREE.SpriteMaterial({map,depthTest:true}));label.position.set(...position);label.scale.set(3.8,0.72,1);scene.add(label);
+  const label=new THREE.Sprite(new THREE.SpriteMaterial({map,depthTest:true}));label.position.set(...position);label.scale.set(2.8,0.53,1);scene.add(label);worldLabels.push(label);
 }
 worldLabel('LADDER · WALK OR JUMP ON',[-9,6.3,-1.9]);
 worldLabel('POOL · SPACE TO STROKE',[poolX,1.5,POOL.minZ-0.4]);
+const courseColors={step:'#ae9b79',platform:'#798b9c',ramp:'#849b87'};
+const courseObstacles=[];
+for(const surface of COURSE_SURFACES){
+  const w=surface.maxX-surface.minX,d=surface.maxZ-surface.minZ;
+  let geometry;
+  if(surface.kind==='ramp'){
+    geometry=new THREE.BoxGeometry(w,surface.height,d);
+    const positions=geometry.attributes.position;
+    for(let i=0;i<positions.count;i++)if(positions.getY(i)>0){
+      const progress=(positions.getZ(i)+d/2)/d;
+      positions.setY(i,surface.height*(1-progress)-surface.height/2);
+    }
+    geometry.computeVertexNormals();
+  }else geometry=new THREE.BoxGeometry(w,surface.height,d);
+  courseObstacles.push(mesh(geometry,material(courseColors[surface.kind]),scene,[(surface.minX+surface.maxX)/2,surface.height/2,(surface.minZ+surface.maxZ)/2]));
+}
+const checkpointMarkers=CHECKPOINTS.map((checkpoint,index)=>{
+  const ring=mesh(new THREE.TorusGeometry(checkpoint.radius,0.07,5,32),material('#b28d48'),scene,[checkpoint.x,checkpoint.name==='SWIM'?POOL.water+0.03:checkpoint.y+0.07,checkpoint.z]);
+  ring.rotation.x=-Math.PI/2;
+  worldLabel(`${index+1} · ${checkpoint.name}`,[checkpoint.x,checkpoint.y+3.8,checkpoint.z]);
+  return ring;
+});
+// Ground arrows make the route discoverable between the separated activities.
+const route=[{x:0,z:3},...CHECKPOINTS.slice(0,3),{x:-18,z:48},{x:-18,z:1},{x:-9,z:1},CHECKPOINTS[3],{x:-9,z:3},{x:6,z:3},CHECKPOINTS[4],{x:28,z:-11},{x:0,z:-11},CHECKPOINTS[5]];
+for(let i=0;i<route.length-1;i++){
+  const from=route[i],to=route[i+1],distance=Math.hypot(to.x-from.x,to.z-from.z);
+  for(let offset=5;offset<distance-3;offset+=5){
+    const t=offset/distance,x=from.x+(to.x-from.x)*t,z=from.z+(to.z-from.z)*t;
+    if(inPool(x,z))continue;
+    const arrow=new THREE.Shape();arrow.moveTo(0,0.5);arrow.lineTo(-0.3,-0.35);arrow.lineTo(0,-0.1);arrow.lineTo(0.3,-0.35);arrow.closePath();
+    const marker=mesh(new THREE.ShapeGeometry(arrow),material('#c4a668'),scene,[x,floorHeight(x,z)+0.02,z]);
+    marker.rotation.x=-Math.PI/2;marker.rotation.z=Math.atan2(to.x-from.x,-(to.z-from.z));
+  }
+}
 // Simple era-style contact shadow, rather than modern real-time soft shadows.
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.61, 16),
   new THREE.MeshBasicMaterial({ color: '#36333c', transparent: true, opacity: 0.22, depthWrite: false }));
@@ -129,13 +165,26 @@ for (const side of [-1,1]) {
   const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.43,0]);
   shoulder.rotation.z = side*0.16;
   const upperArm=segment(shoulder,[side*0.025,-0.145*ARM_LENGTH,0],0.16,0.29*ARM_LENGTH-0.21);
-  // Paint short sleeves onto the arm geometry, without adding clothing bulk.
-  const positions=upperArm.geometry.attributes.position;
-  const sleeveColors=[];
-  for(let vertex=0;vertex<positions.count;vertex++){
-    const color=positions.getY(vertex)>-0.035 ? shirt.color : mannequin.color;
-    sleeveColors.push(color.r,color.g,color.b);
+  // Split vertices at the sleeve hem so colors cannot blend across triangles.
+  const sleeveRadius=0.16,sleeveLength=0.29*ARM_LENGTH-0.21;
+  const armProfile=[];
+  for(let ring=0;ring<=4;ring++){
+    const angle=-Math.PI/2+ring*Math.PI/8;
+    armProfile.push(new THREE.Vector2(sleeveRadius*Math.cos(angle),-sleeveLength/2+sleeveRadius*Math.sin(angle)));
   }
+  armProfile.push(new THREE.Vector2(sleeveRadius,-0.035),new THREE.Vector2(sleeveRadius,sleeveLength/2));
+  for(let ring=1;ring<=4;ring++){
+    const angle=ring*Math.PI/8;
+    armProfile.push(new THREE.Vector2(sleeveRadius*Math.cos(angle),sleeveLength/2+sleeveRadius*Math.sin(angle)));
+  }
+  const sleeveGeometry=new THREE.LatheGeometry(armProfile,12).toNonIndexed();
+  const sleevePositions=sleeveGeometry.attributes.position,sleeveColors=[];
+  for(let vertex=0;vertex<sleevePositions.count;vertex+=3){
+    const centerY=(sleevePositions.getY(vertex)+sleevePositions.getY(vertex+1)+sleevePositions.getY(vertex+2))/3;
+    const color=centerY>-0.035?shirt.color:mannequin.color;
+    for(let corner=0;corner<3;corner++)sleeveColors.push(color.r,color.g,color.b);
+  }
+  upperArm.geometry.dispose();upperArm.geometry=sleeveGeometry;
   upperArm.geometry.setAttribute('color',new THREE.Float32BufferAttribute(sleeveColors,3));
   upperArm.material=new THREE.MeshLambertMaterial({vertexColors:true});
   const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*ARM_LENGTH,0]);
@@ -148,6 +197,7 @@ mesh(new THREE.CylinderGeometry(0.135,0.17,0.23,12),mannequin,head,[0,-0.065,0])
 mesh(new THREE.SphereGeometry(0.34,20,16),mannequin,head,[0,0.26,0]);
 // A structured six-panel fitted cap: snug band, tall crown, flat bill.
 const cap=joint(head,'la_cap',[0,0.40,0]);
+cap.rotation.x=-0.10;
 const crownProfile=[[0.315,0],[0.331,0.045],[0.337,0.16],[0.318,0.25],[0.235,0.315],[0,0.345]];
 mesh(new THREE.LatheGeometry(crownProfile.map(([r,y])=>new THREE.Vector2(r,y)),24),capFabric,cap,[0,0,0],[1,1,0.98]);
 const billShape=new THREE.Shape();
@@ -213,6 +263,11 @@ document.addEventListener('mousemove', event => {
   camera.lookAt(controls.target);
 });
 const player = createPlayer();
+const course=createCourse();
+document.querySelector('#restart').addEventListener('click',()=>{
+  Object.assign(player,createPlayer());Object.assign(course,createCourse());clearInput();
+  controls.target.set(0,1.3,0);reset();
+});
 const keys = new Set();
 const joystickInput={x:0,y:0};
 const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC']);
@@ -366,10 +421,16 @@ document.addEventListener('visibilitychange', () => { clearInput(); previousTime
 renderer.setAnimationLoop(time => {
   const dt = previousTime === undefined ? 0 : Math.min((time-previousTime)/1000,0.1);
   previousTime = time; accumulator += dt;
-  while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep); accumulator-=fixedStep; }
+  while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep);updateCourse(course,player,fixedStep); accumulator-=fixedStep; }
   izzy.position.set(player.x,player.y,player.z); izzy.rotation.y=player.yaw;
   animatePlayer(dt);
   updateBubbles(dt);
+  const diveButton=document.querySelector('[data-key="KeyC"]');
+  diveButton.hidden=player.mode!=='swim';
+  document.querySelector('#course-progress').textContent=course.finished
+    ? `COURSE COMPLETE · ${course.elapsed.toFixed(1)}s`
+    : `${course.next}/${CHECKPOINTS.length} · NEXT: ${CHECKPOINTS[course.next].name} · ${course.elapsed.toFixed(1)}s`;
+  checkpointMarkers.forEach((marker,index)=>marker.material.color.set(index<course.next?'#76ba8a':index===course.next?'#f1c45d':'#7c899b'));
   shadow.position.set(player.x,floorHeight(player.x,player.z)+0.004,player.z);
   shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
   shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
@@ -393,7 +454,7 @@ renderer.setAnimationLoop(time => {
   cameraRayDirection.subVectors(camera.position,controls.target);
   const desiredDistance=cameraRayDirection.length();
   cameraRay.set(controls.target,cameraRayDirection.normalize());cameraRay.far=desiredDistance;
-  const obstruction=cameraRay.intersectObject(tower)[0];
+  const obstruction=cameraRay.intersectObjects([tower,...courseObstacles])[0];
   if(obstruction)camera.position.copy(controls.target).addScaledVector(cameraRayDirection,Math.max(0.6,obstruction.distance-0.25));
   // Let the lens descend with Izzy and keep it within the pool walls/bottom.
   if(player.mode==='swim' && camera.position.y<0){
@@ -405,6 +466,7 @@ renderer.setAnimationLoop(time => {
   scene.fog.color.set(submerged ? '#174957' : '#080e25');
   scene.fog.near=submerged ? 4 : 35;scene.fog.far=submerged ? 30 : 85;
   camera.lookAt(controls.target);
+  worldLabels.forEach(label=>{label.visible=label.position.distanceTo(camera.position)>7;});
   renderer.render(scene,camera);
   canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
   const label=document.querySelector('.scene-label');
