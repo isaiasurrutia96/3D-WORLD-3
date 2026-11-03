@@ -196,12 +196,15 @@ for (const button of document.querySelectorAll('[data-key]')) {
   button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); press(button.dataset.key); });
   for (const type of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(type, () => release(button.dataset.key));
 }
-// Fixed world directions: rotating the camera never changes movement heading.
+// Camera-relative movement: E follows the horizontal viewing direction.
+const moveForward = new THREE.Vector3(), moveRight = new THREE.Vector3(), moveDirection = new THREE.Vector3();
 function inputDirection() {
-  return {
-    x: Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),
-    z: Number(keys.has('KeyD')||keys.has('ArrowDown'))-Number(keys.has('KeyE')||keys.has('ArrowUp')),
-  };
+  moveForward.subVectors(controls.target,camera.position).setY(0).normalize();
+  moveRight.crossVectors(moveForward,camera.up).normalize();
+  const horizontal = Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
+  const vertical = Number(keys.has('KeyE')||keys.has('ArrowUp'))-Number(keys.has('KeyD')||keys.has('ArrowDown'));
+  moveDirection.copy(moveForward).multiplyScalar(vertical).addScaledVector(moveRight,horizontal);
+  return { x:moveDirection.x, z:moveDirection.z };
 }
 const limbs = ['left','right'].map(side => Object.fromEntries(
   ['hip','knee','ankle','shoulder','elbow','wrist'].map(name => [name,izzy.getObjectByName(`${side}_${name}`)])));
@@ -210,11 +213,17 @@ function animatePlayer(dt) {
   const blend = 1-Math.exp(-18*dt);
   const pose = (joint, value) => joint.rotation.x = THREE.MathUtils.lerp(joint.rotation.x,value,blend);
   limbs.forEach((limb,index) => {
-    const stride = Math.sin(player.gait+index*Math.PI);
+    const phase = player.gait+index*Math.PI;
+    const stride = Math.sin(phase);
+    const recovery = Math.max(0,-Math.cos(phase));
     const running = player.grounded;
     pose(limb.hip,running ? stride*1.25*amount : (index===0 ? -0.65 : 0.3));
-    pose(limb.knee,running ? (0.18+Math.max(0,-stride)*1.45)*amount : 0.85);
-    pose(limb.ankle,running ? -stride*0.35*amount : 0.2);
+    pose(limb.knee,running ? (0.12+recovery*1.35)*amount : 0.85);
+    // Counter-rotate the ankle against the thigh and shin. Keep the sole
+    // near level in stance, roll off the toe, then lift the toes in recovery.
+    const footPitch = (recovery > 0 ? -0.18 : Math.max(0,stride)*0.5)*amount;
+    const anklePitch = THREE.MathUtils.clamp(footPitch-limb.hip.rotation.x-limb.knee.rotation.x,-1.3,0.9);
+    pose(limb.ankle,running ? anklePitch : (player.vy>0 ? 0.25 : -0.2));
     pose(limb.shoulder,running ? -stride*1.15*amount : -1.1);
     pose(limb.elbow,running ? -(0.9+stride*0.2)*amount : -0.6);
     pose(limb.wrist,0);

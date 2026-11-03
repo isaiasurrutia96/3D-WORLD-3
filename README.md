@@ -15,14 +15,14 @@ Build with `npm run build`; serve the result with `npm run preview`. Run the mov
 
 ## Controls
 
-- E forward, D back, A left, F right (or arrow keys): fixed world-direction running, with acceleration and braking.
+- E forward, D back, A left, F right (or arrow keys): camera-relative running, with acceleration and braking.
 - Space: jump. Hold for a higher jump; release early for a short hop.
 - Drag: orbit the following camera. Scroll/pinch: zoom.
 - L: lock/unlock the mouse for mouse-look. Escape also releases it.
 - Maximum running speed: 10 world units/second.
 - Touch devices have directional and jump buttons.
 
-Mouse/trackpad orbit changes only the view; it does not steer Izzy or redefine the movement directions. The run cycle has a forward lean, higher knees, bent elbows, larger arm/leg swings, and a midnight blue sky.
+Mouse/trackpad orbit changes the movement direction: E runs toward where the camera looks, D goes back, and A/F strafe relative to the view. The run cycle has a forward lean, higher knees, bent elbows, larger arm/leg swings, ankle compensation with toe-off and recovery flex, and a midnight blue sky.
 
 Momentum carries through jumps, with limited air steering. Walking off the slab causes a fall and respawn at the center. Movement uses a fixed 120 Hz physics step.
 
