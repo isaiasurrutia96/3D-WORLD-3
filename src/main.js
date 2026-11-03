@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
+import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, MAX_SPEED } from './movement.js';
 
 const canvas = document.querySelector('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -22,7 +23,11 @@ controls.maxDistance = 16;
 controls.minPolarAngle = 0.3;
 controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.target.set(0, 1.1, 0);
-function reset() { camera.position.set(6.5, 4.8, 9); controls.target.set(0, 1.1, 0); controls.update(); }
+function reset() {
+  const position = controls.target.clone();
+  camera.position.copy(position).add(new THREE.Vector3(6.5,3.7,9));
+  controls.update();
+}
 reset();
 document.querySelector('#reset').addEventListener('click', reset);
 canvas.addEventListener('keydown', event => {
@@ -87,7 +92,7 @@ function mesh(geometry, mat, parent, position, scale) {
 }
 function ball(parent, mat, position, scale) { return mesh(new THREE.SphereGeometry(1, 10, 8), mat, parent, position, scale); }
 function joint(parent, name, position) { const group = new THREE.Group(); group.name = name; group.position.set(...position); parent.add(group); return group; }
-const slab = mesh(new THREE.BoxGeometry(4.4, 0.25, 3.7), material('#e6e0cf'), scene, [0, -0.125, 0]);
+const slab = mesh(new THREE.BoxGeometry(FLOOR_HALF_SIZE * 2, 0.25, FLOOR_HALF_SIZE * 2), material('#e6e0cf'), scene, [0, -0.125, 0]);
 slab.name = 'Single floor slab';
 // Simple era-style contact shadow, rather than modern real-time soft shadows.
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.61, 16),
@@ -97,7 +102,7 @@ shadow.position.y = 0.004;
 shadow.scale.y = 0.7;
 scene.add(shadow);
 const izzy = joint(scene, 'Izzy', [0,0,0]);
-// Every limb has a pivot hierarchy for later animation. The pose remains static.
+// Limb pivots drive the run cycle and airborne pose.
 const pelvis = joint(izzy, 'pelvis', [0,0.9,0]);
 ball(pelvis,blue, [0,0.1,0], [0.43,0.4,0.29]);
 const torso = joint(pelvis, 'spine', [0,0.25,0]);
@@ -136,4 +141,71 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize); resize();
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene,camera); });
+const player = createPlayer();
+const keys = new Set();
+const inputCodes = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space']);
+function press(code) {
+  if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
+  keys.add(code); player.jumpHeld = keys.has('Space');
+}
+function release(code) { keys.delete(code); player.jumpHeld = keys.has('Space'); }
+window.addEventListener('keydown', event => {
+  if (!inputCodes.has(event.code) || event.target.closest('input,textarea,select')) return;
+  event.preventDefault();
+  if (!event.repeat) press(event.code);
+});
+window.addEventListener('keyup', event => { if (inputCodes.has(event.code)) { event.preventDefault(); release(event.code); } });
+function clearInput() { keys.clear(); player.jumpHeld = false; player.jumpQueued = false; }
+window.addEventListener('blur',clearInput);
+for (const button of document.querySelectorAll('[data-key]')) {
+  button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); press(button.dataset.key); });
+  for (const type of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(type, () => release(button.dataset.key));
+}
+const forward = new THREE.Vector3(), right = new THREE.Vector3(), direction = new THREE.Vector3();
+function inputDirection() {
+  forward.subVectors(controls.target,camera.position).setY(0).normalize();
+  right.crossVectors(forward, camera.up).normalize();
+  const horizontal = Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
+  const vertical = Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
+  direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
+  return { x:direction.x, z:direction.z };
+}
+const limbs = ['left','right'].map(side => Object.fromEntries(
+  ['hip','knee','ankle','shoulder','elbow','wrist'].map(name => [name,izzy.getObjectByName(`${side}_${name}`)])));
+function animatePlayer(dt) {
+  const amount = Math.min(1, Math.hypot(player.vx,player.vz)/MAX_SPEED);
+  const blend = 1-Math.exp(-18*dt);
+  const pose = (joint, value) => joint.rotation.x = THREE.MathUtils.lerp(joint.rotation.x,value,blend);
+  limbs.forEach((limb,index) => {
+    const stride = Math.sin(player.gait+index*Math.PI);
+    const running = player.grounded;
+    pose(limb.hip,running ? stride*0.85*amount : (index===0 ? -0.65 : 0.3));
+    pose(limb.knee,running ? Math.max(0,-stride)*0.95*amount : 0.85);
+    pose(limb.ankle,running ? -stride*0.2*amount : 0.2);
+    pose(limb.shoulder,running ? -stride*0.7*amount : -1.1);
+    pose(limb.elbow,running ? -0.4*amount : -0.6);
+    pose(limb.wrist,0);
+  });
+  pelvis.position.y = 0.9 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.045*amount-player.landing*0.09 : 0);
+  torso.rotation.x = player.grounded ? amount*0.09 : -0.06;
+}
+let previousTime, accumulator = 0;
+const fixedStep = 1/120;
+document.addEventListener('visibilitychange', () => { clearInput(); previousTime=undefined; accumulator=0; });
+renderer.setAnimationLoop(time => {
+  const dt = previousTime === undefined ? 0 : Math.min((time-previousTime)/1000,0.1);
+  previousTime = time; accumulator += dt;
+  while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep); accumulator-=fixedStep; }
+  izzy.position.set(player.x,player.y,player.z); izzy.rotation.y=player.yaw;
+  animatePlayer(dt);
+  shadow.position.set(player.x,0.004,player.z);
+  shadow.visible = Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
+  shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
+  shadow.scale.setScalar(1+Math.max(0,player.y)*0.12); shadow.scale.y*=0.7;
+  const target = new THREE.Vector3(player.x,Math.max(0,player.y)*0.55+1.1,player.z);
+  const offset = target.sub(controls.target);
+  controls.target.add(offset); camera.position.add(offset);
+  controls.update(); renderer.render(scene,camera);
+  canvas.dataset.state = player.grounded ? 'grounded' : 'airborne';
+  canvas.dataset.position = `${player.x.toFixed(3)},${player.y.toFixed(3)},${player.z.toFixed(3)}`;
+});
