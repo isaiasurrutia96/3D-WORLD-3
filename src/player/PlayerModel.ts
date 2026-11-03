@@ -52,6 +52,7 @@ const PALETTE = {
   shoe: '#6a3b1c',
   buckle: '#f2c94c',
   eye: '#2b2b33',
+  clay: '#b9b2a6',
 };
 
 function standard(color: string, roughness = 0.72, metalness = 0): MeshStandardMaterial {
@@ -114,21 +115,21 @@ function taperedLimb(topRadius: number, bottomRadius: number, length: number): L
  * but not dominant.
  */
 const TORSO_PROFILE: Array<[number, number]> = [
-  [0.0, -0.3],
-  [0.1, -0.295],
-  [0.175, -0.26],
-  [0.228, -0.18],
-  [0.25, -0.08],
-  [0.258, 0.04], // belly, the widest point
-  [0.248, 0.14],
+  [0.0, -0.2],
+  [0.1, -0.196],
+  [0.175, -0.168],
+  [0.228, -0.104],
+  [0.25, -0.024],
+  [0.258, 0.072], // belly, the widest point
+  [0.248, 0.152],
   [0.234, 0.2], // waist
-  [0.243, 0.27],
-  [0.249, 0.33], // chest
-  [0.238, 0.4],
-  [0.198, 0.45],
-  [0.138, 0.475], // shoulder line, tapering to the neck
-  [0.094, 0.49],
-  [0.0, 0.5],
+  [0.243, 0.256],
+  [0.249, 0.304], // chest
+  [0.238, 0.36],
+  [0.198, 0.4],
+  [0.138, 0.42], // shoulder line, tapering to the neck
+  [0.094, 0.432],
+  [0.0, 0.44],
 ];
 
 function torsoProfile(): LatheGeometry {
@@ -163,11 +164,25 @@ function trouserProfile(waistHeight: number): LatheGeometry {
  * Heights are laid out deliberately rather than by eye. Reading upward from
  * the feet:
  *
- *   0.00  soles        0.44  knees        0.80  hips
- *   1.16  shoulders    1.26  base of neck 1.55  centre of head
- *   1.82  top of the cap
+ *   0.00  soles        0.48  knees        0.88  hips
+ *   1.22  shoulders    1.32  base of neck 1.61  centre of head
+ *   1.82  crown
+ *
+ * The torso used to hang down to 0.50, which left barely a third of the
+ * figure's height as visible leg and read as a bowling pin. Its lower edge
+ * now sits at 0.68 and the hips are higher, so the proportions are closer to
+ * four and a quarter heads with legs that look like legs.
  */
-export function createCharacterRig(): CharacterRig {
+export interface RigOptions {
+  /**
+   * One neutral material, no clothing and no face. Everything is reduced to
+   * its form, which is the only way to judge proportion and silhouette
+   * without colour doing the work.
+   */
+  plain?: boolean;
+}
+
+export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const materials: MeshStandardMaterial[] = [];
   const make = (color: string, roughness?: number, metalness?: number) => {
     const material = standard(color, roughness, metalness);
@@ -175,12 +190,15 @@ export function createCharacterRig(): CharacterRig {
     return material;
   };
 
-  const shirtMaterial = make(PALETTE.shirt, 0.78);
-  const overallMaterial = make(PALETTE.overalls, 0.74);
-  const skinMaterial = make(PALETTE.skin, 0.68);
-  const gloveMaterial = make(PALETTE.glove, 0.66);
-  const shoeMaterial = make(PALETTE.shoe, 0.7);
-  const buckleMaterial = make(PALETTE.buckle, 0.35, 0.55);
+  const plain = options.plain === true;
+  const clay = plain ? make(PALETTE.clay, 0.78) : null;
+
+  const shirtMaterial = clay ?? make(PALETTE.shirt, 0.78);
+  const overallMaterial = clay ?? make(PALETTE.overalls, 0.74);
+  const skinMaterial = clay ?? make(PALETTE.skin, 0.68);
+  const gloveMaterial = clay ?? make(PALETTE.glove, 0.66);
+  const shoeMaterial = clay ?? make(PALETTE.shoe, 0.7);
+  const buckleMaterial = clay ?? make(PALETTE.buckle, 0.35, 0.55);
 
   const root = new Group();
   const body = new Group();
@@ -188,7 +206,7 @@ export function createCharacterRig(): CharacterRig {
 
   // The torso's origin sits on the hip line, so leg offsets read directly.
   const torso = new Group();
-  torso.position.y = 0.8;
+  torso.position.y = 0.88;
   body.add(torso);
 
   // ---- Torso ---------------------------------------------------------------
@@ -196,60 +214,62 @@ export function createCharacterRig(): CharacterRig {
   // is why it is a single surface rather than a shirt stacked on trousers.
   torso.add(part(torsoProfile(), shirtMaterial));
 
-  // Until the outfit is painted, the trousers are a second shape over the
-  // lower torso so the silhouette can still be judged in two colours.
-  torso.add(part(trouserProfile(0.16), overallMaterial));
+  if (!plain) {
+    // Until the outfit is painted, the trousers are a second shape over the
+    // lower torso so the silhouette can still be judged in two colours.
+    torso.add(part(trouserProfile(0.16), overallMaterial));
 
-  for (const x of [-0.125, 0.125]) {
-    torso.add(part(new SphereGeometry(0.05, 10, 8), buckleMaterial, [x, 0.21, 0.27]));
+    for (const x of [-0.125, 0.125]) {
+      torso.add(part(new SphereGeometry(0.05, 10, 8), buckleMaterial, [x, 0.21, 0.27]));
+    }
   }
 
   // ---- Neck ----------------------------------------------------------------
-  torso.add(part(taperedLimb(0.1, 0.125, 0.1), skinMaterial, [0, 0.52, 0.005]));
+  torso.add(part(taperedLimb(0.098, 0.122, 0.11), skinMaterial, [0, 0.47, 0.005]));
 
   // ---- Head ----------------------------------------------------------------
   const head = new Group();
-  head.position.set(0, 0.75, 0);
+  head.position.set(0, 0.73, 0);
   torso.add(head);
 
-  head.add(part(new SphereGeometry(0.215, 18, 16), skinMaterial));
+  head.add(part(new SphereGeometry(0.212, 18, 16), skinMaterial));
 
-  // Cap: a dome with a brim. No face yet beyond the nose.
-  head.add(
-    part(
-      new SphereGeometry(0.222, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
+  if (!plain) {
+    // Cap: a dome with a brim.
+    head.add(
+      part(
+        new SphereGeometry(0.222, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
+        shirtMaterial,
+        [0, 0.07, 0],
+      ),
+    );
+    const brim = part(
+      new CylinderGeometry(0.14, 0.168, 0.04, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5),
       shirtMaterial,
-      [0, 0.07, 0],
-    ),
-  );
-  const brim = part(
-    new CylinderGeometry(0.14, 0.168, 0.04, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5),
-    shirtMaterial,
-    [0, 0.068, 0.152],
-  );
-  brim.rotation.x = -0.16;
-  head.add(brim);
+      [0, 0.068, 0.152],
+    );
+    brim.rotation.x = -0.16;
+    head.add(brim);
 
-  // The hair at the back of the head is gone. With no face to frame, it read
-  // as a dark lump stuck to his skull rather than as hair.
-  // The nose stays: without it the head is a ball and the facing is unreadable.
-  head.add(part(new SphereGeometry(0.068, 12, 10), skinMaterial, [0, -0.045, 0.2]));
+    // The nose: without it the head is a ball and the facing is unreadable.
+    head.add(part(new SphereGeometry(0.068, 12, 10), skinMaterial, [0, -0.045, 0.2]));
+  }
 
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.288 * side, 0.355, 0);
+    shoulder.position.set(0.282 * side, 0.335, 0);
     torso.add(shoulder);
 
-    shoulder.add(part(taperedLimb(0.082, 0.098, 0.14), shirtMaterial, [0, -0.15, 0]));
+    shoulder.add(part(taperedLimb(0.082, 0.098, 0.16), shirtMaterial, [0, -0.16, 0]));
 
     const elbow = new Group();
-    elbow.position.y = -0.3;
+    elbow.position.y = -0.32;
     shoulder.add(elbow);
-    elbow.add(part(taperedLimb(0.071, 0.082, 0.13), shirtMaterial, [0, -0.13, 0]));
+    elbow.add(part(taperedLimb(0.071, 0.082, 0.15), shirtMaterial, [0, -0.14, 0]));
 
     // Big round gloves: one of the most recognisable things about him.
-    const glove = part(new SphereGeometry(0.152, 14, 12), gloveMaterial, [0, -0.29, 0]);
+    const glove = part(new SphereGeometry(0.15, 14, 12), gloveMaterial, [0, -0.3, 0]);
     glove.scale.set(1, 0.95, 1.05);
     elbow.add(glove);
 
@@ -264,15 +284,15 @@ export function createCharacterRig(): CharacterRig {
     const hip = new Group();
     hip.position.set(0.118 * side, -0.02, 0);
     torso.add(hip);
-    hip.add(part(taperedLimb(0.105, 0.132, 0.2), overallMaterial, [0, -0.18, 0]));
+    hip.add(part(taperedLimb(0.105, 0.128, 0.22), overallMaterial, [0, -0.2, 0]));
 
     const knee = new Group();
-    knee.position.y = -0.36;
+    knee.position.y = -0.4;
     hip.add(knee);
-    knee.add(part(taperedLimb(0.09, 0.108, 0.18), overallMaterial, [0, -0.15, 0]));
+    knee.add(part(taperedLimb(0.09, 0.108, 0.2), overallMaterial, [0, -0.17, 0]));
 
     const ankle = new Group();
-    ankle.position.y = -0.32;
+    ankle.position.y = -0.36;
     knee.add(ankle);
 
     // Big shoes, for the same reason as the gloves.

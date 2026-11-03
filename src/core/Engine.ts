@@ -99,8 +99,6 @@ export class Engine {
     this.sun = new DirectionalLight(0xfff3d6, 2.15);
     this.sun.position.copy(SUN_DIRECTION).multiplyScalar(120);
     this.sun.castShadow = true;
-    this.sun.shadow.bias = -0.0012;
-    this.sun.shadow.normalBias = 0.035;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
@@ -124,6 +122,7 @@ export class Engine {
   setStudioMode(enabled: boolean): void {
     this.studio = enabled;
     this.sky.visible = !enabled;
+    this.configureShadowCamera();
 
     if (enabled) {
       this.scene.fog = null;
@@ -168,15 +167,7 @@ export class Engine {
       this.sun.shadow.map = null;
     }
 
-    const half = preset.shadowDistance * 0.5;
-    const shadowCamera = this.sun.shadow.camera;
-    shadowCamera.left = -half;
-    shadowCamera.right = half;
-    shadowCamera.top = half;
-    shadowCamera.bottom = -half;
-    shadowCamera.near = 1;
-    shadowCamera.far = preset.shadowDistance * 3.2;
-    shadowCamera.updateProjectionMatrix();
+    this.configureShadowCamera();
 
     if (!this.underwater && !this.studio) this.fog.density = preset.fogDensity;
     this.camera.far = preset.viewDistance;
@@ -184,6 +175,31 @@ export class Engine {
 
     this.setUpComposer();
     this.resize();
+  }
+
+  /**
+   * Sizes the shadow frustum to what is actually in the scene.
+   *
+   * A frustum wide enough for the castle spreads a 1024-pixel shadow map over
+   * ninety metres, which is about a tenth of a metre per pixel. At that
+   * resolution the bias needed to stop self-shadowing also pushes the shadow
+   * away from whatever casts it, so a character appears to hover above their
+   * own shadow. In studio mode there is one figure to light, so the frustum
+   * is a few metres across and the bias can be tiny.
+   */
+  private configureShadowCamera(): void {
+    const half = this.studio ? 2.2 : this.preset.shadowDistance * 0.5;
+    const shadowCamera = this.sun.shadow.camera;
+    shadowCamera.left = -half;
+    shadowCamera.right = half;
+    shadowCamera.top = half;
+    shadowCamera.bottom = -half;
+    shadowCamera.near = this.studio ? 0.5 : 1;
+    shadowCamera.far = this.studio ? 30 : this.preset.shadowDistance * 3.2;
+    shadowCamera.updateProjectionMatrix();
+
+    this.sun.shadow.bias = this.studio ? -0.0002 : -0.0012;
+    this.sun.shadow.normalBias = this.studio ? 0.012 : 0.035;
   }
 
   private setUpComposer(): void {
@@ -225,9 +241,10 @@ export class Engine {
   /** Keeps the shadow frustum centred on the player so it stays sharp. */
   focusShadowsOn(target: Vector3): void {
     const direction = this.studio ? STUDIO_SUN_DIRECTION : SUN_DIRECTION;
+    const distance = this.studio ? 9 : this.preset.shadowDistance * 1.4;
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();
-    this.sun.position.copy(target).addScaledVector(direction, this.preset.shadowDistance * 1.4);
+    this.sun.position.copy(target).addScaledVector(direction, distance);
   }
 
   /**

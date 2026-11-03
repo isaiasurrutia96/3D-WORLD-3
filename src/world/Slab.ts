@@ -21,12 +21,12 @@ import {
 import type { CollisionWorld } from '../physics/CollisionWorld.ts';
 
 /** Side length of the slab, in metres. */
-export const SLAB_SIZE = 52;
+export const SLAB_SIZE = 9;
 /** Spacing of the floor markings. */
-export const GRID_SQUARE = 2;
+export const GRID_SQUARE = 1.5;
 const SLAB_THICKNESS = 0.8;
 
-export const SPAWN_POSITION = new Vector3(0, 0.1, 6);
+export const SPAWN_POSITION = new Vector3(0, 0, 0);
 export const SPAWN_FACING = Math.PI;
 
 export interface SlabWorld {

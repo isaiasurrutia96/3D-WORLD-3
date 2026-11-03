@@ -212,6 +212,11 @@ castle grounds, good graphics. Driving and minigames moved to later
 milestones; multiplayer taken out of scope for now. Reason: Isaias asked for
 the time to go into movement and world feel first.
 
+**3 November 2026, fourth entry.** Milestone 1 restarted as the body alone: a
+small floor slab, the figure standing in one neutral material with no
+clothing, face, colour or movement, and an orbit camera to inspect it. The
+joints are all present so the same rig animates later without being rebuilt.
+
 **3 November 2026, third entry.** Work restructured into small milestones, as
 in section H. Milestone 1 is the character alone on a floor slab: walking,
 running and jumping, no sky, scenery or menu.
