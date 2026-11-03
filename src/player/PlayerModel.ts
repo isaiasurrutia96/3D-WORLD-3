@@ -116,19 +116,19 @@ function taperedLimb(topRadius: number, bottomRadius: number, length: number): L
  */
 const TORSO_PROFILE: Array<[number, number]> = [
   [0.0, -0.2],
-  [0.1, -0.196],
-  [0.175, -0.168],
-  [0.228, -0.104],
-  [0.25, -0.024],
-  [0.258, 0.072], // belly, the widest point
-  [0.248, 0.152],
-  [0.234, 0.2], // waist
-  [0.243, 0.256],
-  [0.249, 0.304], // chest
-  [0.238, 0.36],
-  [0.198, 0.4],
-  [0.138, 0.42], // shoulder line, tapering to the neck
-  [0.094, 0.432],
+  [0.115, -0.194],
+  [0.2, -0.164],
+  [0.252, -0.1],
+  [0.275, -0.02],
+  [0.285, 0.072], // belly, the widest point
+  [0.279, 0.152],
+  [0.268, 0.2], // waist, only slightly drawn in
+  [0.274, 0.256],
+  [0.278, 0.304], // chest
+  [0.264, 0.36],
+  [0.218, 0.4],
+  [0.148, 0.42], // shoulder line, tapering to the neck
+  [0.1, 0.432],
   [0.0, 0.44],
 ];
 
@@ -229,10 +229,10 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
 
   // ---- Head ----------------------------------------------------------------
   const head = new Group();
-  head.position.set(0, 0.73, 0);
+  head.position.set(0, 0.715, 0);
   torso.add(head);
 
-  head.add(part(new SphereGeometry(0.212, 18, 16), skinMaterial));
+  head.add(part(new SphereGeometry(0.228, 20, 18), skinMaterial));
 
   if (!plain) {
     // Cap: a dome with a brim.
@@ -258,18 +258,18 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.282 * side, 0.335, 0);
+    shoulder.position.set(0.3 * side, 0.33, 0);
     torso.add(shoulder);
 
-    shoulder.add(part(taperedLimb(0.082, 0.098, 0.16), shirtMaterial, [0, -0.16, 0]));
+    shoulder.add(part(taperedLimb(0.1, 0.11, 0.14), shirtMaterial, [0, -0.16, 0]));
 
     const elbow = new Group();
     elbow.position.y = -0.32;
     shoulder.add(elbow);
-    elbow.add(part(taperedLimb(0.071, 0.082, 0.15), shirtMaterial, [0, -0.14, 0]));
+    elbow.add(part(taperedLimb(0.096, 0.104, 0.17), shirtMaterial, [0, -0.17, 0]));
 
     // Big round gloves: one of the most recognisable things about him.
-    const glove = part(new SphereGeometry(0.15, 14, 12), gloveMaterial, [0, -0.3, 0]);
+    const glove = part(new SphereGeometry(0.158, 14, 12), gloveMaterial, [0, -0.34, 0]);
     glove.scale.set(1, 0.95, 1.05);
     elbow.add(glove);
 
@@ -282,22 +282,25 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Legs ----------------------------------------------------------------
   const buildLeg = (side: -1 | 1) => {
     const hip = new Group();
-    hip.position.set(0.118 * side, -0.02, 0);
+    hip.position.set(0.158 * side, -0.02, 0);
     torso.add(hip);
-    hip.add(part(taperedLimb(0.105, 0.128, 0.22), overallMaterial, [0, -0.2, 0]));
+    hip.add(part(taperedLimb(0.128, 0.148, 0.2), overallMaterial, [0, -0.2, 0]));
 
     const knee = new Group();
     knee.position.y = -0.4;
     hip.add(knee);
-    knee.add(part(taperedLimb(0.09, 0.108, 0.2), overallMaterial, [0, -0.17, 0]));
+    knee.add(part(taperedLimb(0.115, 0.128, 0.18), overallMaterial, [0, -0.17, 0]));
 
     const ankle = new Group();
     ankle.position.y = -0.36;
     knee.add(ankle);
 
     // Big shoes, for the same reason as the gloves.
-    const shoe = part(new SphereGeometry(0.172, 14, 12), shoeMaterial, [0, 0.01, 0.06]);
-    shoe.scale.set(1.0, 0.62, 1.62);
+    // Narrowed across their width and set on wider hips, so the two shoes
+    // stand with a visible gap between them rather than meeting at the
+    // centre line, which made them look like one block.
+    const shoe = part(new SphereGeometry(0.176, 14, 12), shoeMaterial, [0, 0.012, 0.055]);
+    shoe.scale.set(0.84, 0.6, 1.55);
     ankle.add(shoe);
 
     return { hip, knee, ankle };

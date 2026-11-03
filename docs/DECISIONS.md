@@ -152,7 +152,24 @@ testers.
 
 ---
 
-## F) Deferred features
+## F) The world's visual style
+
+**1. Confirmed, 3 November 2026.** The world is to be built in Super Mario 64
+style: simple low-polygon shapes, basic lighting, and minimal visual effects.
+
+**2. Confirmed.** The castle build was more polished than necessary. Effects
+such as bloom, reflective water and dense scenery are to be kept out unless
+there is a reason for them, so there is performance headroom as content is
+added. The measured 60 frames per second on the test machine is a starting
+budget to protect, not a ceiling to spend.
+
+**3. Scope.** This applies when the world is rebuilt. It does not change the
+character milestones, where a neutral studio setup is being used so the form
+can be judged.
+
+---
+
+## G) Deferred features
 
 **1. Custom key bindings.** Isaias will specify which keys he wants for each
 movement in a later milestone. Until then the defaults listed in the README
@@ -173,7 +190,7 @@ complete Super Mario 64 move set.
 
 ---
 
-## G) Not built, and not planned
+## H) Not built, and not planned
 
 **1. Mobile and touch controls.** None exist. The game is keyboard, mouse and
 gamepad only, matching the confirmed decision that the first version targets a
@@ -184,7 +201,7 @@ layer to preserve.
 
 ---
 
-## H) How the work is structured, from 3 November 2026
+## I) How the work is structured, from 3 November 2026
 
 **1. Confirmed.** Milestones are small — thirty to sixty minutes of work — and
 each one ends with Isaias playing it before anything is built on top.
@@ -205,12 +222,16 @@ that something works; it cannot tell that something looks or feels wrong.
 
 ---
 
-## I) Change log
+## J) Change log
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
 milestones; multiplayer taken out of scope for now. Reason: Isaias asked for
 the time to go into movement and world feel first.
+
+**3 November 2026, fifth entry.** Super Mario 64 visual style confirmed for
+the world, as in section F. Character proportions moved toward a chunkier,
+rounder reference.
 
 **3 November 2026, fourth entry.** Milestone 1 restarted as the body alone: a
 small floor slab, the figure standing in one neutral material with no
