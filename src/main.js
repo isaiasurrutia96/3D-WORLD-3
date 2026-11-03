@@ -108,9 +108,9 @@ const tower = mesh(new THREE.BoxGeometry(6,TOWER.height,6),material('#8a819b'),s
 tower.name='Climbing box';
 const ladderMaterial = material('#ba9461');
 for(const x of [LADDER.x-0.43,LADDER.x+0.43]) {
-  mesh(new THREE.CylinderGeometry(0.065,0.065,5.8,8),ladderMaterial,scene,[x,2.9,-1.9]);
+  mesh(new THREE.CylinderGeometry(0.065,0.065,TOWER.height,8),ladderMaterial,scene,[x,TOWER.height/2,-1.9]);
 }
-for(let y=0.3;y<5.6;y+=0.35){
+for(let y=0.3;y<TOWER.height-0.1;y+=0.35){
   const rung=mesh(new THREE.CylinderGeometry(0.045,0.045,0.86,8),ladderMaterial,scene,[LADDER.x,y,-1.9]);
   rung.rotation.z=Math.PI/2;
 }
