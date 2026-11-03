@@ -47,6 +47,11 @@ export class CameraRig {
     return this.yaw;
   }
 
+  /** Current yaw in degrees, for the on-screen readout. */
+  get yawDegrees(): number {
+    return ((MathUtils.radToDeg(this.yaw) % 360) + 360) % 360;
+  }
+
   applyLook(deltaYaw: number, deltaPitch: number): void {
     if (deltaYaw === 0 && deltaPitch === 0) return;
     this.yaw -= deltaYaw;
@@ -129,6 +134,22 @@ export class CameraRig {
     if (this.manualTimer > 0) return;
     if (player.state === 'climb') return;
     if (player.speed < 2.2) return;
+
+    // Only swing round when the character is running *away* from the camera.
+    //
+    // Without this test, holding backward spins on the spot forever: the
+    // character turns to face the way you pushed, the camera follows them
+    // round, and once it is behind them "backward" points the other way, so
+    // they turn again. Leaving the camera where it is means backward stays
+    // backward.
+    const awayX = this.smoothedFocus.x - this.camera.position.x;
+    const awayZ = this.smoothedFocus.z - this.camera.position.z;
+    const awayLength = Math.hypot(awayX, awayZ);
+    if (awayLength > 0.001) {
+      const movingAway =
+        (player.velocity.x * awayX + player.velocity.z * awayZ) / awayLength;
+      if (movingAway < player.speed * 0.35) return;
+    }
 
     const desiredYaw = player.facing + Math.PI;
     let difference = desiredYaw - this.yaw;

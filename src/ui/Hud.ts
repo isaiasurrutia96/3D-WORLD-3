@@ -18,6 +18,9 @@ export interface HudState {
   lastKey: string;
   lastKeyRecognised: boolean;
   pointerLocked: boolean;
+  moveX: number;
+  moveY: number;
+  cameraYaw: number;
 }
 
 export class Hud {
@@ -79,6 +82,8 @@ export class Hud {
       ],
       ['Gamepad', state.gamepad ? 'connected' : 'press a button'],
       ['Mouse', state.pointerLocked ? 'locked' : 'free  (L)'],
+      ['Input', `${state.moveX.toFixed(2)}, ${state.moveY.toFixed(2)}`],
+      ['Cam yaw', `${state.cameraYaw.toFixed(0)}°`],
       [
         'Last key',
         state.lastKey === '—'

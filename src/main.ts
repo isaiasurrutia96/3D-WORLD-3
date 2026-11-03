@@ -131,6 +131,9 @@ class Game {
       lastKey: this.input.lastKey,
       lastKeyRecognised: this.input.lastKeyRecognised,
       pointerLocked: this.input.isPointerLocked,
+      moveX: this.input.move.x,
+      moveY: this.input.move.y,
+      cameraYaw: this.cameraRig.yawDegrees,
     });
   };
 

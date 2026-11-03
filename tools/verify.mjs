@@ -89,6 +89,46 @@ if (travelled < 3) problems.push(`holding E moved the character only ${travelled
 
 await resetPlayer(page);
 
+// ---- Backward must go backward, not round in circles --------------------
+// Holding back used to spin on the spot: the character turned to face the
+// way you pushed, the camera swung round behind them, and backward then
+// pointed the other way.
+await page.evaluate(() => {
+  const player = window.__letsgo.debug.player;
+  window.__spin = 0;
+  window.__lastFacing = player.facing;
+  window.__spinTimer = window.setInterval(() => {
+    const facing = window.__letsgo.debug.player.facing;
+    let delta = facing - window.__lastFacing;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    window.__spin += Math.abs(delta);
+    window.__lastFacing = facing;
+  }, 16);
+});
+
+const beforeBack = await playerPosition(page);
+await page.keyboard.down('KeyD');
+await page.waitForTimeout(2200);
+await page.keyboard.up('KeyD');
+const afterBack = await playerPosition(page);
+const spinDegrees = await page.evaluate(() => {
+  window.clearInterval(window.__spinTimer);
+  return (window.__spin * 180) / Math.PI;
+});
+steps.push(await snapshot(page, 'backward'));
+
+const backTravel = Math.hypot(afterBack.x - beforeBack.x, afterBack.z - beforeBack.z);
+if (backTravel < 3) {
+  problems.push(`holding back moved the character only ${backTravel.toFixed(1)}m`);
+}
+// One turn to face the new direction is expected; several is a spin.
+if (spinDegrees > 260) {
+  problems.push(`holding back turned the character ${spinDegrees.toFixed(0)} degrees in total`);
+}
+
+await resetPlayer(page);
+
 // ---- Walking must be clearly slower --------------------------------------
 await page.keyboard.down('ShiftLeft');
 await page.keyboard.down('KeyE');
@@ -200,6 +240,10 @@ console.log(
     `jump peak ${peak.toFixed(2)}m, climb peak ${climbPeak.toFixed(2)}m`,
 );
 console.log(` distance covered holding E: ${travelled.toFixed(1)}m`);
+console.log(
+  ` holding back: ${backTravel.toFixed(1)}m travelled, ` +
+    `${spinDegrees.toFixed(0)} degrees of turning`,
+);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));
