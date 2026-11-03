@@ -1,6 +1,6 @@
 # LetsGo — Izzy's first ground
 
-A small Three.js test scene: a 32 × 32 floor slab and a blue-and-yellow Izzy with running and jumping. Drag to orbit, scroll or pinch to zoom, and use **Reset view** (or press **R** with the canvas focused) to restore the camera.
+A small Three.js test scene: a 80 × 80 floor slab and a blue-and-yellow Izzy with running and jumping. Drag to orbit, scroll or pinch to zoom, and use **Reset view** (or press **R** with the canvas focused) to restore the camera.
 
 ## Development
 
@@ -18,6 +18,8 @@ Build with `npm run build`; serve the result with `npm run preview`. Run the mov
 - WASD or arrow keys: camera-relative running, with acceleration and braking.
 - Space: jump. Hold for a higher jump; release early for a short hop.
 - Drag: orbit the following camera. Scroll/pinch: zoom.
+- L: lock/unlock the mouse for mouse-look. Escape also releases it.
+- Maximum running speed: 10 world units/second.
 - Touch devices have directional and jump buttons.
 
 Momentum carries through jumps, with limited air steering. Walking off the slab causes a fall and respawn at the center. Movement uses a fixed 120 Hz physics step.

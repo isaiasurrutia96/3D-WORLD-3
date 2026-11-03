@@ -1,7 +1,7 @@
 // World units are approximately meters. These are independently tuned prototype
 // values, not a port of the original game's physics or animation code.
-export const FLOOR_HALF_SIZE = 16;
-export const MAX_SPEED = 6.4;
+export const FLOOR_HALF_SIZE = 40;
+export const MAX_SPEED = 10;
 const approach = (value, target, step) => value < target
   ? Math.min(target, value + step) : Math.max(target, value - step);
 
@@ -15,7 +15,7 @@ export function stepPlayer(player, input, dt) {
   const magnitude = Math.hypot(x, z);
   if (magnitude > 1) { x /= magnitude; z /= magnitude; }
   const moving = magnitude > 0.01;
-  const acceleration = player.grounded ? (moving ? 22 : 27) : (moving ? 7 : 0);
+  const acceleration = player.grounded ? (moving ? 34 : 40) : (moving ? 10 : 0);
   // Limit the whole velocity change, so diagonals accelerate at the same rate.
   const dx = x * MAX_SPEED - player.vx, dz = z * MAX_SPEED - player.vz;
   const delta = Math.hypot(dx, dz);

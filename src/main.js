@@ -129,9 +129,9 @@ for (const side of [-1,1]) {
 const head = joint(torso,'neck',[0,0.77,0]);
 ball(head,face,[0,0.12,0.025],[0.41,0.4,0.33]);
 // The cap follows the head. Its bill points behind Izzy, along -Z.
-const cap = joint(head,'backward_hat',[0,0.39,0.025]);
-mesh(new THREE.SphereGeometry(1,10,4,0,Math.PI*2,0,Math.PI/2),yellow,cap,[0,0,0],[0.44,0.22,0.36]);
-ball(cap,yellow,[0,-0.005,-0.30],[0.37,0.035,0.27]);
+const cap = joint(head,'backward_hat',[0,0.32,0.025]);
+mesh(new THREE.SphereGeometry(1,10,4,0,Math.PI*2,0,Math.PI/2),yellow,cap,[0,0,0],[0.42,0.20,0.345]);
+ball(cap,yellow,[0,-0.005,-0.28],[0.34,0.03,0.24]);
 function resize() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
   const renderScale = Math.min(1, 480 / height);
@@ -141,6 +141,41 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize); resize();
+const orbit = new THREE.Spherical();
+const mouseOffset = new THREE.Vector3();
+const controlHint = document.querySelector('.controls div>span');
+window.addEventListener('keydown', async event => {
+  if (event.code !== 'KeyL' || event.repeat || event.target.closest('input,textarea,select')) return;
+  event.preventDefault();
+  if (document.pointerLockElement === canvas) { document.exitPointerLock(); return; }
+  try {
+    if (!canvas.requestPointerLock) throw new Error('Pointer lock unavailable');
+    await canvas.requestPointerLock();
+  } catch {
+    controlHint.textContent = 'Mouse lock unavailable · Drag to orbit';
+  }
+});
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === canvas;
+  controls.enabled = !locked;
+  canvas.dataset.mouseLocked = String(locked);
+  controlHint.textContent = locked
+    ? 'Mouse locked · Move mouse to look · L / Esc to release'
+    : 'Hold Space for height · L locks mouse · Drag to orbit';
+});
+document.addEventListener('pointerlockerror', () => {
+  controlHint.textContent = 'Mouse lock blocked · Click the game and press L again';
+});
+document.addEventListener('mousemove', event => {
+  if (document.pointerLockElement !== canvas) return;
+  mouseOffset.subVectors(camera.position,controls.target);
+  orbit.setFromVector3(mouseOffset);
+  orbit.theta -= event.movementX*0.0025;
+  orbit.phi = THREE.MathUtils.clamp(orbit.phi-event.movementY*0.0025,
+    controls.minPolarAngle,controls.maxPolarAngle);
+  camera.position.copy(controls.target).add(mouseOffset.setFromSpherical(orbit));
+  camera.lookAt(controls.target);
+});
 const player = createPlayer();
 const keys = new Set();
 const inputCodes = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space']);
