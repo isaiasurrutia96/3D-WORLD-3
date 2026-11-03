@@ -82,12 +82,15 @@ const FRAGMENT = /* glsl */ `
     float specular = pow(max(dot(normal, halfVector), 0.0), 220.0);
     color += vec3(1.0, 0.97, 0.88) * specular * 1.8;
 
-    // Fine sparkle so the surface is never completely still.
-    float sparkle = sin(vWorldPosition.x * 3.1 + uTime * 2.2) *
-                    sin(vWorldPosition.z * 2.7 - uTime * 1.8);
-    color += vec3(0.06) * max(0.0, sparkle - 0.82) * 6.0;
+    // Fine sparkle so the surface is never completely still. Three
+    // non-harmonic frequencies, so it does not settle into a visible grid.
+    float sparkle =
+      sin(vWorldPosition.x * 11.3 + uTime * 2.2) *
+      sin(vWorldPosition.z * 9.7 - uTime * 1.8) *
+      sin((vWorldPosition.x + vWorldPosition.z) * 5.1 + uTime * 1.1);
+    color += vec3(0.55, 0.6, 0.62) * max(0.0, abs(sparkle) - 0.86) * 2.4;
 
-    gl_FragColor = vec4(color, 0.88);
+    gl_FragColor = vec4(color, 0.74);
     #include <colorspace_fragment>
   }
 `;

@@ -106,8 +106,9 @@ await page.screenshot({ path: `${SHOTS}05-swim.png` });
 
 // Diving should take the character under the surface.
 await page.keyboard.down('ControlLeft');
-await page.waitForTimeout(2000);
+await page.waitForTimeout(2500);
 steps.push(await snapshot(page, 'swim-dive'));
+await page.screenshot({ path: `${SHOTS}05b-underwater.png` });
 await page.keyboard.up('ControlLeft');
 
 // ---- Climb a tree: stand south of it and walk into the trunk -------------
@@ -131,6 +132,11 @@ await page.screenshot({ path: `${SHOTS}07-carry.png` });
 await page.keyboard.press('KeyE');
 await page.waitForTimeout(700);
 steps.push(await snapshot(page, 'after-throw'));
+
+// ---- Courtyard obstacles --------------------------------------------------
+await teleport(page, 15, 2, 11);
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${SHOTS}07b-courtyard.png` });
 
 // ---- Pause menu -----------------------------------------------------------
 await page.keyboard.press('Escape');

@@ -304,3 +304,80 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Underwater tint ---------- */
+
+.ui-root__underwater {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    rgba(32, 142, 175, 0.1) 0%,
+    rgba(14, 86, 112, 0.34) 58%,
+    rgba(8, 48, 68, 0.56) 100%
+  );
+}
+
+.ui-root__underwater.is-visible {
+  opacity: 1;
+}
+
+/* ---------- Title screen: keep the castle in view ---------- */
+
+.menu--title {
+  align-items: flex-start;
+  justify-content: center;
+  gap: 18px;
+  padding-left: clamp(20px, 6vw, 96px);
+  padding-right: 16px;
+  background: linear-gradient(
+    100deg,
+    rgba(5, 14, 28, 0.84) 0%,
+    rgba(6, 16, 32, 0.64) 38%,
+    rgba(8, 22, 40, 0.16) 66%,
+    rgba(8, 22, 40, 0.05) 100%
+  );
+}
+
+.menu--title .menu__title,
+.menu--title .menu__subtitle {
+  text-align: left;
+}
+
+.menu--title .menu__panel {
+  width: min(360px, 82vw);
+}
+
+.menu--title .controls {
+  width: min(430px, 86vw);
+  grid-template-columns: 1fr;
+  gap: 4px 0;
+  padding: 14px 18px;
+}
+
+.menu--title .menu__note {
+  width: min(430px, 86vw);
+  text-align: left;
+}
+
+@media (max-width: 760px) {
+  .menu--title {
+    align-items: center;
+    padding-left: 16px;
+    background: radial-gradient(
+      ellipse at 50% 42%,
+      rgba(8, 22, 40, 0.3) 0%,
+      rgba(6, 16, 32, 0.7) 72%,
+      rgba(4, 11, 24, 0.86) 100%
+    );
+  }
+
+  .menu--title .menu__title,
+  .menu--title .menu__subtitle,
+  .menu--title .menu__note {
+    text-align: center;
+  }
+}

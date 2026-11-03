@@ -100,6 +100,11 @@ export class Player {
     return Math.hypot(this.velocity.x, this.velocity.z);
   }
 
+  /** True while swimming below the surface, rather than treading on it. */
+  get isSubmerged(): boolean {
+    return this.state === 'swim' && !this.atSurface && this.submerged;
+  }
+
   get stateName(): string {
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
     if (this.state === 'climb') return 'climb';
@@ -264,6 +269,7 @@ export class Player {
     const toFloatLine = floatLine - this.object.position.y;
     this.atSurface = Math.abs(toFloatLine) < 0.35;
 
+    this.submerged = true;
     const diving = input.isDown('dive');
     if (diving) {
       this.velocity.y -= TUNING.diveAcceleration * delta;

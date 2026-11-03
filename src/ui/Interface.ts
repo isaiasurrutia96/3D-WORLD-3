@@ -67,6 +67,7 @@ export class Interface {
   private readonly stats: HTMLDivElement;
   private readonly hints: HTMLDivElement;
   private readonly prompt: HTMLDivElement;
+  private readonly underwaterTint: HTMLDivElement;
 
   private titleItems: MenuItem[] = [];
   private pauseItems: MenuItem[] = [];
@@ -99,6 +100,10 @@ export class Interface {
     this.hints = hud.hints;
     this.prompt = hud.prompt;
 
+    this.underwaterTint = document.createElement('div');
+    this.underwaterTint.className = 'ui-root__underwater';
+    this.root.appendChild(this.underwaterTint);
+
     this.attachKeyboard();
     this.setScreen('loading');
   }
@@ -120,7 +125,7 @@ export class Interface {
 
   private buildTitleMenu(): HTMLDivElement {
     const menu = document.createElement('div');
-    menu.className = 'menu';
+    menu.className = 'menu menu--title';
     menu.hidden = true;
 
     const title = document.createElement('h1');
@@ -547,6 +552,11 @@ export class Interface {
     } else {
       this.prompt.classList.remove('is-visible');
     }
+  }
+
+  /** Tints the whole view while the camera is below the waterline. */
+  setUnderwater(underwater: boolean): void {
+    this.underwaterTint.classList.toggle('is-visible', underwater);
   }
 
   setHintsVisible(visible: boolean): void {

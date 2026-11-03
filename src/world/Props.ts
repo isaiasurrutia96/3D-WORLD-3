@@ -7,6 +7,7 @@ import {
   BoxGeometry,
   BufferGeometry,
   Color,
+  DoubleSide,
   ConeGeometry,
   CylinderGeometry,
   DodecahedronGeometry,
@@ -204,10 +205,12 @@ export function createGrass(
 
   for (let i = 0; i < 3; i += 1) {
     const angle = (i / 3) * Math.PI * 2;
-    const blade = new ConeGeometry(0.055, 0.5, 3);
-    euler.set(Math.cos(angle) * 0.25, angle, Math.sin(angle) * 0.25, 'XYZ');
+    // Open-ended, so each blade is three triangles and nothing more.
+    const blade = new ConeGeometry(0.038, 0.34, 3, 1, true);
+    // Splayed outward, so a tuft reads as blades rather than a spike.
+    euler.set(Math.cos(angle) * 0.46, angle, Math.sin(angle) * 0.46, 'XYZ');
     bladeQuaternion.setFromEuler(euler);
-    bladePosition.set(Math.cos(angle) * 0.045, 0.25, Math.sin(angle) * 0.045);
+    bladePosition.set(Math.cos(angle) * 0.035, 0.17, Math.sin(angle) * 0.035);
     transform.compose(bladePosition, bladeQuaternion, bladeScale);
     blade.applyMatrix4(transform);
     blades.push(blade);
@@ -217,7 +220,9 @@ export function createGrass(
   if (!tuft) throw new Error('Failed to merge grass tuft geometry');
   tuft.computeVertexNormals();
 
-  const mesh = new InstancedMesh(tuft, material('#5aa24a', 0.95), placements.length);
+  const grassMaterial = material('#5aa24a', 0.95);
+  grassMaterial.side = DoubleSide;
+  const mesh = new InstancedMesh(tuft, grassMaterial, placements.length);
   mesh.name = 'grass';
   mesh.castShadow = false;
   mesh.receiveShadow = false;
@@ -235,7 +240,7 @@ export function createGrass(
     scale.set(placement.scale, placement.scale * (0.8 + placement.tint * 0.5), placement.scale);
     matrix.compose(position, quaternion, scale);
     mesh.setMatrixAt(index, matrix);
-    colour.setHSL(0.26 + placement.tint * 0.045, 0.45, 0.33 + placement.tint * 0.16);
+    colour.setHSL(0.255 + placement.tint * 0.04, 0.5, 0.42 + placement.tint * 0.16);
     mesh.setColorAt(index, colour);
   });
 
@@ -249,16 +254,16 @@ export function createSignpost(): Object3D {
   const builder = new MeshBuilder();
   const materials = createPropMaterials();
 
-  builder.add('woodDark', new CylinderGeometry(0.11, 0.13, 2.4, 8), { position: [0, 1.2, 0] });
-  builder.add('wood', new BoxGeometry(2.2, 0.52, 0.12), {
-    position: [0.6, 1.95, 0],
+  builder.add('woodDark', new CylinderGeometry(0.075, 0.09, 1.7, 8), { position: [0, 0.85, 0] });
+  builder.add('wood', new BoxGeometry(1.35, 0.32, 0.08), {
+    position: [0.42, 1.4, 0],
     rotation: [0, 0, -0.04],
   });
-  builder.add('wood', new BoxGeometry(1.7, 0.44, 0.12), {
-    position: [-0.45, 1.3, 0],
+  builder.add('wood', new BoxGeometry(1.05, 0.27, 0.08), {
+    position: [-0.3, 0.98, 0],
     rotation: [0, 0, 0.05],
   });
-  builder.add('metal', new SphereGeometry(0.16, 8, 6), { position: [0, 2.46, 0] });
+  builder.add('metal', new SphereGeometry(0.1, 8, 6), { position: [0, 1.76, 0] });
 
   const group = new Group();
   group.name = 'signpost';

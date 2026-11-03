@@ -47,6 +47,8 @@ export class Engine {
   private preset: QualityPreset;
   private quality: QualityLevel;
 
+  private underwater = false;
+
   /** Smoothed frames per second, for the on-screen performance readout. */
   fps = 0;
   private fpsAccumulator = 0;
@@ -129,7 +131,7 @@ export class Engine {
     shadowCamera.far = preset.shadowDistance * 3.2;
     shadowCamera.updateProjectionMatrix();
 
-    this.fog.density = preset.fogDensity;
+    if (!this.underwater) this.fog.density = preset.fogDensity;
     this.camera.far = preset.viewDistance;
     this.camera.updateProjectionMatrix();
 
@@ -180,6 +182,36 @@ export class Engine {
     this.sun.position.copy(target).addScaledVector(SUN_DIRECTION, this.preset.shadowDistance * 1.4);
   }
 
+  /**
+   * Switches the scene between the open-air look and a dense blue-green
+   * underwater one. Without this, putting the camera below the waterline just
+   * fills the screen with the flat colour of the water surface.
+   */
+  setUnderwater(underwater: boolean): void {
+    if (underwater === this.underwater) return;
+    this.underwater = underwater;
+
+    if (underwater) {
+      this.fog.color.set(0x14566e);
+      this.fog.density = 0.055;
+      (this.scene.background as Color).set(0x0e4055);
+      this.sun.intensity = 1.1;
+      this.hemisphere.color.set(0x2f90b0);
+      this.hemisphere.intensity = 1.35;
+    } else {
+      this.fog.color.set(0xbfe4f7);
+      this.fog.density = this.preset.fogDensity;
+      (this.scene.background as Color).set(0xbfe4f7);
+      this.sun.intensity = 2.15;
+      this.hemisphere.color.set(0xcfe8ff);
+      this.hemisphere.intensity = 1.0;
+    }
+  }
+
+  get isUnderwater(): boolean {
+    return this.underwater;
+  }
+
   render(delta: number): void {
     this.fpsAccumulator += delta;
     this.fpsFrames += 1;
@@ -189,8 +221,11 @@ export class Engine {
       this.fpsFrames = 0;
     }
 
-    this.sky.position.copy(this.camera.position);
-    this.sky.update(delta, this.camera.position);
+    this.sky.visible = !this.underwater;
+    if (!this.underwater) {
+      this.sky.position.copy(this.camera.position);
+      this.sky.update(delta, this.camera.position);
+    }
 
     if (this.composer) {
       this.composer.render(delta);

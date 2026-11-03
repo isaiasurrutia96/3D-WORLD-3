@@ -10,6 +10,7 @@ import {
   Box3,
   BoxGeometry,
   Color,
+  ConeGeometry,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -142,8 +143,8 @@ export function buildWorld(
   if (grass.length > 0) root.add(createGrass(grass));
 
   const signpost = createSignpost();
-  signpost.position.set(3.2, terrainHeight(3.2, 37.5), 37.5);
-  signpost.rotation.y = -0.5;
+  signpost.position.set(7.4, terrainHeight(7.4, 28.5), 28.5);
+  signpost.rotation.y = -0.65;
   solid.add(signpost);
 
   for (const z of [BRIDGE_MIN_Z - 1.8, BRIDGE_MAX_Z + 1.8]) {
@@ -235,15 +236,16 @@ function createCourtyardObstacles(): Object3D {
     z -= gaps[i];
   }
 
-  // A gentle grass ramp onto the castle plinth, and a steeper one beside it
-  // that is meant to be too steep to walk up.
-  builder.add('ramp', new BoxGeometry(6, 0.4, 9), {
-    position: [-27, 0.52, 5],
-    rotation: [-0.135, 0, 0],
+  // A gentle stone ramp onto the castle plinth, shallow enough to walk up.
+  builder.add('block', new BoxGeometry(6, 0.5, 9.4), {
+    position: [-27, 0.5, 5],
+    rotation: [-0.128, 0, 0],
   });
-  builder.add('ramp', new BoxGeometry(5, 0.4, 5.5), {
-    position: [27, 0.9, 5],
-    rotation: [-0.72, 0, 0],
+
+  // A grassy mound steep enough that the character slides back down it, so
+  // the limit on what can be walked up is something they can see.
+  builder.add('ramp', new ConeGeometry(4.2, 6.2, 14), {
+    position: [26, 2.6, 6],
   });
 
   const group = new Group();
@@ -280,7 +282,7 @@ function planTrees(): TreePlacement[] {
   ] as Array<[number, number]>) {
     placements.push({
       position: new Vector3(x, terrainHeight(x, z), z),
-      trunkRadius: 0.52,
+      trunkRadius: 0.42,
       trunkHeight: 7.4,
     });
   }
@@ -338,17 +340,21 @@ function planGroundDetail(density: number): {
     return ground;
   };
 
-  const grassTarget = Math.round(3200 * density);
+  const grassTarget = Math.round(5200 * density);
   let attempts = 0;
   while (grass.length < grassTarget && attempts < grassTarget * 7) {
     attempts += 1;
-    const x = (random() - 0.5) * 210;
-    const z = ISLAND_CENTRE_Z + (random() - 0.5) * 210;
+    // Concentrated around the castle rather than spread thinly to the rim,
+    // so the ground near the player actually looks grassy.
+    const angle = random() * Math.PI * 2;
+    const radius = 16 + Math.sqrt(random()) * 58;
+    const x = Math.cos(angle) * radius;
+    const z = ISLAND_CENTRE_Z + Math.sin(angle) * radius;
     const ground = onGrass(x, z);
     if (ground === null) continue;
     grass.push({
       position: new Vector3(x, ground, z),
-      scale: 0.7 + random() * 0.85,
+      scale: 0.85 + random() * 0.95,
       rotation: random() * Math.PI * 2,
       tint: random(),
     });

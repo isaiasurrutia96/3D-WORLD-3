@@ -19,16 +19,23 @@ const AUTO_FOLLOW_DELAY = 1.1;
 
 export class CameraRig {
   yaw = Math.PI;
-  pitch = 0.27;
+  pitch = 0.33;
 
-  private distance = 7.4;
-  private currentDistance = 7.4;
+  private distance = 8.6;
+  private currentDistance = 8.6;
   private readonly focus = new Vector3();
   private readonly smoothedFocus = new Vector3();
   private readonly desiredPosition = new Vector3();
   private readonly toCamera = new Vector3();
   private manualTimer = 0;
   private initialised = false;
+
+  /**
+   * Upper limit on the camera's height, used to take it under the water with
+   * a diving character. Without it the camera stays in the air and the player
+   * watches their own character through an almost opaque surface.
+   */
+  ceilingY: number | null = null;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -74,10 +81,17 @@ export class CameraRig {
 
     this.autoFollow(delta, player);
 
+    // Swimming below the surface, the camera levels out and comes round
+    // behind the swimmer; looking down on them from above shows only the top
+    // of their head.
+    if (player.isSubmerged) {
+      this.pitch = MathUtils.lerp(this.pitch, 0.06, 1 - Math.exp(-2.6 * delta));
+    }
+
     // Pull back a little at speed and when swimming, which widens the view
     // exactly when more of it is needed.
     const speedFactor = MathUtils.clamp(player.speed / 9, 0, 1);
-    this.distance = 6.9 + speedFactor * 1.5 + (player.state === 'swim' ? 0.8 : 0);
+    this.distance = 8.2 + speedFactor * 1.8 + (player.state === 'swim' ? 1 : 0);
 
     const cosPitch = Math.cos(this.pitch);
     this.toCamera.set(
@@ -97,6 +111,10 @@ export class CameraRig {
     this.desiredPosition
       .copy(this.smoothedFocus)
       .addScaledVector(this.toCamera, Math.max(1.6, this.currentDistance));
+
+    if (this.ceilingY !== null && this.desiredPosition.y > this.ceilingY) {
+      this.desiredPosition.y = this.ceilingY;
+    }
 
     this.camera.position.copy(this.desiredPosition);
     this.camera.lookAt(this.smoothedFocus);
@@ -132,7 +150,7 @@ export class CameraRig {
   reset(player: Player): void {
     this.initialised = false;
     this.manualTimer = 0;
-    this.pitch = 0.27;
+    this.pitch = 0.33;
     this.update(1 / 60, player);
   }
 }

@@ -124,29 +124,29 @@ export function createCharacterRig(): CharacterRig {
   // Cap: a dome with a brim.
   const capDome = part(new SphereGeometry(0.278, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), shirtMaterial, [0, 0.11, 0]);
   head.add(capDome);
-  const brim = part(new CylinderGeometry(0.17, 0.2, 0.045, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5), shirtMaterial, [0, 0.1, 0.17]);
+  const brim = part(new CylinderGeometry(0.17, 0.2, 0.045, 14, 1, false, Math.PI * 0.75, Math.PI * 1.5), shirtMaterial, [0, 0.125, 0.175]);
   brim.rotation.x = -0.18;
   head.add(brim);
   // Cap badge.
   head.add(part(new SphereGeometry(0.075, 10, 8), gloveMaterial, [0, 0.16, 0.225]));
 
   // Sideburns keep the silhouette readable from behind.
-  for (const x of [-0.22, 0.22]) {
-    head.add(part(new SphereGeometry(0.07, 8, 7), hairMaterial, [x, -0.02, 0.02]));
+  for (const x of [-0.235, 0.235]) {
+    head.add(part(new SphereGeometry(0.055, 8, 7), hairMaterial, [x, -0.085, 0.015]));
   }
   head.add(part(new SphereGeometry(0.12, 10, 8), hairMaterial, [0, -0.02, -0.21]));
 
   // Face.
-  head.add(part(new SphereGeometry(0.085, 12, 10), skinMaterial, [0, 0.0, 0.245]));
+  head.add(part(new SphereGeometry(0.082, 12, 10), skinMaterial, [0, -0.025, 0.248]));
   for (const x of [-0.095, 0.095]) {
-    const eye = part(new SphereGeometry(0.042, 10, 8), eyeMaterial, [x, 0.085, 0.215]);
+    const eye = part(new SphereGeometry(0.042, 10, 8), eyeMaterial, [x, 0.045, 0.218]);
     eye.scale.set(0.8, 1.25, 0.6);
     head.add(eye);
   }
   // Moustache, as two soft lobes under the nose.
   for (const x of [-0.085, 0.085]) {
-    const lobe = part(new SphereGeometry(0.072, 10, 8), hairMaterial, [x, -0.07, 0.205]);
-    lobe.scale.set(1.15, 0.62, 0.78);
+    const lobe = part(new SphereGeometry(0.065, 10, 8), hairMaterial, [x, -0.085, 0.205]);
+    lobe.scale.set(1.05, 0.55, 0.75);
     head.add(lobe);
   }
 

@@ -17,6 +17,7 @@ import { Player } from './player/Player.ts';
 import { Interface } from './ui/Interface.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { buildWorld, type BuiltWorld } from './world/World.ts';
+import { WATER_LEVEL } from './world/Terrain.ts';
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Missing #app container');
@@ -171,15 +172,31 @@ class Game {
     for (const carryable of this.world.carryables) carryable.update(delta, this.collision);
     this.effects.update(delta);
     this.world.water.update(this.elapsed);
+    this.updateUnderwater();
     this.engine.focusShadowsOn(this.player.position);
     this.engine.render(delta);
 
     if (screen === 'playing' || screen === 'paused') this.updateStats();
   };
 
+  /**
+   * The camera being below the waterline needs its own look; otherwise the
+   * water surface simply covers the screen with flat colour.
+   */
+  private updateUnderwater(): void {
+    // Driven by the character rather than by the camera's own position: the
+    // camera sits behind the player and can drift just outside the moat's
+    // footprint, which would flicker the effect on and off.
+    const submerged =
+      this.player.isSubmerged && this.engine.camera.position.y < WATER_LEVEL;
+    this.engine.setUnderwater(submerged);
+    this.ui.setUnderwater(submerged);
+  }
+
   private updatePlaying(delta: number): void {
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.player.update(delta, this.input, this.cameraRig.movementYaw);
+    this.cameraRig.ceilingY = this.player.isSubmerged ? WATER_LEVEL - 0.45 : null;
     this.cameraRig.update(delta, this.player);
     this.updatePrompt();
   }
