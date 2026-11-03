@@ -152,8 +152,10 @@ function reset(target: Pose): void {
   target.headYaw = 0;
   target.shoulderLeftPitch = 0;
   target.shoulderRightPitch = 0;
-  target.shoulderLeftRoll = 0.12;
-  target.shoulderRightRoll = 0.12;
+  // The body is widest at the belly, so the arms need to hang a little clear
+  // of it or they disappear into the torso.
+  target.shoulderLeftRoll = 0.2;
+  target.shoulderRightRoll = 0.2;
   target.elbowLeft = 0;
   target.elbowRight = 0;
   target.hipLeft = 0;
@@ -203,8 +205,10 @@ function poseGround(input: AnimationInputs): void {
     pose.headPitch = Math.sin(input.time * 0.33) * 0.05;
     pose.shoulderLeftPitch = 0.06;
     pose.shoulderRightPitch = -0.06;
-    pose.elbowLeft = -0.14;
-    pose.elbowRight = -0.14;
+    pose.shoulderLeftRoll = 0.23;
+    pose.shoulderRightRoll = 0.23;
+    pose.elbowLeft = -0.16;
+    pose.elbowRight = -0.16;
     return;
   }
 
@@ -237,8 +241,8 @@ function poseGround(input: AnimationInputs): void {
   pose.elbowRight = -0.22 - Math.max(0, -swing) * armAmplitude * 0.6;
   // Arms tuck in across the body as they come forward, rather than swinging
   // like two pendulums hung off the sides.
-  pose.shoulderLeftRoll = 0.12 + normalised * 0.05 - Math.max(0, -counterSwing) * 0.16;
-  pose.shoulderRightRoll = 0.12 + normalised * 0.05 - Math.max(0, -swing) * 0.16;
+  pose.shoulderLeftRoll = 0.21 + normalised * 0.05 - Math.max(0, -counterSwing) * 0.16;
+  pose.shoulderRightRoll = 0.21 + normalised * 0.05 - Math.max(0, -swing) * 0.16;
 
   // Lean into the run, bob twice per stride, and roll slightly with each step.
   pose.bodyPitch = normalised * 0.26;
