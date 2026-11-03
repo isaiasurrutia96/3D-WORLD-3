@@ -146,15 +146,27 @@ for (const side of [-1,1]) {
 const head = joint(torso,'neck',[0,0.66,0]);
 mesh(new THREE.CylinderGeometry(0.135,0.17,0.23,12),mannequin,head,[0,-0.065,0]);
 mesh(new THREE.SphereGeometry(0.34,20,16),mannequin,head,[0,0.26,0]);
-// A fitted, flat-bill LA cap. The simple mannequin face stays featureless.
-const cap=joint(head,'la_cap',[0,0.44,0]);
-mesh(new THREE.SphereGeometry(1,16,6,0,Math.PI*2,0,Math.PI/2),capFabric,cap,[0,0,0],[0.355,0.21,0.345]);
-ball(cap,capFabric,[0,-0.005,0.27],[0.34,0.028,0.27]);
+// A structured six-panel fitted cap: snug band, tall crown, flat bill.
+const cap=joint(head,'la_cap',[0,0.40,0]);
+const crownProfile=[[0.315,0],[0.331,0.045],[0.337,0.16],[0.318,0.25],[0.235,0.315],[0,0.345]];
+mesh(new THREE.LatheGeometry(crownProfile.map(([r,y])=>new THREE.Vector2(r,y)),24),capFabric,cap,[0,0,0],[1,1,0.98]);
+const billShape=new THREE.Shape();
+billShape.moveTo(-0.265,0.19);billShape.quadraticCurveTo(-0.37,0.4,-0.30,0.59);
+billShape.quadraticCurveTo(0,0.72,0.30,0.59);billShape.quadraticCurveTo(0.37,0.4,0.265,0.19);billShape.closePath();
+const bill=mesh(new THREE.ExtrudeGeometry(billShape,{depth:0.025,bevelEnabled:false,curveSegments:8}),capFabric,cap,[0,0.012,0]);
+bill.rotation.x=Math.PI/2;
+const seamMaterial=new THREE.LineBasicMaterial({color:'#303949'});
+for(let panel=0;panel<6;panel++){
+  const angle=(panel/6)*Math.PI*2+Math.PI/6;
+  const points=crownProfile.map(([r,y])=>new THREE.Vector3((r+0.002)*Math.sin(angle),y+0.002,(r+0.002)*Math.cos(angle)*0.98));
+  cap.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),seamMaterial));
+}
+ball(cap,capFabric,[0,0.345,0],[0.035,0.018,0.035]);
 const logoCanvas=document.createElement('canvas');logoCanvas.width=logoCanvas.height=128;
 const logoPaint=logoCanvas.getContext('2d');logoPaint.fillStyle='#ffffff';logoPaint.font='bold 74px Arial';
 logoPaint.fillText('L',24,83);logoPaint.fillText('A',52,103);
 const logoMap=new THREE.CanvasTexture(logoCanvas);logoMap.colorSpace=THREE.SRGBColorSpace;
-mesh(new THREE.PlaneGeometry(0.20,0.17),new THREE.MeshLambertMaterial({map:logoMap,transparent:true,depthWrite:false}),cap,[0,0.105,0.35]);
+mesh(new THREE.PlaneGeometry(0.20,0.17),new THREE.MeshLambertMaterial({map:logoMap,transparent:true,depthWrite:false}),cap,[0,0.15,0.333]);
 function resize() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
   const renderScale = Math.min(1, 480 / height);
@@ -202,6 +214,7 @@ document.addEventListener('mousemove', event => {
 });
 const player = createPlayer();
 const keys = new Set();
+const joystickInput={x:0,y:0};
 const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC']);
 function press(code) {
   if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
@@ -215,19 +228,35 @@ window.addEventListener('keydown', event => {
   if (!event.repeat) press(event.code);
 });
 window.addEventListener('keyup', event => { if (inputCodes.has(event.code)) { event.preventDefault(); release(event.code); } });
-function clearInput() { keys.clear(); player.jumpHeld = false; player.jumpQueued = false; player.interactQueued=false; }
+function clearInput() { keys.clear(); player.jumpHeld = false; player.jumpQueued = false; player.interactQueued=false; joystickInput.x=joystickInput.y=0; document.querySelector('.joystick-stick').style.transform='translate(-50%,-50%)'; }
 window.addEventListener('blur',clearInput);
 for (const button of document.querySelectorAll('[data-key]')) {
   button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); press(button.dataset.key); });
   for (const type of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(type, () => release(button.dataset.key));
 }
+const joystick=document.querySelector('.joystick');
+const stick=joystick.querySelector('.joystick-stick');
+let joystickPointer=null;
+function updateJoystick(event){
+  const rect=joystick.getBoundingClientRect();
+  const max=rect.width*0.32;
+  let x=(event.clientX-rect.left-rect.width/2)/max,y=(event.clientY-rect.top-rect.height/2)/max;
+  const distance=Math.hypot(x,y);if(distance>1){x/=distance;y/=distance;}
+  joystickInput.x=Math.abs(x)<0.12?0:x;joystickInput.y=Math.abs(y)<0.12?0:y;
+  stick.style.transform=`translate(calc(-50% + ${x*max}px),calc(-50% + ${y*max}px))`;
+}
+joystick.addEventListener('pointerdown',event=>{if(joystickPointer!==null)return;event.preventDefault();joystickPointer=event.pointerId;joystick.setPointerCapture(event.pointerId);updateJoystick(event);});
+joystick.addEventListener('pointermove',event=>{if(event.pointerId===joystickPointer)updateJoystick(event);});
+for(const eventName of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(eventName,event=>{
+  if(event.pointerId!==joystickPointer)return;joystickPointer=null;joystickInput.x=joystickInput.y=0;stick.style.transform='translate(-50%,-50%)';
+});
 // Camera-relative movement: E follows the horizontal viewing direction.
 const moveForward = new THREE.Vector3(), moveRight = new THREE.Vector3(), moveDirection = new THREE.Vector3();
 function inputDirection() {
   moveForward.subVectors(controls.target,camera.position).setY(0).normalize();
   moveRight.crossVectors(moveForward,camera.up).normalize();
-  const horizontal = Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
-  const vertical = Number(keys.has('KeyE')||keys.has('ArrowUp'))-Number(keys.has('KeyD')||keys.has('ArrowDown'));
+  const horizontal = Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joystickInput.x;
+  const vertical = Number(keys.has('KeyE')||keys.has('ArrowUp'))-Number(keys.has('KeyD')||keys.has('ArrowDown'))-joystickInput.y;
   moveDirection.copy(moveForward).multiplyScalar(vertical).addScaledVector(moveRight,horizontal);
   return { x:moveDirection.x, z:moveDirection.z, climb:vertical, dive:keys.has('KeyC') };
 }
