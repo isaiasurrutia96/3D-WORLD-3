@@ -102,10 +102,10 @@ export function stepPlayer(player, input, dt) {
     }else{
       player.x=Math.max(POOL.minX+0.35,Math.min(POOL.maxX-0.35,player.x));
       player.z=Math.max(POOL.minZ+0.35,Math.min(POOL.maxZ-0.35,player.z));
-      const target=POOL.water-1.05;
+      const target=POOL.water-1.5;
       const force=input.dive?-8:player.jumpHeld?5:(target-player.y)*8;
       player.vy+=(force-player.vy*3.5)*dt;
-      player.y=Math.max(POOL.bottom+0.15,Math.min(POOL.water-0.55,player.y+player.vy*dt));
+      player.y=Math.max(POOL.bottom+0.15,Math.min(POOL.water-0.95,player.y+player.vy*dt));
       if(player.y===POOL.bottom+0.15)player.vy=Math.max(0,player.vy);
       player.gait+=dt*(moving?7:2);return;
     }

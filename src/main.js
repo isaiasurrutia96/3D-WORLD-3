@@ -140,9 +140,11 @@ shadow.rotation.x = -Math.PI / 2;
 shadow.position.y = 0.004;
 shadow.scale.y = 0.7;
 scene.add(shadow);
+const LIMB_LENGTH=1.65;
+const STANDING_HIP_HEIGHT=0.15+0.54*LIMB_LENGTH+0.21;
 const izzy = joint(scene, 'Izzy', [0,0,0]);
 // Limb pivots drive the run cycle and airborne pose.
-const pelvis = joint(izzy, 'pelvis', [0,1.035,0]);
+const pelvis = joint(izzy, 'pelvis', [0,STANDING_HIP_HEIGHT,0]);
 ball(pelvis,blue, [0,0.1,0], [0.43,0.4,0.29]);
 const torso = joint(pelvis, 'spine', [0,0.25,0]);
 ball(torso, overalls, [0,0.15,0], [0.45,0.48,0.3]);
@@ -151,19 +153,17 @@ for (const side of [-1,1]) {
   button.name = `${side<0?'left':'right'}_overall_button`;
   button.rotation.x = Math.PI/2;
   const hip = joint(pelvis, `${side<0?'left':'right'}_hip`, [side*0.23,-0.15,0]);
-  hip.scale.y=1.18;
-  ball(hip,blue,[0,-0.13,0],[0.205,0.29,0.21]);
-  const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29,0]);
-  ball(knee,blue,[0,-0.12,0],[0.18,0.22,0.18]);
-  const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25,0]);
+  ball(hip,blue,[0,-0.13*LIMB_LENGTH,0],[0.205,0.29*LIMB_LENGTH,0.21]);
+  const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29*LIMB_LENGTH,0]);
+  ball(knee,blue,[0,-0.12*LIMB_LENGTH,0],[0.18,0.22*LIMB_LENGTH,0.18]);
+  const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25*LIMB_LENGTH,0]);
   ball(ankle,shoes,[0,-0.08,0.11],[0.23,0.13,0.36]);
   const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.43,0.32,0]);
-  shoulder.scale.y=1.18;
   shoulder.rotation.z = side*0.16;
-  ball(shoulder,yellow,[side*0.045,-0.14,0],[0.17,0.25,0.18]);
-  const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29,0]);
-  ball(elbow,yellow,[0,-0.095,0.02],[0.14,0.18,0.15]);
-  const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23,0.03]);
+  ball(shoulder,yellow,[side*0.045,-0.14*LIMB_LENGTH,0],[0.17,0.25*LIMB_LENGTH,0.18]);
+  const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*LIMB_LENGTH,0]);
+  ball(elbow,yellow,[0,-0.095*LIMB_LENGTH,0.02],[0.14,0.18*LIMB_LENGTH,0.15]);
+  const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23*LIMB_LENGTH,0.03]);
   ball(wrist,gloves,[0,-0.055,0],[0.17,0.19,0.16]);
   ball(wrist,gloves,[-side*0.13,-0.10,0.09],[0.075,0.10,0.085]);
 }
@@ -260,9 +260,9 @@ function animatePlayer(dt) {
     const release=THREE.MathUtils.smoothstep(t,0.32,0.75);
     limbs.forEach((limb,index)=>{
       // Two-link arm reach toward the rim, then release as the torso clears it.
-      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,1.035,release)+0.57;
+      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release)+0.57;
       const dy=0.12-shoulderHeight, dz=0.36;
-      const upper=0.35, lower=0.34;
+      const upper=0.29*LIMB_LENGTH, lower=0.23*LIMB_LENGTH+0.07;
       const distance=THREE.MathUtils.clamp(Math.hypot(dy,dz),0.08,upper+lower-0.001);
       const shoulderAngle=Math.atan2(-dz,-dy)+Math.acos(THREE.MathUtils.clamp((upper*upper+distance*distance-lower*lower)/(2*upper*distance),-1,1));
       const elbowAngle=-Math.acos(THREE.MathUtils.clamp((distance*distance-upper*upper-lower*lower)/(2*upper*lower),-1,1));
@@ -274,7 +274,7 @@ function animatePlayer(dt) {
       pose(limb.ankle,-0.25*(1-release));
     });
     pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,0,blend);
-    pelvis.position.y=THREE.MathUtils.lerp(0.68,1.035,release);
+    pelvis.position.y=THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release);
     torso.rotation.x=0.3*(1-release);torso.rotation.y=0;
     return;
   }
@@ -290,7 +290,7 @@ function animatePlayer(dt) {
       pose(limb.ankle,climbing ? -0.2 : 0.25);
     });
     pelvis.rotation.x=THREE.MathUtils.lerp(pelvis.rotation.x,climbing ? 0 : 1.05,blend);
-    pelvis.position.y=1.035;
+    pelvis.position.y=STANDING_HIP_HEIGHT;
     torso.rotation.x=0;torso.rotation.y=0;
     return;
   }
@@ -311,9 +311,41 @@ function animatePlayer(dt) {
     pose(limb.elbow,running ? -(0.9+stride*0.2)*amount : -0.6);
     pose(limb.wrist,0);
   });
-  pelvis.position.y = 1.035 + (player.grounded ? Math.abs(Math.sin(player.gait))*0.14*amount-player.landing*0.09 : 0);
+  pelvis.position.y = STANDING_HIP_HEIGHT + (player.grounded ? Math.abs(Math.sin(player.gait))*0.14*amount-player.landing*0.09 : 0);
   torso.rotation.x = player.grounded ? amount*0.24 : -0.06;
   torso.rotation.y = player.grounded ? Math.sin(player.gait)*0.12*amount : 0;
+}
+// Reuse a small pool of bubble meshes; no per-frame particle allocations.
+const bubbleGeometry=new THREE.SphereGeometry(1,6,4);
+const bubbleMaterial=new THREE.MeshBasicMaterial({color:'#c4f2ff',transparent:true,opacity:0.55,wireframe:true,depthWrite:false});
+const bubbles=Array.from({length:36},()=>{
+  const mesh=new THREE.Mesh(bubbleGeometry,bubbleMaterial);mesh.visible=false;scene.add(mesh);
+  return {mesh,life:0,speed:0,wobble:0};
+});
+let bubbleTimer=0;
+const bubbleOrigin=new THREE.Vector3();
+function updateBubbles(dt){
+  if(player.mode==='swim'){
+    bubbleTimer+=dt;
+    if(bubbleTimer>0.09){
+      bubbleTimer=0;
+      const bubble=bubbles.find(b=>b.life<=0);
+      if(bubble){
+        head.updateWorldMatrix(true,false);head.getWorldPosition(bubbleOrigin);
+        bubble.mesh.position.copy(bubbleOrigin);bubble.mesh.position.y=Math.min(POOL.water-0.1,bubbleOrigin.y);
+        bubble.mesh.position.x+=(Math.random()-0.5)*0.22;bubble.mesh.position.z+=(Math.random()-0.5)*0.22;
+        bubble.life=2.5;bubble.speed=0.6+Math.random()*0.5;bubble.wobble=Math.random()*6.28;
+        bubble.mesh.scale.setScalar(0.025+Math.random()*0.045);bubble.mesh.visible=true;
+      }
+    }
+  }else bubbleTimer=0;
+  for(const bubble of bubbles){
+    if(bubble.life<=0)continue;
+    bubble.life-=dt;bubble.wobble+=dt*3;
+    bubble.mesh.position.y+=bubble.speed*dt;
+    bubble.mesh.position.x+=Math.sin(bubble.wobble)*dt*0.08;
+    if(bubble.life<=0||bubble.mesh.position.y>=POOL.water){bubble.life=0;bubble.mesh.visible=false;}
+  }
 }
 const chaseOffset=new THREE.Vector3(), chaseSpherical=new THREE.Spherical();
 const cameraRay=new THREE.Raycaster(), cameraRayDirection=new THREE.Vector3();
@@ -326,23 +358,24 @@ renderer.setAnimationLoop(time => {
   while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep); accumulator-=fixedStep; }
   izzy.position.set(player.x,player.y,player.z); izzy.rotation.y=player.yaw;
   animatePlayer(dt);
+  updateBubbles(dt);
   shadow.position.set(player.x,floorHeight(player.x,player.z)+0.004,player.z);
   shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
   shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
   shadow.scale.setScalar(1+Math.max(0,player.y)*0.12); shadow.scale.y*=0.7;
-  const target = new THREE.Vector3(player.x,(player.mode==='swim' || player.mode==='exitPool' ? Math.max(POOL.water,player.y) : Math.max(0,player.y))+1.1,player.z);
+  const target = new THREE.Vector3(player.x,player.y+(player.mode==='swim' ? 1.0 : 1.3),player.z);
   const offset = target.sub(controls.target);
   controls.target.add(offset); camera.position.add(offset);
   controls.update();
   // Settle behind the character, preserving manual orbit/zoom for a short time.
   chaseOffset.subVectors(camera.position,controls.target);
   chaseSpherical.setFromVector3(chaseOffset);
-  const travelling=Math.hypot(player.vx,player.vz)>0.5 || player.mode==='climb';
+  const travelling=Math.hypot(player.vx,player.vz)>0.5 || player.mode==='climb' || player.mode==='swim';
   if(time> manualCameraUntil && travelling){
     const heading=player.yaw+Math.PI;
     const difference=Math.atan2(Math.sin(heading-chaseSpherical.theta),Math.cos(heading-chaseSpherical.theta));
     chaseSpherical.theta+=difference*(1-Math.exp(-2.5*dt));
-    chaseSpherical.phi=THREE.MathUtils.lerp(chaseSpherical.phi,1.18,1-Math.exp(-2*dt));
+    chaseSpherical.phi=THREE.MathUtils.lerp(chaseSpherical.phi,player.mode==='swim' ? 1.43 : 1.18,1-Math.exp(-2*dt));
     camera.position.copy(controls.target).add(chaseOffset.setFromSpherical(chaseSpherical));
   }
   // Keep the chase camera in front of the climbing box rather than inside it.
@@ -351,6 +384,15 @@ renderer.setAnimationLoop(time => {
   cameraRay.set(controls.target,cameraRayDirection.normalize());cameraRay.far=desiredDistance;
   const obstruction=cameraRay.intersectObject(tower)[0];
   if(obstruction)camera.position.copy(controls.target).addScaledVector(cameraRayDirection,Math.max(0.6,obstruction.distance-0.25));
+  // Let the lens descend with Izzy and keep it within the pool walls/bottom.
+  if(player.mode==='swim' && camera.position.y<0){
+    camera.position.x=THREE.MathUtils.clamp(camera.position.x,POOL.minX+0.3,POOL.maxX-0.3);
+    camera.position.z=THREE.MathUtils.clamp(camera.position.z,POOL.minZ+0.3,POOL.maxZ-0.3);
+    camera.position.y=Math.max(POOL.bottom+0.3,camera.position.y);
+  }
+  const submerged=inPool(camera.position.x,camera.position.z)&&camera.position.y<POOL.water;
+  scene.fog.color.set(submerged ? '#174957' : '#080e25');
+  scene.fog.near=submerged ? 4 : 35;scene.fog.far=submerged ? 30 : 85;
   camera.lookAt(controls.target);
   renderer.render(scene,camera);
   canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
