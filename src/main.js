@@ -103,6 +103,7 @@ shadow.position.y = 0.004;
 shadow.scale.y = 0.7;
 scene.add(shadow);
 const LIMB_LENGTH=1.65;
+const ARM_LENGTH=LIMB_LENGTH*1.08;
 const STANDING_HIP_HEIGHT=0.15+0.54*LIMB_LENGTH+0.21;
 const izzy = joint(scene, 'Izzy', [0,0,0]);
 // Limb pivots drive the run cycle and airborne pose.
@@ -124,17 +125,17 @@ for (const side of [-1,1]) {
   segment(knee,[0,-0.125*LIMB_LENGTH,0],0.155,0.25*LIMB_LENGTH-0.17);
   const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25*LIMB_LENGTH,0]);
   ball(ankle,mannequin,[0,-0.08,0.11],[0.23,0.13,0.36]);
-  const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.24,0]);
+  const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.31,0]);
   shoulder.rotation.z = side*0.16;
-  segment(shoulder,[side*0.025,-0.145*LIMB_LENGTH,0],0.16,0.29*LIMB_LENGTH-0.21);
-  const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*LIMB_LENGTH,0]);
-  segment(elbow,[0,-0.115*LIMB_LENGTH,0.02],0.145,0.23*LIMB_LENGTH-0.16);
-  const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23*LIMB_LENGTH,0.03]);
+  segment(shoulder,[side*0.025,-0.145*ARM_LENGTH,0],0.16,0.29*ARM_LENGTH-0.21);
+  const elbow = joint(shoulder,`${side<0?'left':'right'}_elbow`,[side*0.07,-0.29*ARM_LENGTH,0]);
+  segment(elbow,[0,-0.115*ARM_LENGTH,0.02],0.145,0.23*ARM_LENGTH-0.16);
+  const wrist = joint(elbow,`${side<0?'left':'right'}_wrist`,[0,-0.23*ARM_LENGTH,0.03]);
   ball(wrist,mannequin,[0,-0.075,0.025],[0.205,0.20,0.18]);
 }
 const head = joint(torso,'neck',[0,0.66,0]);
 mesh(new THREE.CylinderGeometry(0.135,0.17,0.23,12),mannequin,head,[0,-0.065,0]);
-mesh(new THREE.SphereGeometry(0.38,20,16),mannequin,head,[0,0.30,0]);
+mesh(new THREE.SphereGeometry(0.34,20,16),mannequin,head,[0,0.26,0]);
 function resize() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
   const renderScale = Math.min(1, 480 / height);
@@ -222,9 +223,9 @@ function animatePlayer(dt) {
     const release=THREE.MathUtils.smoothstep(t,0.32,0.75);
     limbs.forEach((limb,index)=>{
       // Two-link arm reach toward the rim, then release as the torso clears it.
-      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release)+0.49;
+      const shoulderHeight=player.y+THREE.MathUtils.lerp(0.68,STANDING_HIP_HEIGHT,release)+0.56;
       const dy=0.12-shoulderHeight, dz=0.36;
-      const upper=0.29*LIMB_LENGTH, lower=0.23*LIMB_LENGTH+0.07;
+      const upper=0.29*ARM_LENGTH, lower=0.23*ARM_LENGTH+0.07;
       const distance=THREE.MathUtils.clamp(Math.hypot(dy,dz),0.08,upper+lower-0.001);
       const shoulderAngle=Math.atan2(-dz,-dy)+Math.acos(THREE.MathUtils.clamp((upper*upper+distance*distance-lower*lower)/(2*upper*distance),-1,1));
       const elbowAngle=-Math.acos(THREE.MathUtils.clamp((distance*distance-upper*upper-lower*lower)/(2*upper*lower),-1,1));
@@ -293,7 +294,7 @@ function updateBubbles(dt){
       bubbleTimer=0;
       const bubble=bubbles.find(b=>b.life<=0);
       if(bubble){
-        head.updateWorldMatrix(true,false);bubbleOrigin.set(0,0.30,0);head.localToWorld(bubbleOrigin);
+        head.updateWorldMatrix(true,false);bubbleOrigin.set(0,0.26,0);head.localToWorld(bubbleOrigin);
         bubble.mesh.position.copy(bubbleOrigin);bubble.mesh.position.y=Math.min(POOL.water-0.1,bubbleOrigin.y);
         bubble.mesh.position.x+=(Math.random()-0.5)*0.22;bubble.mesh.position.z+=(Math.random()-0.5)*0.22;
         bubble.life=2.5;bubble.speed=0.6+Math.random()*0.5;bubble.wobble=Math.random()*6.28;
