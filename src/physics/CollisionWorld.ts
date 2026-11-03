@@ -22,6 +22,11 @@ export interface WaterVolume {
   bounds: Box3;
   /** World height of the water surface. */
   surfaceY: number;
+  /**
+   * Optional extra test for water that is not a simple box — a moat is a ring,
+   * so the box around it also covers the dry island in the middle.
+   */
+  test?: (x: number, z: number) => boolean;
 }
 
 export interface ClimbSurface {
@@ -46,8 +51,8 @@ export class CollisionWorld {
     this.octree.fromGraphNode(root);
   }
 
-  addWater(bounds: Box3, surfaceY: number): void {
-    this.waters.push({ bounds, surfaceY });
+  addWater(bounds: Box3, surfaceY: number, test?: (x: number, z: number) => boolean): void {
+    this.waters.push({ bounds, surfaceY, test });
   }
 
   addClimbable(base: Vector3, radius: number, height: number, grabMargin = 0.55): void {
@@ -82,7 +87,8 @@ export class CollisionWorld {
         point.z >= water.bounds.min.z &&
         point.z <= water.bounds.max.z &&
         point.y >= water.bounds.min.y &&
-        point.y <= water.surfaceY
+        point.y <= water.surfaceY &&
+        (!water.test || water.test(point.x, point.z))
       ) {
         return water;
       }

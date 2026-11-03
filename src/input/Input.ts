@@ -14,6 +14,7 @@ import { Vector2 } from 'three';
 export type ActionName = 'jump' | 'grab' | 'pause' | 'dive';
 
 const STICK_DEADZONE = 0.22;
+const MAX_MOUSE_DELTA = 180;
 const TRIGGER_THRESHOLD = 0.5;
 
 export class Input {
@@ -26,12 +27,25 @@ export class Input {
 
   private readonly keys = new Set<string>();
   private readonly held = new Set<ActionName>();
+
+  // Presses arrive from DOM events between frames, so they are queued here and
+  // swapped into the per-frame sets at the start of update(). Clearing the
+  // per-frame sets directly would discard any press that landed between two
+  // frames, which is most of them.
+  private readonly pendingPresses = new Set<ActionName>();
+  private readonly pendingReleases = new Set<ActionName>();
   private readonly pressedThisFrame = new Set<ActionName>();
   private readonly releasedThisFrame = new Set<ActionName>();
 
   private readonly mouseDelta = new Vector2();
   private pointerLocked = false;
   private pointerLockWanted = false;
+  /**
+   * The first mousemove after pointer lock engages often carries the jump from
+   * the cursor's old position to the centre of the screen, which would whip
+   * the camera around. It is discarded.
+   */
+  private discardNextMouseMove = false;
 
   private previousButtons: boolean[] = [];
   private element: HTMLElement | null = null;
@@ -62,13 +76,24 @@ export class Input {
 
     const onMouseMove = (event: MouseEvent) => {
       if (!this.pointerLocked) return;
-      this.mouseDelta.x += event.movementX;
-      this.mouseDelta.y += event.movementY;
+      if (this.discardNextMouseMove) {
+        this.discardNextMouseMove = false;
+        return;
+      }
+      // Clamp each event so a spurious jump cannot spin the view; a genuine
+      // fast flick still arrives as several events in the same frame.
+      this.mouseDelta.x += clampDelta(event.movementX);
+      this.mouseDelta.y += clampDelta(event.movementY);
       this.usingGamepad = false;
     };
 
     const onPointerLockChange = () => {
-      this.pointerLocked = document.pointerLockElement === this.element;
+      const locked = document.pointerLockElement === this.element;
+      if (locked && !this.pointerLocked) {
+        this.discardNextMouseMove = true;
+        this.mouseDelta.set(0, 0);
+      }
+      this.pointerLocked = locked;
     };
 
     const onMouseDown = () => {
@@ -113,6 +138,10 @@ export class Input {
   update(sensitivity: number, invertY: boolean): void {
     this.pressedThisFrame.clear();
     this.releasedThisFrame.clear();
+    for (const action of this.pendingPresses) this.pressedThisFrame.add(action);
+    for (const action of this.pendingReleases) this.releasedThisFrame.add(action);
+    this.pendingPresses.clear();
+    this.pendingReleases.clear();
 
     this.move.set(0, 0);
     this.look.set(0, 0);
@@ -191,22 +220,23 @@ export class Input {
       const now = buttons[index] === true;
       const before = this.previousButtons[index] === true;
       if (now && !before) {
-        this.press(action);
+        if (!this.held.has(action)) this.pressedThisFrame.add(action);
+        this.held.add(action);
         this.usingGamepad = true;
       } else if (!now && before) {
-        this.release(action);
+        if (this.held.delete(action)) this.releasedThisFrame.add(action);
       }
     }
     this.previousButtons = buttons;
   }
 
   private press(action: ActionName): void {
-    if (!this.held.has(action)) this.pressedThisFrame.add(action);
+    if (!this.held.has(action)) this.pendingPresses.add(action);
     this.held.add(action);
   }
 
   private release(action: ActionName): void {
-    if (this.held.delete(action)) this.releasedThisFrame.add(action);
+    if (this.held.delete(action)) this.pendingReleases.add(action);
   }
 
   isDown(action: ActionName): boolean {
@@ -249,12 +279,21 @@ export class Input {
   clear(): void {
     this.keys.clear();
     this.held.clear();
+    this.pendingPresses.clear();
+    this.pendingReleases.clear();
     this.pressedThisFrame.clear();
     this.releasedThisFrame.clear();
     this.mouseDelta.set(0, 0);
     this.move.set(0, 0);
     this.look.set(0, 0);
+    this.discardNextMouseMove = true;
   }
+}
+
+/** Caps a single mouse event's movement, in pixels. */
+function clampDelta(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-MAX_MOUSE_DELTA, Math.min(MAX_MOUSE_DELTA, value));
 }
 
 function applyDeadzone(value: number): number {

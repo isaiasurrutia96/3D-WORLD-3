@@ -69,6 +69,7 @@ export class Player {
   private readonly scratchA = new Vector3();
   private readonly scratchB = new Vector3();
   private readonly scratchMove = new Vector3();
+  private readonly scratchSide = new Vector3();
 
   constructor(world: CollisionWorld, spawn: Vector3, events: PlayerEvents = {}) {
     this.world = world;
@@ -136,7 +137,7 @@ export class Player {
         this.updateSwim(delta, input, wish, strength);
         break;
       case 'ground':
-        this.updateGround(delta, input, wish, strength);
+        this.updateGround(delta, wish, strength);
         break;
       default:
         this.updateAir(delta, input, wish, strength);
@@ -154,35 +155,41 @@ export class Player {
   // States
   // -------------------------------------------------------------------------
 
-  private updateGround(delta: number, input: Input, wish: Vector3, strength: number): void {
+  private updateGround(delta: number, wish: Vector3, strength: number): void {
     const horizontal = this.scratchB.set(this.velocity.x, 0, this.velocity.z);
     const speed = horizontal.length();
 
     if (strength > 0.001) {
       const targetSpeed = this.targetSpeedFor(strength);
-      const wishDirection = wish;
 
       // A hard reversal at speed is a skid rather than a turn: the character
       // sheds speed first, then accepts the new direction.
-      const alignment = speed > 0.01 ? wishDirection.dot(horizontal.clone().normalize()) : 1;
-      this.skidding =
-        speed > TUNING.skidMinSpeed && alignment < TUNING.skidDotThreshold;
+      const alignment =
+        speed > 0.01 ? wish.dot(this.scratchSide.copy(horizontal).divideScalar(speed)) : 1;
+      this.skidding = speed > TUNING.skidMinSpeed && alignment < TUNING.skidDotThreshold;
 
       if (this.skidding) {
-        const decel = TUNING.skidDeceleration * delta;
-        const newSpeed = Math.max(0, speed - decel);
+        const newSpeed = Math.max(0, speed - TUNING.skidDeceleration * delta);
         if (speed > 0.001) horizontal.multiplyScalar(newSpeed / speed);
       } else {
-        this.turnToward(wishDirection, delta, speed);
+        this.turnToward(wish, delta, speed);
         const forward = this.forwardVector(this.scratchMove);
-        const accel = TUNING.acceleration * delta;
-        const desired = forward.multiplyScalar(targetSpeed);
-        horizontal.x = MathUtils.damp(horizontal.x, desired.x, accel / Math.max(0.001, targetSpeed), delta * 60 / 60);
-        horizontal.z = MathUtils.damp(horizontal.z, desired.z, accel / Math.max(0.001, targetSpeed), delta * 60 / 60);
-        // Damp above is frame-rate independent but gentle; add a direct push so
-        // acceleration from a standstill still feels immediate.
-        horizontal.addScaledVector(forward.normalize(), accel * 0.55);
-        if (horizontal.length() > targetSpeed) horizontal.setLength(targetSpeed);
+
+        // Speed is tracked along the facing direction. Anything sideways is
+        // momentum left over from a turn, and is bled off separately so the
+        // character arcs into the new heading instead of sliding sideways.
+        const along = horizontal.dot(forward);
+        const newAlong =
+          along < targetSpeed
+            ? Math.min(targetSpeed, along + TUNING.acceleration * delta)
+            : Math.max(targetSpeed, along - TUNING.deceleration * delta);
+
+        const sideways = this.scratchSide
+          .copy(horizontal)
+          .addScaledVector(forward, -along)
+          .multiplyScalar(Math.max(0, 1 - TUNING.deceleration * 1.8 * delta));
+
+        horizontal.copy(forward).multiplyScalar(newAlong).add(sideways);
       }
     } else {
       this.skidding = false;
@@ -199,7 +206,12 @@ export class Player {
 
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
       this.performJump();
+      return;
     }
+
+    // Walking into a tree trunk grabs it, which is how the move is found
+    // without being told about it.
+    this.tryGrabClimbable(wish, strength);
   }
 
   private updateAir(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -236,7 +248,7 @@ export class Player {
     // A jump buffered just before landing fires the moment the feet touch.
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) this.performJump();
 
-    this.tryGrabClimbable(input, wish, strength);
+    this.tryGrabClimbable(wish, strength);
   }
 
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -247,19 +259,21 @@ export class Player {
       return;
     }
 
-    const head = this.object.position.y + CHARACTER_HEIGHT * 0.86;
-    this.atSurface = head >= water.surfaceY - 0.18;
+    // The character floats with head and shoulders clear of the water.
+    const floatLine = water.surfaceY - CHARACTER_HEIGHT * TUNING.floatSubmersion;
+    const toFloatLine = floatLine - this.object.position.y;
+    this.atSurface = Math.abs(toFloatLine) < 0.35;
 
-    // Buoyancy only applies below the surface, so the character settles at the
-    // waterline rather than oscillating through it.
-    const depth = water.surfaceY - head;
-    if (depth > 0) {
-      this.velocity.y += TUNING.buoyancy * Math.min(1, depth / 1.2) * delta;
-    }
-    this.velocity.y -= TUNING.swimGravity * delta;
-
-    if (input.isDown('dive')) {
+    const diving = input.isDown('dive');
+    if (diving) {
       this.velocity.y -= TUNING.diveAcceleration * delta;
+    } else if (toFloatLine > 0) {
+      // Rising: stronger the deeper the character is, capped so a deep dive
+      // does not fire them out of the water.
+      this.velocity.y += Math.min(TUNING.buoyancy, toFloatLine * 7) * delta;
+    } else {
+      // Settling back down onto the float line.
+      this.velocity.y += Math.max(-TUNING.swimGravity, toFloatLine * 5) * delta;
     }
 
     // Strokes give the swimming its rhythm: a press is a push, not a hold.
@@ -285,7 +299,7 @@ export class Player {
       this.velocity.z *= scale;
     }
 
-    this.tryGrabClimbable(input, wish, strength);
+    this.tryGrabClimbable(wish, strength);
   }
 
   private updateClimb(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -309,7 +323,7 @@ export class Player {
     this.object.position.y = MathUtils.clamp(this.object.position.y, minY, maxY);
 
     // Hug the post at a fixed distance, facing inward.
-    const holdRadius = surface.radius + CHARACTER_RADIUS * 0.72;
+    const holdRadius = surface.radius + CHARACTER_RADIUS * 1.05;
     this.object.position.x = surface.base.x + Math.sin(this.climbAngle) * holdRadius;
     this.object.position.z = surface.base.z + Math.cos(this.climbAngle) * holdRadius;
     this.facing = this.climbAngle + Math.PI;
@@ -447,9 +461,18 @@ export class Player {
   private updateWaterState(): void {
     if (this.state === 'climb') return;
 
-    const centre = this.capsuleCentre(this.scratchB);
-    const water = this.world.waterAt(centre);
     const wasSwimming = this.state === 'swim';
+
+    // Entering takes the midpoint going under; leaving takes the feet coming
+    // clear. Without that gap, treading water with the head out would flip
+    // between swimming and falling on alternate frames.
+    const probeHeight = wasSwimming ? CHARACTER_HEIGHT * 0.12 : CHARACTER_HEIGHT * 0.5;
+    const probe = this.scratchB.set(
+      this.object.position.x,
+      this.object.position.y + probeHeight,
+      this.object.position.z,
+    );
+    const water = this.world.waterAt(probe);
 
     if (water && !wasSwimming) {
       const entrySpeed = -this.velocity.y;
@@ -473,7 +496,7 @@ export class Player {
     }
   }
 
-  private tryGrabClimbable(input: Input, wish: Vector3, strength: number): void {
+  private tryGrabClimbable(wish: Vector3, strength: number): void {
     if (this.climbRegrabTimer > 0 || strength < 0.3) return;
 
     const surface = this.world.climbableAt(this.object.position, CHARACTER_HEIGHT);

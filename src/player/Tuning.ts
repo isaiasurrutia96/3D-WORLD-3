@@ -70,8 +70,11 @@ export const TUNING = {
   strokeCooldown: 0.52,
   /** Downward acceleration while the dive button is held. */
   diveAcceleration: 11,
-  /** How far the character's eyeline sits above the surface when floating. */
-  surfaceFloatOffset: 1.05,
+  /**
+   * Fraction of the character's height that sits below the waterline while
+   * treading water, so head and shoulders stay clear.
+   */
+  floatSubmersion: 0.62,
   /** Vertical speed above which entering water makes a splash. */
   splashSpeed: 6,
 

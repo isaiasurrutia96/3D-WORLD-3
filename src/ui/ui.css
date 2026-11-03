@@ -1,0 +1,306 @@
+.ui-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--ui-font);
+  color: #fff;
+  z-index: 10;
+}
+
+/* ---------- Full-screen menu layers ---------- */
+
+.menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 24px 16px;
+  pointer-events: auto;
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    rgba(8, 22, 40, 0.18) 0%,
+    rgba(6, 16, 32, 0.62) 72%,
+    rgba(4, 11, 24, 0.82) 100%
+  );
+  opacity: 1;
+  transition: opacity 260ms ease;
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu.is-fading {
+  opacity: 0;
+}
+
+.menu__title {
+  margin: 0;
+  font-size: clamp(54px, 12vw, 128px);
+  font-weight: 900;
+  letter-spacing: 0.012em;
+  line-height: 0.92;
+  text-align: center;
+  background: linear-gradient(180deg, #fff6d8 0%, #ffd34d 46%, #f09426 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 5px 0 rgba(140, 56, 10, 0.95))
+    drop-shadow(0 12px 26px rgba(0, 0, 0, 0.55));
+}
+
+.menu__subtitle {
+  margin: -14px 0 0;
+  font-size: clamp(13px, 2.1vw, 17px);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+
+.menu__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, 90vw);
+}
+
+.menu__heading {
+  margin: 0 0 2px;
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Buttons and rows ---------- */
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(32, 62, 104, 0.88), rgba(18, 36, 66, 0.9));
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 110ms ease, box-shadow 110ms ease, border-color 110ms ease,
+    background 160ms ease;
+}
+
+.menu-item:hover,
+.menu-item.is-active {
+  border-color: #ffd34d;
+  background: linear-gradient(180deg, rgba(52, 92, 148, 0.95), rgba(26, 52, 92, 0.95));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.34), 0 0 22px rgba(255, 211, 77, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.menu-item:active {
+  transform: translateY(2px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.32);
+}
+
+.menu-item--primary {
+  padding: 18px 20px;
+  font-size: 21px;
+  background: linear-gradient(180deg, #4fa04a 0%, #2f7a34 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.menu-item--primary:hover,
+.menu-item--primary.is-active {
+  background: linear-gradient(180deg, #62b955 0%, #3a8c3c 100%);
+}
+
+.menu-item__value {
+  font-variant-numeric: tabular-nums;
+  color: #ffd98a;
+  font-weight: 800;
+}
+
+.menu-item__hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.menu__note {
+  width: min(560px, 92vw);
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Controls card ---------- */
+
+.controls {
+  width: min(640px, 94vw);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 22px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: rgba(8, 20, 38, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.controls__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.controls__action {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.controls__key {
+  font-weight: 800;
+  color: #ffd98a;
+  white-space: nowrap;
+}
+
+/* ---------- In-game HUD ---------- */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud[hidden] {
+  display: none;
+}
+
+.hud__stats {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  background: rgba(6, 16, 32, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: pre;
+}
+
+.hud__stats[hidden] {
+  display: none;
+}
+
+.hud__fps--good { color: #8fe08a; }
+.hud__fps--ok { color: #ffd34d; }
+.hud__fps--poor { color: #ff8b7a; }
+
+.hud__hints {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(6, 16, 32, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.82);
+  text-align: right;
+  transition: opacity 400ms ease;
+}
+
+.hud__hints[hidden] {
+  display: none;
+}
+
+.hud__prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(8, 20, 38, 0.78);
+  border: 1px solid rgba(255, 211, 77, 0.5);
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffd98a;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.hud__prompt.is-visible {
+  opacity: 1;
+}
+
+/* ---------- Loading ---------- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: linear-gradient(180deg, #11263f 0%, #0a1626 100%);
+  color: #fff;
+  z-index: 50;
+  transition: opacity 420ms ease;
+}
+
+.loader[hidden] {
+  display: none;
+}
+
+.loader.is-fading {
+  opacity: 0;
+}
+
+.loader__label {
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.loader__bar {
+  width: min(320px, 70vw);
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.loader__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffd34d, #f09426);
+  transition: width 220ms ease;
+}
+
+@media (max-width: 560px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}
