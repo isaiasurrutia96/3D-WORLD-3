@@ -24,6 +24,10 @@ export interface AnimationInputs {
   submerged: boolean;
   /** True while the dive control is held. */
   diving: boolean;
+  /** Which jump of a combo is in progress: 1, 2 or 3. */
+  jumpStage: 1 | 2 | 3;
+  /** How far round the triple jump's somersault is, in radians. */
+  flipAngle: number;
   inputStrength: number;
   /** 0 at the start of a swim stroke, 1 when it has finished. */
   strokeProgress: number;
@@ -109,7 +113,9 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
     }
   }
 
-  rig.body.rotation.set(current.bodyPitch, current.bodyYaw, current.bodyRoll);
+  // The somersault is added after blending. Easing toward it like any other
+  // pose value would smooth a full rotation into almost no rotation at all.
+  rig.body.rotation.set(current.bodyPitch + input.flipAngle, current.bodyYaw, current.bodyRoll);
   rig.body.position.y = current.bodyHeight;
   rig.body.scale.set(
     1 / Math.sqrt(current.bodySquash),
@@ -272,18 +278,39 @@ function poseGround(input: AnimationInputs): void {
 function poseAir(input: AnimationInputs): void {
   const rising = input.verticalSpeed > 0.5;
 
+  // The third jump of a combo is a somersault. The rotation itself is applied
+  // to the rig separately; this is the tuck that goes with it.
+  if (rising && input.jumpStage === 3) {
+    pose.shoulderLeftPitch = -2.75;
+    pose.shoulderRightPitch = -2.75;
+    pose.shoulderLeftRoll = 0.15;
+    pose.shoulderRightRoll = 0.15;
+    pose.elbowLeft = -1.5;
+    pose.elbowRight = -1.5;
+    pose.hipLeft = -1.3;
+    pose.hipRight = -1.3;
+    pose.kneeLeft = 1.9;
+    pose.kneeRight = 1.9;
+    pose.ankleLeft = 0.5;
+    pose.ankleRight = 0.5;
+    pose.bodySquash = 1.04;
+    return;
+  }
+
   if (rising) {
-    // Take-off: arms up, thighs drawn forward, heels tucked up behind.
-    pose.shoulderLeftPitch = -2.5;
-    pose.shoulderRightPitch = -2.5;
+    // Take-off: arms up, thighs drawn forward, heels tucked up behind. The
+    // second jump of a combo throws the arms higher and tucks harder.
+    const emphasis = input.jumpStage === 2 ? 1.25 : 1;
+    pose.shoulderLeftPitch = -2.5 * emphasis;
+    pose.shoulderRightPitch = -2.5 * emphasis;
     pose.shoulderLeftRoll = 0.22;
     pose.shoulderRightRoll = 0.22;
-    pose.elbowLeft = -0.35;
-    pose.elbowRight = -0.35;
-    pose.hipLeft = -0.55;
-    pose.hipRight = -0.3;
-    pose.kneeLeft = 1.05;
-    pose.kneeRight = 0.6;
+    pose.elbowLeft = -0.35 * emphasis;
+    pose.elbowRight = -0.35 * emphasis;
+    pose.hipLeft = -0.55 * emphasis;
+    pose.hipRight = -0.3 * emphasis;
+    pose.kneeLeft = 1.05 * emphasis;
+    pose.kneeRight = 0.6 * emphasis;
     pose.ankleLeft = 0.5;
     pose.ankleRight = 0.42;
     pose.bodyPitch = 0.12;

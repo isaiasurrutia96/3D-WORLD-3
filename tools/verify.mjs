@@ -195,6 +195,24 @@ await waitForState(page, (state) => state === 'idle');
 steps.push(await snapshot(page, 'landed'));
 if (peak < 1.0) problems.push(`a held jump only reached ${peak.toFixed(2)}m`);
 
+// ---- The jump combo -----------------------------------------------------
+// Driven at a fixed time step: the window to continue a combo is a quarter
+// of a second, far too short to hit reliably over the wire.
+const jumpPeaks = await page.evaluate(() => window.__letsgo.debug.simulateJumpCombo(1 / 60));
+if (jumpPeaks.length !== 3) {
+  problems.push(`expected three jumps, got ${jumpPeaks.length}`);
+} else {
+  const [first, second, third] = jumpPeaks;
+  if (!(second > first + 0.3)) {
+    problems.push(`the second jump (${second}m) is not clearly higher than the first (${first}m)`);
+  }
+  if (!(third > second + 0.3)) {
+    problems.push(`the third jump (${third}m) is not clearly higher than the second (${second}m)`);
+  }
+}
+
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -239,6 +257,7 @@ for (const step of steps) {
   );
 }
 console.log(`\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, jump peak ${peak.toFixed(2)}m`);
+console.log(` jump combo heights: ${jumpPeaks.map((h) => `${h}m`).join(', ')}`);
 console.log(` distance covered holding E: ${travelled.toFixed(1)}m`);
 console.log(
   ` holding back: ${backTravel.toFixed(1)}m travelled, ` +

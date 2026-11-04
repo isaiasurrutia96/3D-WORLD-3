@@ -36,6 +36,18 @@ export const TUNING = {
   fallGravityMultiplier: 1.42,
   /** Upward speed at take-off. Height is roughly v^2 / (2 * gravity). */
   jumpVelocity: 9.6,
+  /**
+   * The second and third jumps of a combo. Press jump again shortly after
+   * landing from one, while still moving, and the next is higher.
+   */
+  doubleJumpVelocity: 11.5,
+  tripleJumpVelocity: 13.5,
+  /** How long after landing a combo jump can be continued. */
+  jumpComboWindow: 0.26,
+  /** Below this speed the combo will not continue; it is a running move. */
+  jumpComboMinSpeed: 2.6,
+  /** Seconds the triple jump's somersault takes to come all the way round. */
+  tripleJumpFlipTime: 0.62,
   /** Velocity retained when the jump button is released early. */
   jumpCutMultiplier: 0.42,
   terminalVelocity: 34,

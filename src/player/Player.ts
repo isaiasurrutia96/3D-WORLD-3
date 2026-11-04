@@ -58,6 +58,12 @@ export class Player {
   private coyoteTimer = 0;
   private jumpBufferTimer = 0;
   private jumpHeld = false;
+  /** 1, 2 or 3 — which jump of a combo the character is in. */
+  private jumpStage: 1 | 2 | 3 = 1;
+  /** Counts down after landing; a jump within it continues the combo. */
+  private comboWindow = 0;
+  /** Time since the triple jump's somersault began, or -1 when not flipping. */
+  private flipTimer = -1;
   private landingTimer = 0;
   private skidding = false;
   private strokeTimer = 0;
@@ -124,7 +130,10 @@ export class Player {
 
   get stateName(): string {
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
-    if (this.state === 'air') return this.velocity.y > 0.5 ? 'jump' : 'fall';
+    if (this.state === 'air') {
+      if (this.velocity.y <= 0.5) return 'fall';
+      return this.jumpStage === 3 ? 'triple' : this.jumpStage === 2 ? 'double' : 'jump';
+    }
     if (this.skidding) return 'skid';
     if (this.speed > TUNING.walkSpeed + 0.6) return 'run';
     if (this.speed > 0.25) return 'walk';
@@ -135,6 +144,8 @@ export class Player {
     this.animationTime += delta;
     if (this.strokeTimer > 0) this.strokeTimer -= delta;
     if (this.landingTimer > 0) this.landingTimer -= delta;
+    if (this.comboWindow > 0) this.comboWindow -= delta;
+    if (this.flipTimer >= 0) this.flipTimer += delta;
 
     // Movement intent, rotated from stick space into camera space. Pushing up
     // on the stick always means "away from the camera".
@@ -347,9 +358,16 @@ export class Player {
     }
 
     if (this.onGround) {
-      if (!wasOnGround && previousFallSpeed < -4) {
-        this.landingTimer = 0.17;
-        this.events.onLand?.(this.object.position, Math.min(1, -previousFallSpeed / 22));
+      if (!wasOnGround) {
+        this.flipTimer = -1;
+        // A third jump ends the combo: the next one starts again from one.
+        this.comboWindow = this.jumpStage < 3 ? TUNING.jumpComboWindow : 0;
+        if (this.jumpStage >= 3) this.jumpStage = 1;
+
+        if (previousFallSpeed < -4) {
+          this.landingTimer = 0.17;
+          this.events.onLand?.(this.object.position, Math.min(1, -previousFallSpeed / 22));
+        }
       }
       this.coyoteTimer = TUNING.coyoteTime;
       if (this.state === 'air') this.state = 'ground';
@@ -484,13 +502,39 @@ export class Player {
     if (input.wasPressed('jump')) this.jumpBufferTimer = TUNING.jumpBufferTime;
   }
 
+  /**
+   * Takes off, continuing a combo if one is running.
+   *
+   * A combo continues only if the jump comes soon after landing the previous
+   * one and the character is still moving, which is what makes it a running
+   * move rather than something to do on the spot.
+   */
   private performJump(): void {
-    this.velocity.y = TUNING.jumpVelocity;
+    const continuing = this.comboWindow > 0 && this.speed >= TUNING.jumpComboMinSpeed;
+    this.jumpStage = continuing ? (Math.min(3, this.jumpStage + 1) as 1 | 2 | 3) : 1;
+
+    this.velocity.y =
+      this.jumpStage === 3
+        ? TUNING.tripleJumpVelocity
+        : this.jumpStage === 2
+          ? TUNING.doubleJumpVelocity
+          : TUNING.jumpVelocity;
+
+    // The third jump comes with a somersault.
+    this.flipTimer = this.jumpStage === 3 ? 0 : -1;
+
+    this.comboWindow = 0;
     this.jumpHeld = true;
     this.jumpBufferTimer = 0;
     this.coyoteTimer = 0;
     this.onGround = false;
     this.state = 'air';
+  }
+
+  /** How far round the triple jump's somersault is, 0 to 1. */
+  private get flipProgress(): number {
+    if (this.flipTimer < 0) return 0;
+    return Math.min(1, this.flipTimer / TUNING.tripleJumpFlipTime);
   }
 
   private updateWaterState(): void {
@@ -743,6 +787,8 @@ export class Player {
       carrying: this.carried !== null,
       submerged: this.submerged && !this.atSurface,
       diving: this.diving && this.state === 'swim',
+      jumpStage: this.jumpStage,
+      flipAngle: this.flipProgress * Math.PI * 2,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

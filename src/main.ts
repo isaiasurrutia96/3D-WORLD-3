@@ -180,6 +180,60 @@ class Game {
         return samples;
       },
 
+      /**
+       * Runs a three-jump combo at a fixed time step and returns the height
+       * reached by each jump. Driving it with real key presses would depend
+       * on how fast this machine renders, and the window to continue a combo
+       * is a quarter of a second.
+       */
+      simulateJumpCombo: (dt = 1 / 60): number[] => {
+        let holding = false;
+        let alreadyPressed = false;
+        const stub = {
+          move: { x: 0, y: -1 },
+          look: { x: 0, y: 0 },
+          isDown: (action: string) => action === 'jump' && holding,
+          wasPressed: (action: string) => action === 'jump' && holding && !alreadyPressed,
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const yaw = this.cameraRig.movementYaw;
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const step = () => this.player.update(dt, stub, yaw);
+        const grounded = () =>
+          ['idle', 'walk', 'run', 'skid'].includes(this.player.stateName);
+
+        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
+        for (let i = 0; i < frames(1); i += 1) step();
+
+        const peaks: number[] = [];
+        for (let jump = 0; jump < 3; jump += 1) {
+          holding = true;
+          alreadyPressed = false;
+          step();
+          alreadyPressed = true;
+
+          let peak = this.player.position.y;
+          for (let i = 0; i < frames(0.4); i += 1) {
+            step();
+            peak = Math.max(peak, this.player.position.y);
+          }
+
+          holding = false;
+          alreadyPressed = false;
+          for (let i = 0; i < frames(2); i += 1) {
+            step();
+            peak = Math.max(peak, this.player.position.y);
+            if (grounded()) break;
+          }
+          peaks.push(Math.round(peak * 100) / 100);
+
+          // Press again promptly, which is what continues the combo.
+          for (let i = 0; i < 3; i += 1) step();
+        }
+        return peaks;
+      },
+
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;
         const target = this.player.position;
