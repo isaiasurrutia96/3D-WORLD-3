@@ -124,3 +124,21 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
   advance(straight,1,{x:0,z:1,sprint:true});advance(diagonal,1,{x:1,z:1,sprint:true});
   assert.ok(Math.abs(straight.speed-diagonal.speed)<1e-10);
 });
+
+test('sprint coordinates head-height hand drive, high knees and nearly straight push-off legs',()=>{
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar);
+  const bones=avatar.skeleton;
+  for(const [side,phase] of [['left',.239],['right',.739]]){
+    animation.update({speed:SPRINT_SPEED,phase,distance:0,sprinting:true},1);
+    avatar.updateMatrixWorld(true);
+    const point=name=>bones.getBoneByName(name).getWorldPosition(new THREE.Vector3());
+    const hip=point(`${side}_thigh`),knee=point(`${side}_calf`),ankle=point(`${side}_foot`);
+    const bend=knee.clone().sub(hip).angleTo(ankle.clone().sub(knee));
+    assert.ok(bend<.20 && bend>.04,`push-off bend ${bend}`);
+    const opposite=side==='left'?'right':'left';
+    assert.ok(point(`${opposite}_calf`).y>point(`${opposite}_thigh`).y+.02);
+    const hand=bones.getBoneByName(`${side}_hand`).localToWorld(new THREE.Vector3(side==='left'?-.01:.01,-.095,.015));
+    const head=bones.getBoneByName('head').localToWorld(new THREE.Vector3(0,.15,0));
+    assert.ok(Math.abs(hand.y-head.y)<.08,`hand/head difference ${hand.y-head.y}`);
+  }
+});
