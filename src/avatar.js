@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // Authoring coordinates: meters, +Y up, +Z forward. These landmarks define
 // the neutral model independently of any animation, controller, or game data.
-const ARM_DROP = 0.02;
+const ARM_DROP = 0.05;
 export const FOOT_PROFILE = Object.freeze({
   ankleHeight: 0.15, centerHeight: 0.099, forwardOffset: 0.12,
   radiusX: 0.1705, radiusY: 0.099, radiusZ: 0.297,

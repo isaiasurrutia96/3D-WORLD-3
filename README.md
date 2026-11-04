@@ -1,6 +1,6 @@
 # LetsGo — running study
 
-One gray skinned avatar on a charcoal 260 × 460 slab. Rounded shoulder caps are level with the torso top. The approved proportions, narrow stance and enlarged hands/feet remain.
+One gray skinned avatar on a charcoal 260 × 460 slab. Rounded shoulder caps sit slightly below the torso top. The approved proportions, narrow stance and enlarged hands/feet remain.
 
 E runs forward, D backward, S left and F right, relative to the camera. Running is the only locomotion mode: Shift does not enable walking and Space does not jump. Releasing movement smoothly stops the controller and restores the exact neutral pose. There is no idle animation.
 
