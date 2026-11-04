@@ -51,6 +51,8 @@ export function stepRunner(state,input,dt=STEP,world=flatWorld) {
   if(!state.grounded){
     const previousY=state.y;
     state.airTime+=dt;state.verticalVelocity-=GRAVITY*dt;state.y+=state.verticalVelocity*dt;
+    const ceiling=world.ceilingHeight?.(state.x,state.z,previousY);
+    if(state.verticalVelocity>0&&ceiling!=null&&state.y+2.3>ceiling){state.y=ceiling-2.3;state.verticalVelocity=0;}
     const support=world.supportHeight(state.x,state.z,previousY+.001);
     if(state.verticalVelocity<=0&&support!==null&&previousY>=support-.02&&state.y<=support){
       state.y=support;state.verticalVelocity=0;state.grounded=true;state.airTime=0;state.landingTime=.14;

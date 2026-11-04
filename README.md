@@ -73,3 +73,9 @@ While driving, press either Shift key once to use the held item. Holding Shift d
 - Green shells slide forward, follow the road, ricochet off guardrails and disappear after eight seconds or when leaving the road. Substeps prevent collision tunneling. A ricochet can hit the occupied kart after its initial launch grace period, slowing it into a brief spin-out.
 
 `src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
+
+### Explorable mansion
+
+The complete two-story mansion stands on the main slab, with its front entrance facing the circuit. The starting camera faces toward the house. Walk up to its double doors to open them automatically; no interaction key is needed. Both staircases connect to the upstairs gallery, bedrooms, study and front balcony. Ground-floor rooms include a lounge, library, dining room and kitchen. Exterior walls, windows and roof remain in place while exploring; the camera stops against building surfaces.
+
+`tests/mansion.test.js` checks entrance access, solid exterior walls, both directions on the stairs, upper-room access, and camera obstruction alongside the existing movement, driving and item checks.

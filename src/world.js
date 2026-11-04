@@ -1,8 +1,9 @@
+import {createMansion,mansionSupportHeight,resolveMansion,mansionCeilingHeight,MANSION_ENTRY} from './mansion.js';
 import * as THREE from 'three';
 import {createKartFrame,KART_POSITION} from './kart.js';
 import {createTrack,trackSegments,railSegments,access,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
 export const FLOOR_WIDTH=260,FLOOR_LENGTH=460;
-export const SPAWN={x:120,y:0,z:-150,yaw:Math.PI/2};
+export const SPAWN={x:120,y:0,z:-150,yaw:Math.atan2(MANSION_ENTRY.x-120,MANSION_ENTRY.z+150)};
 const CELL=24;
 function spatialIndex(segments,padding){
  const cells=new Map();
@@ -38,6 +39,8 @@ export function supportHeight(x,z,maximum=Infinity){
   const roadY=triangleHeight(x,z,a,b,c)??triangleHeight(x,z,a,c,d);
   if(roadY!==null&&roadY<=maximum&&(height===null||roadY>height))height=roadY;
  }
+ const house=mansionSupportHeight(x,z,maximum);
+ if(house!==null&&(height===null||house>height))height=house;
  return height;
 }
 export function resolveHorizontal(x,z,nextX,nextZ,feetY,radius=.48,height=2.3){
@@ -48,13 +51,13 @@ export function resolveHorizontal(x,z,nextX,nextZ,feetY,radius=.48,height=2.3){
   if(length<.00001){dx=x-p.x;dz=z-p.z;length=Math.hypot(dx,dz)||1;}
   nextX=p.x+dx/length*radius;nextZ=p.z+dz/length*radius;
  }
- return {x:nextX,z:nextZ};
+ return resolveMansion(x,z,nextX,nextZ,feetY,radius,height);
 }
-export const worldPhysics={supportHeight,resolveHorizontal};
+export const worldPhysics={supportHeight,resolveHorizontal,ceilingHeight:mansionCeilingHeight};
 export function createWorld(){
  const group=new THREE.Group();group.name='Floating slab and circuit';
  const floor=new THREE.Mesh(new THREE.BoxGeometry(FLOOR_WIDTH,.25,FLOOR_LENGTH),new THREE.MeshLambertMaterial({color:'#303238'}));
  floor.name='Charcoal floor slab';floor.receiveShadow=true;floor.position.y=-.125;
  const kart=createKartFrame();kart.position.set(KART_POSITION.x,KART_POSITION.y,KART_POSITION.z);kart.rotation.y=Math.PI/2;
- group.add(floor,createTrack(),kart);return group;
+ group.add(floor,createTrack(),kart,createMansion());return group;
 }
