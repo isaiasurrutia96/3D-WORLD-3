@@ -6,6 +6,8 @@ import './style.css';
 import {createRunner,stepRunner,STEP} from './running-controller.js';
 import {createRunningAnimator} from './animation/running.js';
 import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart} from './vehicle-controller.js';
+import {createItemSystem,useHeldItem,stepItems} from './items.js';
+import {createItemView} from './item-view.js';
 import {createVehicleView,createSeatedPose} from './vehicle-view.js';
 import {MOVEMENT_KEYS,readMoveAxes,wantsSprint} from './input.js';
 
@@ -25,6 +27,7 @@ const animation=createRunningAnimator(avatar);
 const kart=scene.getObjectByName('Go-kart prototype');
 kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
+const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,kart);
 let driving=false;
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y);
@@ -35,9 +38,9 @@ const walkingChart=document.querySelector('.movement-keys').innerHTML;
 const walkingLabel=canvas.getAttribute('aria-label');
 function setDrivingChart(){
  document.querySelector('.movement-keys').innerHTML=driving
-  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S</kbd>Steer left</span><span><kbd>F</kbd>Steer right</span><span><kbd>SPACE</kbd>Brake</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
+  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S</kbd>Steer left</span><span><kbd>F</kbd>Steer right</span><span><kbd>SPACE</kbd>Brake</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
   : walkingChart;
- canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F. Space brakes; H exits when stopped.':walkingLabel);
+ canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F. Space brakes, Shift uses the held item; H exits when stopped.':walkingLabel);
 }
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
@@ -96,7 +99,7 @@ document.addEventListener('mousemove', event => {
 });
 
 const keys=new Set();
-let jumpQueued=false,interactionQueued=false;
+let jumpQueued=false,interactionQueued=false,itemQueued=false;
 let orbiting=false,manualCameraUntil=0;
 controls.addEventListener('start',()=>{orbiting=true;});
 controls.addEventListener('end',()=>{orbiting=false;manualCameraUntil=performance.now()+1800;});
@@ -106,9 +109,10 @@ window.addEventListener('keydown',event=>{
   if(directionKeys.has(event.code)){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
   if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
+  if(driving&&(event.code==='ShiftLeft'||event.code==='ShiftRight')&&!event.repeat)itemQueued=true;
 });
 window.addEventListener('keyup',event=>keys.delete(event.code));
-window.addEventListener('blur',()=>{keys.clear();jumpQueued=false;interactionQueued=false;});
+window.addEventListener('blur',()=>{keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;});
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
@@ -129,12 +133,12 @@ function toggleVehicle(){
  }else{
   const exit=findExitPosition(kartState,worldPhysics);
   if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return;}
-  driving=false;kartState.speed=0;previousKart={...kartState};scene.add(avatar);animation.reset();
+  driving=false;kartState.speed=0;kartState.boostTime=0;kartState.spinTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
  }
- jumpQueued=false;manualCameraUntil=0;setDrivingChart();reset();
+ jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();
 }
-document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;interactionQueued=false;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
+document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
 renderer.setAnimationLoop(time=>{
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
   previousTime=time;accumulator+=dt;
@@ -142,17 +146,19 @@ renderer.setAnimationLoop(time=>{
    if(interactionQueued){interactionQueued=false;toggleVehicle();}
    if(driving){
     previousKart={...kartState};jumpQueued=false;
+    if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
     const axes=readMoveAxes(keys);
     stepVehicle(kartState,{throttle:axes.forward,steer:axes.right,brake:keys.has('Space')},STEP,worldPhysics);
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
+   stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics);
    accumulator-=STEP;
   }
-  if(driving&&kartState.y< -35){Object.assign(kartState,createVehicleState());previousKart={...kartState};reset();}
+  if(driving&&kartState.y< -35){Object.assign(kartState,createVehicleState());itemQueued=false;previousKart={...kartState};reset();}
   if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);
+  applyKart(kartPose);applyItems(kartPose,driving);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -169,7 +175,10 @@ renderer.setAnimationLoop(time=>{
    camera.position.lerp(desired,1-Math.exp(-5*dt));
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
+  const itemLabel=document.querySelector('#held-item');
+  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
   controls.update();render();
+  canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);canvas.dataset.shells=String(itemSystem.shells.length);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
   canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;

@@ -1,23 +1,31 @@
 import {KART_POSITION} from './kart.js';
 import {GRAVITY} from './running-controller.js';
 
-export const VEHICLE_TOP_SPEED=32,REVERSE_SPEED=8;
+export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=60;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0};
 }
 export function stepVehicle(state,input,dt,world){
- const throttle=clamp(input.throttle??0,-1,1),steer=clamp(input.steer??0,-1,1);
- if(input.brake)state.speed=approach(state.speed,0,28*dt);
- else if(throttle>0)state.speed=clamp(state.speed+(state.speed<0?28:12)*dt,-REVERSE_SPEED,VEHICLE_TOP_SPEED);
- else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?28:8)*dt,-REVERSE_SPEED,VEHICLE_TOP_SPEED);
- else state.speed=approach(state.speed,0,(1.8+.004*state.speed*state.speed)*dt);
- const maxSteer=.42/(1+Math.abs(state.speed)/9);
- state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-10*dt));
  const previousYaw=state.yaw;
- if(state.grounded)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
+ const boosting=state.boostTime>0,spinning=state.spinTime>0;
+ state.boostTime=Math.max(0,state.boostTime-dt);
+ if(spinning){const spinStep=Math.min(dt,state.spinTime);state.yaw+=spinStep*Math.PI*2/.75;state.spinTime=Math.max(0,state.spinTime-dt);}
+ const rawThrottle=clamp(input.throttle??0,-1,1);
+ const throttle=boosting&&rawThrottle>=0&&!input.brake?1:rawThrottle;
+ const steer=spinning?0:clamp(input.steer??0,-1,1);
+ const topSpeed=boosting?NITRO_TOP_SPEED:VEHICLE_TOP_SPEED;
+ if(spinning)state.speed=approach(state.speed,0,20*dt);
+ else if(input.brake)state.speed=approach(state.speed,0,36*dt);
+ else if(throttle>0){
+  state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?32:16))*dt);
+ }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
+ else state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
+ const maxSteer=.44/(1+Math.abs(state.speed)/11);
+ state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-10*dt));
+ if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);
  let x=oldX+sin*state.speed*dt,z=oldZ+cos*state.speed*dt;
  const proposedX=x,proposedZ=z;

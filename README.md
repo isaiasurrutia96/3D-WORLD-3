@@ -8,7 +8,7 @@ One gray skinned avatar on the existing charcoal 260 × 460 slab, now connected 
 - Running is the default. Hold either Shift key with E, D, S or F to walk. Diagonal movement is normalized; Shift alone does not move.
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - H: enter the kart when nearby; H exits when stopped and a safe spot is available.
-- While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes. The mouse changes the view without steering.
+- While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes, and a fresh Shift press uses the held item. The mouse changes the view without steering.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
 - Walking and sprinting are separate clips. The avatar returns to its exact neutral pose after stopping; there is no idle animation.
 
@@ -57,8 +57,19 @@ Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a co
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive bicycle steering, guardrail capsule collision and terrain height/pitch/bank. Forward speed is capped at 32 m/s and reverse at 8 m/s. Space brakes; there are no drifting, boosts, races or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive bicycle steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s (previously 32), with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 60 m/s. Space brakes. There are no races, CPU opponents, drifting or vehicle jumps.
 
 `src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. The chase camera follows the kart's heading, while mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
 Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety, wheel animation, asymmetric jump takeoff and a complete driven lap over the crossing. Browser checks cover approaching/mounting, steering, braking, reverse, safe dismount and returning to on-foot jumping.
+
+## Item boxes
+
+`src/items.js` handles 48 boxes in 16 rows around the track, including elevated sections. Driving through an available box randomly awards Nitro or a green turtle shell, with one inventory slot. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass.
+
+While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. On foot, Shift continues to mean walking. The compact control chart shows the current item.
+
+- Nitro lasts two seconds, accelerates to a 60 m/s cap, and shows blue exhaust. Braking still works, and boosted speed eases back toward the normal cap after expiry.
+- Green shells slide forward, follow the road, ricochet off guardrails and disappear after eight seconds or when leaving the road. Substeps prevent collision tunneling. A ricochet can hit the occupied kart after its initial launch grace period, slowing it into a brief spin-out.
+
+`src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
