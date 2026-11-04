@@ -73,3 +73,5 @@ While driving, press either Shift key once to use the held item. Holding Shift d
 - Green shells slide forward, follow the road, ricochet off guardrails and disappear after eight seconds or when leaving the road. Substeps prevent collision tunneling. A ricochet can hit the occupied kart after its initial launch grace period, slowing it into a brief spin-out.
 
 `src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
+
+Camera views: press **V** or tap the camera button in the bottom control chart to switch between the wider third-person view and a fixed-angle orthographic isometric view. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart rail contacts reflect velocity away from the wall while preserving motion along it.

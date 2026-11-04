@@ -36,8 +36,9 @@ test('entry requires proximity and grounded states; exit requires a safe stopped
  const parked=resolveParkedKart(kart.x,kart.z,0,kart);assert.ok(Math.hypot(parked.x-kart.x,parked.z-kart.z)>1.5);
 });
 test('kart crosses the access bridge, respects rails and uses elevated ramp surfaces',()=>{
- const kart=createVehicleState();advance(kart,6,{throttle:1},worldPhysics);
- assert.ok(kart.x>150&&kart.x<166);assert.equal(kart.grounded,true);
+ const kart=createVehicleState();let peak=kart.x,bounced=false;
+ for(let i=0;i<720;i++){stepVehicle(kart,{throttle:1},DT,worldPhysics);peak=Math.max(peak,kart.x);if(kart.x>150&&Math.sin(kart.yaw)<0)bounced=true;assert.ok(kart.y>-.01);}
+ assert.ok(peak>150&&peak<166);assert.ok(bounced,'Kart rebounds away from the outer rail');assert.ok(kart.x<peak-10,'Holding throttle continues away from the wall');assert.equal(kart.grounded,true);
  const sample=trackSamples.find(s=>s.point.y>8&&s.point.z>60&&s.point.z<85).point;
  const above=Object.assign(createVehicleState(),{x:sample.x,y:sample.y,z:sample.z});advance(above,.5,{brake:true},worldPhysics);
  assert.ok(above.y>8);assert.equal(above.grounded,true);
@@ -71,4 +72,13 @@ test('a driven lap can traverse every curve and both overpass levels',()=>{
   peak=Math.max(peak,state.y);assert.equal(state.grounded,true);assert.ok(state.y> -1);
  }
  assert.equal(index,trackSamples.length);assert.ok(peak>8);
+});
+
+test('head-on and oblique wall impacts rebound rather than pinning the kart',()=>{
+ const wall={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:Math.min(nx,8),z:nz})};
+ for(const yaw of [Math.PI/2,Math.PI/3]){
+  const kart={...createVehicleState(),x:0,z:0,yaw,speed:25};let bounced=false;
+  for(let i=0;i<120;i++){stepVehicle(kart,{throttle:1},DT,wall);if(Math.sin(kart.yaw)<0)bounced=true;}
+  assert.ok(bounced);assert.ok(kart.x<5);assert.ok(kart.speed>5);
+ }
 });

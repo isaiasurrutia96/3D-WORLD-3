@@ -37,8 +37,19 @@ export function stepVehicle(state,input,dt,world){
   x+=resolved.x-targetX;z+=resolved.z-targetZ;
  }
  if(Math.hypot(x-proposedX,z-proposedZ)>.001){
-  const requested=Math.abs(state.speed*dt),actual=Math.max(0,((x-oldX)*sin+(z-oldZ)*cos)*Math.sign(state.speed));
-  state.speed*=clamp(actual/(requested||1),0,1)*.6;
+  // Reflect velocity about the contact normal, retaining motion along the rail.
+  const correctionX=x-proposedX,correctionZ=z-proposedZ,length=Math.hypot(correctionX,correctionZ);
+  const nx=correctionX/length,nz=correctionZ/length;
+  let vx=sin*state.speed,vz=cos*state.speed;
+  const into=vx*nx+vz*nz;
+  if(into<0){
+   vx-=1.65*into*nx;vz-=1.65*into*nz;
+   const sign=Math.sign(state.speed)||1;
+   state.speed=Math.hypot(vx,vz)*sign;
+   state.yaw=Math.atan2(vx*sign,vz*sign);
+   // Leave a small separation so holding the accelerator cannot pin the tires.
+   x+=nx*.08;z+=nz*.08;state.steering*=.3;
+  }
  }
  state.x=x;state.z=z;
  const travel=(x-oldX)*sin+(z-oldZ)*cos;

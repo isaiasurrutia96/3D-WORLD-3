@@ -24,7 +24,7 @@ export const trackSamples=Array.from({length:COUNT+1},(_,i)=>{
  const normal=new THREE.Vector3(-tangent.z,0,tangent.x).normalize();
  return {point,normal,distance:i/COUNT*path.getLength()};
 });
-export const access={minX:128,maxX:154,minZ:ENTRY.z-8,maxZ:ENTRY.z+8,height:0};
+export const access={minX:128,maxX:154,minZ:ENTRY.z-10,maxZ:ENTRY.z+10,height:0};
 const offset=(sample,d,y=0)=>sample.point.clone().addScaledVector(sample.normal,d).add(new THREE.Vector3(0,y,0));
 const opening=p=>p.x<145 && Math.abs(p.z-ENTRY.z)<9;
 export const trackSegments=[],railSegments=[];
@@ -67,12 +67,12 @@ export function createTrack(){
  const bottom=new THREE.Mesh(stripGeometry(-OUTER,OUTER,-.65),new THREE.MeshLambertMaterial({color:'#424750',side:THREE.DoubleSide}));group.add(bottom);
  const curbMaterial=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
  for(const side of [-1,1])group.add(new THREE.Mesh(stripGeometry(side*TRACK_HALF_WIDTH,side*OUTER,.04,true,true),curbMaterial));
- const bridge=new THREE.Mesh(new THREE.BoxGeometry(access.maxX-access.minX,.65,16),roadMaterial);
+ const bridge=new THREE.Mesh(new THREE.BoxGeometry(access.maxX-access.minX,.65,access.maxZ-access.minZ),roadMaterial);
  bridge.position.set((access.minX+access.maxX)/2,-.325,ENTRY.z);bridge.receiveShadow=true;group.add(bridge);
  // Access curbs meet the opening in the outside rail, leaving a clear T junction.
  for(const side of [-1,1])for(let x=128;x<136;x+=2){
   const curb=new THREE.Mesh(new THREE.BoxGeometry(2,.06,.9),new THREE.MeshLambertMaterial({color:(x/2)%2?'#f4f3ef':'#dc2828'}));
-  curb.position.set(x+1,.03,ENTRY.z+side*7.55);group.add(curb);
+  curb.position.set(x+1,.03,ENTRY.z+side*9.55);group.add(curb);
  }
  const railMaterial=new THREE.MeshLambertMaterial({color:'#a5adb8'});
  const rails=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.16,1),railMaterial,railSegments.length*2);

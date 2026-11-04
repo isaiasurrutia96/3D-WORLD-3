@@ -67,3 +67,11 @@ test('jump poses clear the support plane and return to exact neutral after landi
  world.traverse(object=>{if(object.isInstancedMesh)hasRailInstances=true;if(object.isMesh){const position=object.geometry.attributes.position;for(const value of position.array)assert.ok(Number.isFinite(value));}});
  assert.equal(hasRailInstances,true);
 });
+
+test('full entry railing opening has continuous visible and physical bridge support',()=>{
+ for(let x=128;x<=145;x+=.25)for(let z=-159;z<=-141;z+=.25)assert.equal(supportHeight(x,z,.4),0,`Entry gap at ${x},${z}`);
+ for(const z of [-158.8,-141.2]){
+  const state=Object.assign(createRunner(),{x:129,z});
+  for(let i=0;i<240;i++){stepRunner(state,{x:1,z:0,sprint:false},STEP,worldPhysics);assert.equal(state.grounded,true);assert.equal(state.y,0);}
+ }
+});

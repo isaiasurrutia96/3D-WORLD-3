@@ -46,17 +46,24 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
 Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-3,near:0.1,far:20});
 sun.shadow.normalBias=0.015;
-const camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
+let camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
+const thirdPersonCamera=camera;
+const isoCamera=new THREE.OrthographicCamera(-24,24,18,-18,.1,3000);
+let isometric=false;
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(driving?new THREE.Vector3(-Math.sin(focus.yaw)*6,2.8,-Math.cos(focus.yaw)*6):new THREE.Vector3(-6,2.5,0));controls.update();}
+function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
+function toggleCamera(){isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();document.querySelector('#view-toggle').textContent=isometric?'V Third person':'V Isometric';canvas.dataset.view=isometric?'isometric':'third-person';}
+document.querySelector('#view-toggle').addEventListener('click',toggleCamera);
+window.addEventListener('keydown',event=>{if(event.code==='KeyV'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();toggleCamera();}});
 function resize(){
  const width=canvas.clientWidth,height=canvas.clientHeight,scale=Math.min(1,480/height);
  renderer.setSize(Math.round(width*scale),Math.round(height*scale),false);
- camera.aspect=width/height;camera.fov=width<700?55:45;camera.updateProjectionMatrix();
+ thirdPersonCamera.aspect=width/height;thirdPersonCamera.fov=width<700?55:45;thirdPersonCamera.updateProjectionMatrix();
+ isoCamera.left=-18*width/height;isoCamera.right=18*width/height;isoCamera.updateProjectionMatrix();
  renderer.render(scene,camera);
 }
 window.addEventListener('resize',resize);resize();
@@ -86,7 +93,7 @@ document.addEventListener('pointerlockerror', () => {
   controlHint.textContent = 'Mouse lock blocked · Click the game and press L again';
 });
 document.addEventListener('mousemove', event => {
-  if (document.pointerLockElement !== canvas) return;
+  if (document.pointerLockElement !== canvas || isometric) return;
   mouseOffset.subVectors(camera.position,controls.target);
   orbit.setFromVector3(mouseOffset);
   orbit.theta -= event.movementX*0.0025;
@@ -170,8 +177,8 @@ renderer.setAnimationLoop(time=>{
   const focus=driving?kartPose:avatar.position;
   const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
-  if(driving&&!orbiting&&time>manualCameraUntil){
-   const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*6,2.8,-Math.cos(kartPose.yaw)*6));
+  if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){
+   const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));
    camera.position.lerp(desired,1-Math.exp(-5*dt));
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
