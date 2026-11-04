@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — the obstacle course.
+Last updated: 4 November 2026 — ladders, swimming, Q, unlimited wall kicks.
 
 ---
 
@@ -242,6 +242,45 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, fourteenth entry.** Four movement faults, diagnosed
+before anything was changed.
+
+**1. The ladder led nowhere, and the diagnosis was a probe.** The move that
+takes hold of the edge above a ladder looks a fixed 0.62 metres in front of
+him. The course's ladder stood ten centimetres clear of the roof it leads
+to, so the look landed in open air, found nothing, and he was clamped at the
+top with the stick pushed up and nothing happening. The search now takes a
+second, longer look when the first finds nothing, which fixes the class of
+fault rather than the one ladder; the ladder was moved flush as well.
+
+**2. Three more things about ladders.** Jump is now checked first and from
+anywhere on it, rather than after the hand-over at the top, where a press on
+the frame he arrived was swallowed. Up and down come from the stick's own
+axis rather than the stick rotated into camera space — on a ladder there is
+only one axis that means anything, and tying it to the camera meant forward
+sometimes climbed and sometimes descended. And a ladder is now only caught
+in mid-air when he is travelling at it: catching anything merely near him
+meant jumping off was undone on the way back down, which is indistinguishable
+from being stuck to it.
+
+**3. Swimming had him hanging rather than swimming.** The arms were held in
+one pose with a small sweep on top. Both strokes now run off one clock, so
+the arms and the legs are parts of the same stroke rather than two loops that
+happen to be running at once: at the surface the arms alternate, one pulling
+back while the other reaches forward, with a scissor kick opposite each arm;
+underwater it is a breaststroke with the legs drawn up on the recovery and
+driven back on the pull.
+
+**4. Q dives in water and crouches on land.** One button for "down", since
+underwater there is nothing to crouch for. The old key still works.
+
+**5. The wall kick limit is gone.** It was four, and a nine-metre shaft asks
+for exactly four — which is why the cap was invisible. Each kick still needs
+a wall touched within the window just before it, so height is only gained by
+actually reaching the next wall. A sixteen-metre shaft was added beside the
+first, where six kicks now carry him 15.2 metres.
+
 
 **4 November 2026, thirteenth entry.** The obstacle course.
 

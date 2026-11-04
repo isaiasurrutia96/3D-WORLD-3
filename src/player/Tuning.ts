@@ -124,8 +124,6 @@ export const TUNING = {
   wallKickVelocity: 11.2,
   /** Speed away from the wall. */
   wallKickSpeed: 8.4,
-  /** How many kicks one trip through the air allows, so walls are not ladders. */
-  wallKickLimit: 4,
   /** Downward speed while sliding against a wall, which slows the fall. */
   wallSlideSpeed: 3.4,
 
@@ -191,6 +189,8 @@ export const TUNING = {
   ladderHandLow: 0.1,
   /** Push away from the ladder when he jumps off backwards. */
   ladderJumpOff: 4.5,
+  /** How long after letting go of a ladder before another can be caught. */
+  ladderCooldown: 0.6,
 
   // ---- Getting over a ledge ------------------------------------------------
   /**
@@ -198,6 +198,12 @@ export const TUNING = {
    * the width of his body, so the surface has to be within arm's length.
    */
   ledgeReach: 0.62,
+  /**
+   * A second, longer look when the first finds nothing. A surface that
+   * begins a hand's width beyond the first probe is otherwise missed
+   * silently, which is how a ladder came to lead nowhere.
+   */
+  ledgeReachExtra: 0.45,
   /**
    * The band, measured from his feet, in which a ledge can be caught. The
    * low figure is about chest height and the high one is just over his head:

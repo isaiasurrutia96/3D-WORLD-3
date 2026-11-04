@@ -581,9 +581,52 @@ if (!course.kickShaft.reached) {
     `station 8: ${course.kickShaft.kicks} kicks reached only ${course.kickShaft.highest}m`,
   );
 }
-if (!course.ladder.reached) {
-  problems.push(`station 10: the ladder reached ${course.ladder.top}m`);
+// Ladders: up, off at any point, and over the top.
+if (!course.ladderWork.climbedUp) {
+  problems.push(
+    `the ladder went from ${course.ladderWork.caughtAt}m to ` +
+      `${course.ladderWork.climbedTo}m — pushing up does not climb it`,
+  );
 }
+if (!course.ladderWork.releasedByJump) {
+  problems.push(`jumping off the ladder left him "${course.ladderWork.afterJump}"`);
+}
+if (course.ladderWork.landedAfterJump === 'climb') {
+  problems.push('jumping off the ladder was undone — it caught him again on the way down');
+}
+if (!course.ladderWork.hung) {
+  problems.push(
+    `the top of the ladder gave ${course.ladderWork.topStates.join(' > ')} rather than ` +
+      `taking hold of the edge above it`,
+  );
+}
+if (!course.ladderWork.gotOver) {
+  problems.push(
+    `climbing over the top ended at ${course.ladderWork.onTop}m ` +
+      `(${course.ladderWork.overStates.join(' > ')})`,
+  );
+}
+
+// Q crouches on land and dives in water, from the one button.
+if (course.crouchKey.onLand !== 'crouch') {
+  problems.push(`Q on land gave "${course.crouchKey.onLand}" rather than a crouch`);
+}
+if (!course.crouchKey.dives) {
+  problems.push(
+    `Q in the water took him from ${course.crouchKey.floatedAt}m to ` +
+      `${course.crouchKey.divedTo}m — it is not diving`,
+  );
+}
+
+// Wall kicks have no limit: four was the old cap, and a nine metre shaft
+// asks for exactly four, which is how the cap stayed invisible.
+if (!course.manyKicks.pastFour) {
+  problems.push(
+    `the tall shaft allowed only ${course.manyKicks.kicks} kicks, reaching ` +
+      `${course.manyKicks.highest}m`,
+  );
+}
+
 if (!course.crate.carrying) problems.push('station 11: the crate would not be picked up');
 if (!(course.pool.deepest < -6)) {
   problems.push(`station 12: diving only reached ${course.pool.deepest}m of an eight metre pool`);
@@ -724,7 +767,18 @@ console.log(
 console.log(` 5  backflip    up to ${course.backflipStep.y}m — landed ${course.backflipStep.landed}`);
 console.log(` 6  side flip   up to ${course.sideFlipLedge.y}m — landed ${course.sideFlipLedge.landed}`);
 console.log(` 8  wall kicks  ${course.kickShaft.kicks} kicks, ${course.kickShaft.highest}m`);
-console.log(` 10 ladder      up to ${course.ladder.top}m  ${course.ladder.states.join(' > ')}`);
+console.log(
+  ` 10 ladder      ${course.ladderWork.caughtAt}m to ${course.ladderWork.climbedTo}m, off by ` +
+    `jump "${course.ladderWork.afterJump}" then "${course.ladderWork.landedAfterJump}", ` +
+    `over the top to ${course.ladderWork.onTop}m`,
+);
+console.log(
+  ` 8b kicks       ${course.manyKicks.kicks} alternating, up to ${course.manyKicks.highest}m`,
+);
+console.log(
+  ` Q              land "${course.crouchKey.onLand}", water ${course.crouchKey.floatedAt}m ` +
+    `down to ${course.crouchKey.divedTo}m`,
+);
 console.log(` 11 crate       carried ${course.crate.carrying}`);
 console.log(
   ` 12 pool        down to ${course.pool.deepest}m, surfaced ${course.pool.surfaced}, ` +

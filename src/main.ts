@@ -1220,22 +1220,121 @@ class Game {
         stick.y = 0;
         results.pool = { deepest: round(deepest), surfaced, out, ...where() };
 
-        // 10 — the ladder up the far tower.
-        place(23.5, 0.6, 43, Math.PI / 2);
+        // The ladder, four ways: climb it, jump off partway, climb over the
+        // top, and come back down.
+        {
+          const toLadder = () => {
+            place(23.5, 0.6, 43, Math.PI / 2);
+            stick.x = 1;
+            for (let i = 0; i < frames(3); i += 1) {
+              step();
+              if (player.stateName === 'climb') break;
+            }
+            stick.x = 0;
+          };
+
+          // Up it, using only the stick's own up axis.
+          toLadder();
+          const caughtAt = round(player.position.y);
+          stick.y = -1;
+          for (let i = 0; i < frames(2); i += 1) step();
+          const climbedTo = round(player.position.y);
+          stick.y = 0;
+
+          // Jump off from halfway, which must hand control back.
+          tap('jump');
+          for (let i = 0; i < frames(0.25); i += 1) step();
+          held.delete('jump');
+          const afterJump = player.stateName;
+          for (let i = 0; i < frames(2); i += 1) step();
+          const landedAfterJump = player.stateName;
+
+          // And again, all the way to the top and over it.
+          toLadder();
+          stick.y = -1;
+          const topStates: string[] = [];
+          for (let i = 0; i < frames(9); i += 1) {
+            step();
+            const name = player.stateName;
+            if (topStates[topStates.length - 1] !== name) topStates.push(name);
+            if (name === 'hanging') break;
+          }
+          const hung = player.stateName === 'hanging';
+          const overStates: string[] = [];
+          if (hung) {
+            tap('jump');
+            stick.y = 0;
+            for (let i = 0; i < frames(0.25); i += 1) step();
+            held.delete('jump');
+            for (let i = 0; i < frames(2.4); i += 1) {
+              step();
+              const name = player.stateName;
+              if (overStates[overStates.length - 1] !== name) overStates.push(name);
+            }
+          }
+          stick.y = 0;
+          stick.x = 0;
+          results.ladderWork = {
+            caughtAt,
+            climbedTo,
+            climbedUp: climbedTo > caughtAt + 2,
+            afterJump,
+            landedAfterJump,
+            releasedByJump: afterJump !== 'climb',
+            topStates,
+            hung,
+            overStates,
+            onTop: round(player.position.y),
+            gotOver: player.position.y > 11,
+          };
+        }
+
+        // Q dives in water and crouches on land.
+        place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+        held.add('crouch');
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        const qOnLand = player.stateName;
+        held.clear();
+
+        place(-34, 0, 10, Math.PI);
+        for (let i = 0; i < frames(2); i += 1) step();
+        const floatY = player.position.y;
+        held.add('crouch');
+        for (let i = 0; i < frames(2); i += 1) step();
+        const qInWater = round(player.position.y);
+        held.clear();
+        results.crouchKey = {
+          onLand: qOnLand,
+          floatedAt: round(floatY),
+          divedTo: qInWater,
+          dives: qInWater < floatY - 1,
+        };
+
+        // Kicks beyond the old limit of four, in the sixteen metre shaft.
+        place(31.4, 0, -8, Math.PI / 2);
         stick.x = 1;
-        const ladderStates = [] as string[];
-        for (let i = 0; i < frames(9); i += 1) {
+        for (let i = 0; i < frames(0.35); i += 1) step();
+        tap('jump');
+        let hold = frames(0.3);
+        let many = 0;
+        let top = 0;
+        for (let i = 0; i < frames(12); i += 1) {
           step();
-          const name = player.stateName;
-          if (ladderStates[ladderStates.length - 1] !== name) ladderStates.push(name);
-          if (name === 'hanging') break;
+          top = Math.max(top, player.position.y);
+          if (hold > 0) {
+            hold -= 1;
+            if (hold === 0) held.delete('jump');
+          } else if (player.stateName === 'wall-slide') {
+            tap('jump');
+            hold = frames(0.3);
+            many += 1;
+            stick.x = -stick.x;
+          }
+          if (player.stateName === 'hanging') break;
         }
         stick.x = 0;
-        results.ladder = {
-          states: ladderStates,
-          top: round(player.position.y),
-          reached: player.position.y > 8,
-        };
+        held.clear();
+        results.manyKicks = { kicks: many, highest: round(top), pastFour: many > 4 };
 
         // 11 — the crate on the roof.
         place(31.4, 11.6, 48.4, Math.PI);

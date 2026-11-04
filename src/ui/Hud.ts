@@ -48,10 +48,12 @@ export class Hud {
       Walk <b>hold Shift</b> · Jump <b>Space</b><br />
       Jump again on landing for a higher second and third jump · at a run,
       <b>Space</b> then <b>A</b> for a <b>side flip</b><br />
-      Crouch <b>Q</b> — crouch running then jump for a <b>long jump</b>, crouch
-      still then jump for a <b>backflip</b><br />
+      <b>Q</b> crouches on land and <b>dives</b> in water — crouch running then
+      jump for a <b>long jump</b>, crouch still then jump for a <b>backflip</b><br />
       <b>Space</b> again in the air for a boost, and <b>again</b> to <b>ground
-      pound</b> · let go at a run to <b>skid</b><br />
+      pound</b> · kick off walls as long as you keep reaching them<br />
+      <b>R</b> pick up and throw · <b>E</b>/<b>D</b> climb a ladder, <b>Space</b>
+      leaves it · let go at a run to <b>skid</b><br />
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
       Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high<br />
       <span class="hud__build">build ${__BUILD_STAMP__}</span>

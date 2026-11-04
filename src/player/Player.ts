@@ -136,6 +136,12 @@ export class Player {
   private poundTimer = 0;
   /** The ladder he is on, if any. */
   private ladder: LadderVolume | null = null;
+  /**
+   * Seconds before another ladder can be caught. Without it, jumping off one
+   * is caught again by the same one on the very next frame, which looks
+   * exactly like being stuck to it.
+   */
+  private ladderCooldown = 0;
   /** The last wall touched in the air, pointing away from it. */
   private readonly wallNormal = new Vector3();
   /** Seconds since that wall was touched. Large means "not near one". */
@@ -277,6 +283,7 @@ export class Player {
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
+    if (this.ladderCooldown > 0) this.ladderCooldown -= delta;
     if (this.sinceTakeOff < 10) this.sinceTakeOff += delta;
     if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
     if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
@@ -508,11 +515,11 @@ export class Player {
 
     // A kick off a wall touched a moment ago. The window matters: without it
     // the button would have to be pressed on the one frame of contact.
-    if (
-      this.jumpBufferTimer > 0 &&
-      this.wallTimer < TUNING.wallKickWindow &&
-      this.wallKicks < TUNING.wallKickLimit
-    ) {
+    // No limit on how many. Each one still needs a wall touched within the
+    // window just before it, so height is only gained by actually reaching
+    // the next wall — which is the thing that makes it a skill rather than a
+    // free lift.
+    if (this.jumpBufferTimer > 0 && this.wallTimer < TUNING.wallKickWindow) {
       this.performWallKick();
       return;
     }
@@ -662,15 +669,23 @@ export class Player {
    * finds the top of a wall rather than its face.
    */
   private ledgeSurfaceAt(forward: Vector3, distance: number, feet: number): number | null {
-    const from = this.scratchB.set(
-      this.object.position.x + forward.x * distance,
-      feet + TUNING.ledgeGrabHigh + 0.4,
-      this.object.position.z + forward.z * distance,
-    );
-    const ground = this.world.groundProbe(from, TUNING.ledgeGrabHigh + 0.4);
-    if (!ground) return null;
-    if (ground.normal.y < MAX_WALKABLE_NORMAL_Y) return null;
-    return ground.y;
+    // Two looks rather than one. A single probe at a fixed distance misses a
+    // surface that begins a hand's width beyond it, and misses it silently:
+    // the ladder on the course stood ten centimetres off the roof it leads
+    // to, so the search found open air and he was left clamped at the top of
+    // it with nowhere to go.
+    for (const reach of [distance, distance + TUNING.ledgeReachExtra]) {
+      const from = this.scratchB.set(
+        this.object.position.x + forward.x * reach,
+        feet + TUNING.ledgeGrabHigh + 0.4,
+        this.object.position.z + forward.z * reach,
+      );
+      const ground = this.world.groundProbe(from, TUNING.ledgeGrabHigh + 0.4);
+      if (!ground) continue;
+      if (ground.normal.y < MAX_WALKABLE_NORMAL_Y) continue;
+      return ground.y;
+    }
+    return null;
   }
 
   /**
@@ -775,6 +790,7 @@ export class Player {
    */
   private tryCatchLadder(towards?: Vector3): boolean {
     if (this.state === 'ledge' || this.poundPhase !== 'none') return false;
+    if (this.ladderCooldown > 0) return false;
     const found = this.world.ladderAt(
       this.capsuleCentre(this.scratchProbe),
       TUNING.ladderSnagDistance,
@@ -783,11 +799,17 @@ export class Player {
     // Not straight after climbing off the top of it.
     if (this.object.position.y > found.topY - 0.2) return false;
 
-    // From the ground he has to be going at it; in the air, being near it is
-    // enough, since that is the moment a ladder is worth catching.
-    if (towards) {
-      const into = this.scratchSide.set(Math.sin(found.facing), 0, Math.cos(found.facing));
-      if (towards.dot(into) < 0.3) return false;
+    const into = this.scratchSide.set(Math.sin(found.facing), 0, Math.cos(found.facing));
+
+    // From the ground he has to be walking at it.
+    if (towards && towards.dot(into) < 0.3) return false;
+
+    // In the air he has to be travelling at it. Catching anything merely
+    // near him meant jumping off a ladder was undone on the way back down:
+    // he left it, fell past it, and it took him again.
+    if (!towards) {
+      const closing = this.velocity.x * into.x + this.velocity.z * into.z;
+      if (closing < 0.5) return false;
     }
 
     this.ladder = found;
@@ -807,60 +829,71 @@ export class Player {
     this.syncCapsuleFromPosition();
   }
 
-  private updateClimb(delta: number, input: Input, wish: Vector3, strength: number): void {
+  private updateClimb(delta: number, input: Input, _wish: Vector3, _strength: number): void {
     const ladder = this.ladder;
     if (!ladder) {
       this.state = 'air';
       return;
     }
 
-    // Up and down from the stick, measured along the way he is facing, so
-    // pushing toward the ladder climbs it.
-    const into = this.forwardVector(this.scratchMove);
-    const push = strength > 0.001 ? wish.x * into.x + wish.z * into.z : 0;
-    this.velocity.set(0, push * TUNING.ladderSpeed, 0);
-
-    // He climbs to exactly the height he would hang at, and no further.
-    //
-    // It used to stop a little higher than that, and the move that takes
-    // hold of the edge then settled him down onto the hang — a visible drop
-    // of half a metre at the top of every ladder. Stopping at the hang
-    // height means there is nothing left to settle: the two heights are the
-    // same number, so the hand-over moves him not at all.
-    const highest = ladder.topY - TUNING.ledgeHangLift;
-    this.object.position.y = MathUtils.clamp(
-      this.object.position.y + this.velocity.y * delta,
-      ladder.bounds.min.y - 0.2,
-      highest,
-    );
-    this.snapToLadder(ladder);
-
-    // At the top, the climb hands over to the move that gets him onto it:
-    // he takes hold of the edge and waits there, the same as any other.
-    if (this.object.position.y >= highest - 0.01 && push > 0.2) {
-      const previous = this.ladder;
-      this.ladder = null;
-      if (this.tryCatchLedge()) return;
-      this.ladder = previous;
-    }
-
-    // Jump pushes him off backwards; dropping to the bottom lets go.
+    // Jump comes first, and from anywhere on the ladder. It used to be
+    // checked after the hand-over at the top, so a press on the frame he
+    // reached the top was swallowed by it.
     if (input.wasPressed('jump')) {
-      this.ladder = null;
-      this.state = 'air';
+      this.leaveLadder();
+      const away = this.forwardVector(this.scratchMove);
       this.velocity.set(
-        -into.x * TUNING.ladderJumpOff,
+        -away.x * TUNING.ladderJumpOff,
         TUNING.jumpVelocity * 0.75,
-        -into.z * TUNING.ladderJumpOff,
+        -away.z * TUNING.ladderJumpOff,
       );
       this.jumpHeld = true;
       this.jumpKind = 'normal';
       return;
     }
-    if (this.object.position.y <= ladder.bounds.min.y - 0.19) {
+
+    // Up and down come from the stick itself rather than from the stick
+    // rotated into camera space. On a ladder there is only one axis that
+    // means anything, and tying it to where the camera happens to be
+    // pointing meant forward sometimes climbed and sometimes descended.
+    const climb = MathUtils.clamp(-input.move.y, -1, 1);
+    this.velocity.set(0, climb * TUNING.ladderSpeed, 0);
+
+    // He climbs to exactly the height he would hang at, and no further, so
+    // that taking hold of the edge above moves him not at all.
+    const highest = ladder.topY - TUNING.ledgeHangLift;
+    const next = this.object.position.y + this.velocity.y * delta;
+    const atTop = next >= highest;
+    this.object.position.y = MathUtils.clamp(next, ladder.bounds.min.y - 0.2, highest);
+    this.snapToLadder(ladder);
+
+    // At the top, hand over to the move that gets him onto it.
+    if (atTop && climb > 0.2) {
+      const previous = this.ladder;
       this.ladder = null;
-      this.state = 'air';
+      if (this.tryCatchLedge()) return;
+
+      // Nothing to take hold of. Rather than leave him pinned at the top of
+      // a ladder with the stick pushed up and nothing happening, let go and
+      // give him the height — he can see where he is and come down.
+      this.ladder = previous;
+      this.leaveLadder();
+      const over = this.forwardVector(this.scratchMove);
+      this.velocity.set(over.x * 1.2, TUNING.jumpVelocity * 0.55, over.z * 1.2);
+      this.jumpHeld = false;
+      return;
     }
+
+    // Off the bottom.
+    if (this.object.position.y <= ladder.bounds.min.y - 0.19) this.leaveLadder();
+  }
+
+  /** Lets go of the ladder and hands control back to the air. */
+  private leaveLadder(): void {
+    this.ladder = null;
+    this.ladderCooldown = TUNING.ladderCooldown;
+    this.state = 'air';
+    this.velocity.set(0, 0, 0);
   }
 
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -877,7 +910,10 @@ export class Player {
     this.atSurface = Math.abs(toFloatLine) < 0.35;
 
     this.submerged = true;
-    const diving = input.isDown('dive');
+    // Q dives, the same button that crouches on land: underwater there is
+    // nothing to crouch for, and one button for "down" is easier to hold in
+    // the head than two. The old key still works.
+    const diving = input.isDown('crouch') || input.isDown('dive');
     this.diving = diving;
     if (diving) {
       this.velocity.y -= TUNING.diveAcceleration * delta;

@@ -248,6 +248,15 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   platform(31.4, 9, 9, 7.6, 5);
   block(31.4, 0, 16, 5, 9, 10);
 
+  // A taller pair beside it, with no top to stop at: as long as each wall is
+  // reached, the kicks keep going. Four used to be the limit, and four is
+  // exactly what a nine-metre shaft asks for, so the limit was invisible.
+  sign(31.4, 0, -2, 0, '8b · KEEP GOING', 'Kick wall to wall, no limit', 'This one is sixteen metres');
+  block(29.0, 0, -8, 1.2, 16, 8, STONE_DARK);
+  block(33.8, 0, -8, 1.2, 16, 8, STONE_DARK);
+  platform(31.4, 16, -14.5, 7.6, 4);
+  pad(31.4, 16, -14.5, 2);
+
   // =========================================================================
   // 9 — Three ways over an edge
   // =========================================================================
@@ -267,7 +276,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   sign(24.4, 0.6, 43, -Math.PI / 2, '10 · LADDER', 'Walk into it · E up, D down', 'Space jumps off, Q lets go');
   // Down from the roof to the floor by a ramp, and back up the ladder.
   block(22, 0, 43, 6, 0.6, 8, STONE_DARK);
-  const ladderX = 26.6;
+  const ladderX = 26.95;
   const ladderTop = 11.6;
   buildLadder(solid, ladderX, 43, ladderTop);
   collision.addLadder(
