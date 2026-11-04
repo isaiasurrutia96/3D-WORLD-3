@@ -10,7 +10,7 @@
 import { MathUtils } from 'three';
 import { TUNING } from './Tuning.ts';
 import { ARM, HIP_HEIGHT, SHOULDER_HEIGHT, type CharacterRig } from './PlayerModel.ts';
-import type { JumpKind, MovementState } from './Player.ts';
+import type { JumpKind, MovementState, PoundPhase } from './Player.ts';
 
 export interface AnimationInputs {
   time: number;
@@ -50,6 +50,14 @@ export interface AnimationInputs {
   jumpStage: 1 | 2 | 3;
   /** How far round the triple jump's somersault is, in radians. */
   flipAngle: number;
+  /** Which way he turns over: head-first, or sideways over his shoulder. */
+  flipAxis: 'pitch' | 'roll';
+  /** Which part of a ground pound is running. */
+  poundPhase: PoundPhase;
+  /** True while on a ladder. */
+  climbing: boolean;
+  /** How fast he is going up or down it. */
+  climbSpeed: number;
   /** True only while the somersault is actually turning. */
   flipping: boolean;
   inputStrength: number;
@@ -96,6 +104,9 @@ let initialised = false;
  */
 let stridePhase = 0;
 
+/** How far through the ladder cycle he is, driven by distance climbed. */
+let climbPhase = 0;
+
 function createPose(): Pose {
   return {
     bodyPitch: 0,
@@ -128,7 +139,8 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   // A climb over a ledge is a short scripted move with a beginning, a middle
   // and an end, so it is eased far less than the rest: at the ordinary rate
   // the three of them smeared into one shrug.
-  const rate = input.state === 'ledge' ? 26 : input.state === 'air' ? 16 : 13;
+  const rate =
+    input.state === 'ledge' ? 26 : input.state === 'air' ? 16 : input.state === 'climb' ? 15 : 13;
   const blend = 1 - Math.exp(-rate * input.delta);
 
   if (!initialised) {
@@ -142,7 +154,15 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
 
   // The somersault is added after blending. Easing toward it like any other
   // pose value would smooth a full rotation into almost no rotation at all.
-  rig.body.rotation.set(current.bodyPitch + input.flipAngle, current.bodyYaw, current.bodyRoll);
+  // A somersault and a backflip turn him head over heels; a side flip takes
+  // him over his own shoulder, which is a different axis of the same body.
+  const pitchFlip = input.flipAxis === 'pitch' ? input.flipAngle : 0;
+  const rollFlip = input.flipAxis === 'roll' ? input.flipAngle : 0;
+  rig.body.rotation.set(
+    current.bodyPitch + pitchFlip,
+    current.bodyYaw,
+    current.bodyRoll + rollFlip,
+  );
   rig.body.position.y = HIP_HEIGHT + current.bodyHeight;
   rig.body.scale.set(
     1 / Math.sqrt(current.bodySquash),
@@ -173,6 +193,9 @@ function buildTargetPose(input: AnimationInputs): void {
   reset(pose);
 
   switch (input.state) {
+    case 'climb':
+      poseClimb(input);
+      break;
     case 'ledge':
       poseLedge(input);
       break;
@@ -228,6 +251,27 @@ function reset(target: Pose): void {
 
 function poseGround(input: AnimationInputs): void {
   const normalised = MathUtils.clamp(input.speed / input.maxSpeed, 0, 1);
+
+  if (input.poundPhase === 'landed') {
+    // Down on the ground where he hit it, arms braced.
+    pose.bodyPitch = 0.18;
+    pose.bodyHeight = -0.3;
+    pose.bodySquash = 0.88;
+    pose.shoulderLeftPitch = -0.9;
+    pose.shoulderRightPitch = -0.9;
+    pose.shoulderLeftRoll = 0.7;
+    pose.shoulderRightRoll = 0.7;
+    pose.elbowLeft = -0.5;
+    pose.elbowRight = -0.5;
+    pose.hipLeft = -1.3;
+    pose.hipRight = -1.3;
+    pose.kneeLeft = 2.1;
+    pose.kneeRight = 2.1;
+    pose.ankleLeft = -0.9;
+    pose.ankleRight = -0.9;
+    pose.headPitch = -0.2;
+    return;
+  }
 
   if (input.crouching) {
     // Down on his haunches, weight over his heels, hands out in front for
@@ -461,6 +505,37 @@ function reachForTheEdge(input: AnimationInputs): void {
   pose.shoulderRightRoll = 0.14;
 }
 
+/**
+ * On a ladder: opposite hand and foot together, the way anyone climbs, with
+ * the cycle driven by how far he has gone up it rather than by a clock. Stop
+ * halfway and he stops halfway, which is the whole point of driving it by
+ * distance.
+ */
+function poseClimb(input: AnimationInputs): void {
+  climbPhase += input.climbSpeed * input.delta * 2.6;
+  const reach = Math.sin(climbPhase);
+
+  pose.bodyPitch = 0.06;
+  pose.headPitch = -0.2;
+  pose.bodyRoll = reach * 0.04;
+
+  // Arms overhead on the rungs, one higher than the other.
+  pose.shoulderLeftPitch = -2.55 + reach * 0.3;
+  pose.shoulderRightPitch = -2.55 - reach * 0.3;
+  pose.shoulderLeftRoll = 0.3;
+  pose.shoulderRightRoll = 0.3;
+  pose.elbowLeft = -0.55 - Math.max(0, reach) * 0.5;
+  pose.elbowRight = -0.55 - Math.max(0, -reach) * 0.5;
+
+  // Legs opposite to the hands.
+  pose.hipLeft = -0.45 - Math.max(0, -reach) * 0.65;
+  pose.hipRight = -0.45 - Math.max(0, reach) * 0.65;
+  pose.kneeLeft = 0.55 + Math.max(0, -reach) * 0.75;
+  pose.kneeRight = 0.55 + Math.max(0, reach) * 0.75;
+  pose.ankleLeft = 0.2;
+  pose.ankleRight = 0.2;
+}
+
 function poseAir(input: AnimationInputs): void {
   const rising = input.verticalSpeed > 0.5;
 
@@ -481,6 +556,65 @@ function poseAir(input: AnimationInputs): void {
     pose.ankleLeft = 0.1;
     pose.ankleRight = 0.1;
     pose.headPitch = -0.12;
+    return;
+  }
+
+  if (input.poundPhase === 'hover') {
+    // Hanging still, turned over, knees coming up under him before the drop.
+    pose.bodyPitch = 0.5;
+    pose.shoulderLeftPitch = -2.3;
+    pose.shoulderRightPitch = -2.3;
+    pose.shoulderLeftRoll = 0.9;
+    pose.shoulderRightRoll = 0.9;
+    pose.elbowLeft = -1.1;
+    pose.elbowRight = -1.1;
+    pose.hipLeft = -1.7;
+    pose.hipRight = -1.7;
+    pose.kneeLeft = 2;
+    pose.kneeRight = 2;
+    pose.bodySquash = 0.94;
+    pose.headPitch = -0.3;
+    return;
+  }
+
+  if (input.poundPhase === 'slam') {
+    // Sitting on the way down, legs out in front, which is what puts his
+    // weight where the landing happens.
+    pose.bodyPitch = -0.55;
+    pose.bodyHeight = -0.05;
+    pose.shoulderLeftPitch = -1.5;
+    pose.shoulderRightPitch = -1.5;
+    pose.shoulderLeftRoll = 0.75;
+    pose.shoulderRightRoll = 0.75;
+    pose.elbowLeft = -0.4;
+    pose.elbowRight = -0.4;
+    pose.hipLeft = -1.95;
+    pose.hipRight = -1.95;
+    pose.kneeLeft = 0.5;
+    pose.kneeRight = 0.5;
+    pose.ankleLeft = -0.3;
+    pose.ankleRight = -0.3;
+    pose.bodySquash = 1.06;
+    pose.headPitch = 0.15;
+    return;
+  }
+
+  if (input.jumpKind === 'side') {
+    // Tucked for the side flip, arms in, so the rotation over his shoulder
+    // is readable rather than a figure waving its limbs.
+    pose.shoulderLeftPitch = -1.3;
+    pose.shoulderRightPitch = -1.3;
+    pose.shoulderLeftRoll = 0.55;
+    pose.shoulderRightRoll = 0.55;
+    pose.elbowLeft = -1.5;
+    pose.elbowRight = -1.5;
+    pose.hipLeft = -1.25;
+    pose.hipRight = -1.25;
+    pose.kneeLeft = 1.6;
+    pose.kneeRight = 1.6;
+    pose.ankleLeft = 0.3;
+    pose.ankleRight = 0.3;
+    pose.bodySquash = 1.03;
     return;
   }
 

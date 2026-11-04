@@ -12,7 +12,7 @@
 
 import { Group, MathUtils, Object3D, Vector3 } from 'three';
 import { Capsule } from 'three/addons/math/Capsule.js';
-import type { CollisionWorld } from '../physics/CollisionWorld.ts';
+import type { CollisionWorld, LadderVolume } from '../physics/CollisionWorld.ts';
 import type { Input } from '../input/Input.ts';
 import type { Carryable } from '../world/Carryable.ts';
 import { MAX_WALKABLE_NORMAL_Y, TUNING } from './Tuning.ts';
@@ -25,13 +25,16 @@ import {
 } from './PlayerModel.ts';
 import { animateCharacter, type AnimationInputs } from './PlayerAnimation.ts';
 
-export type MovementState = 'ground' | 'air' | 'swim' | 'ledge';
+export type MovementState = 'ground' | 'air' | 'swim' | 'ledge' | 'climb';
 
 /**
  * Which jump is in the air. The arc and the pose both follow from it, and it
  * lasts until the feet are back on the ground.
  */
-export type JumpKind = 'normal' | 'long' | 'back' | 'wall';
+export type JumpKind = 'normal' | 'long' | 'back' | 'wall' | 'side';
+
+/** Which part of a ground pound is running, if any. */
+export type PoundPhase = 'none' | 'hover' | 'slam' | 'landed';
 
 export interface PlayerEvents {
   onSplash?: (position: Vector3, strength: number) => void;
@@ -106,6 +109,19 @@ export class Player {
   private jumpKind: JumpKind = 'normal';
   /** 1 turns the somersault forwards, -1 backwards for a backflip. */
   private flipDirection: 1 | -1 = 1;
+  /**
+   * Which way the figure turns over. A somersault and a backflip go over
+   * head-first or heels-first; a side flip goes over his own shoulder, which
+   * is a different axis entirely.
+   */
+  private flipAxis: 'pitch' | 'roll' = 'pitch';
+  /** Seconds since the jump button was last pressed, for spotting a double tap. */
+  private sinceJumpPress = 99;
+  /** The ground pound, which is a hover, a drop and a moment planted. */
+  private poundPhase: PoundPhase = 'none';
+  private poundTimer = 0;
+  /** The ladder he is on, if any. */
+  private ladder: LadderVolume | null = null;
   /** The last wall touched in the air, pointing away from it. */
   private readonly wallNormal = new Vector3();
   /** Seconds since that wall was touched. Large means "not near one". */
@@ -160,6 +176,13 @@ export class Player {
   private readonly scratchB = new Vector3();
   private readonly scratchMove = new Vector3();
   private readonly scratchSide = new Vector3();
+  /**
+   * Kept separate from the rest on purpose. The ladder search runs in the
+   * middle of the ground step, where scratchB is already holding the
+   * character's horizontal velocity — borrowing it there overwrote the
+   * velocity with a position, and everything downstream went with it.
+   */
+  private readonly scratchProbe = new Vector3();
 
 
   constructor(
@@ -202,6 +225,10 @@ export class Player {
   }
 
   get stateName(): string {
+    if (this.state === 'climb') return 'climb';
+    if (this.state === 'air' && this.poundPhase === 'hover') return 'pound-hover';
+    if (this.state === 'air' && this.poundPhase === 'slam') return 'pound';
+    if (this.poundPhase === 'landed') return 'pound-land';
     if (this.state === 'ledge') {
       if (this.ledgeHanging) return 'hanging';
       if (this.ledgeWide) return 'mantle';
@@ -216,6 +243,7 @@ export class Player {
       if (this.jumpKind === 'long') return 'long-jump';
       if (this.jumpKind === 'back') return 'backflip';
       if (this.jumpKind === 'wall' && this.velocity.y > 0) return 'wall-kick';
+      if (this.jumpKind === 'side') return 'side-flip';
       if (this.velocity.y <= 0.5) return 'fall';
       return this.jumpStage === 3 ? 'triple' : this.jumpStage === 2 ? 'double' : 'jump';
     }
@@ -235,6 +263,11 @@ export class Player {
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
+    if (this.sinceJumpPress < 10) this.sinceJumpPress += delta;
+    if (this.poundPhase === 'landed') {
+      this.poundTimer -= delta;
+      if (this.poundTimer <= 0) this.poundPhase = 'none';
+    }
 
     // Movement intent, rotated from stick space into camera space. Pushing up
     // on the stick always means "away from the camera".
@@ -251,6 +284,14 @@ export class Player {
     // A climb over a ledge runs on its own: it places him from where he
     // caught hold to where he ends up standing, and nothing else gets a say
     // until it is finished.
+    if (this.state === 'climb') {
+      this.updateClimb(delta, input, wish, strength);
+      this.updateCarry(delta, input);
+      this.updateRecovery(delta);
+      this.syncModel(delta, strength);
+      return;
+    }
+
     if (this.state === 'ledge') {
       this.updateLedge(delta, input);
       this.updateCarry(delta, input);
@@ -289,7 +330,20 @@ export class Player {
     const horizontal = this.scratchB.set(this.velocity.x, 0, this.velocity.z);
     const speed = horizontal.length();
 
-    this.crouching = input.isDown('crouch');
+    this.crouching = input.isDown('crouch') && this.poundPhase === 'none';
+
+    // Walking into a ladder takes hold of it.
+    if (strength > 0.001 && !this.crouching && this.tryCatchLadder(wish)) return;
+
+    if (this.poundPhase === 'landed') {
+      // Planted for a moment after the slam.
+      this.braking = false;
+      this.skidding = false;
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+      if (this.velocity.y < 0) this.velocity.y = -2;
+      return;
+    }
 
     if (this.crouching) {
       // A crouch at speed is a slide, not a stop. It has to carry him far
@@ -407,6 +461,16 @@ export class Player {
       this.jumpHeld = false;
     }
 
+    // A ground pound in progress owns the character completely.
+    if (this.poundPhase === 'hover' || this.poundPhase === 'slam') {
+      this.updateGroundPound(delta);
+      return;
+    }
+
+    // A ladder passed within reach is caught, which is what makes jumping at
+    // one work rather than bouncing off the wall it is on.
+    if (this.tryCatchLadder()) return;
+
     // A top edge within reach takes priority over everything else in the
     // air: without it, kicking up to the top of a wall ends in a bounce off
     // the last few inches and a drop all the way back down.
@@ -426,6 +490,14 @@ export class Player {
       this.wallKicks < TUNING.wallKickLimit
     ) {
       this.performWallKick();
+      return;
+    }
+
+    // Two presses in quick succession, with no wall to kick off, is a ground
+    // pound. It is checked after the wall kick because a wall is the more
+    // specific thing to be doing.
+    if (input.wasPressed('jump') && this.sinceJumpPress < TUNING.groundPoundWindow) {
+      this.startGroundPound();
       return;
     }
 
@@ -627,6 +699,135 @@ export class Player {
     }
   }
 
+  /**
+   * Press jump a second time quickly in the air and he stops dead, turns
+   * over, and drives himself into the ground.
+   *
+   * The pause before the drop is most of the move. Falling straight away
+   * would read as nothing more than falling faster; hanging there for a
+   * fifth of a second is what makes the drop afterwards look deliberate.
+   */
+  private startGroundPound(): void {
+    this.velocity.set(0, 0, 0);
+    this.poundPhase = 'hover';
+    this.poundTimer = TUNING.groundPoundHover;
+    this.jumpKind = 'normal';
+    this.jumpStage = 1;
+    this.flipTimer = -1;
+    this.flipProgress = 0;
+    this.jumpBufferTimer = 0;
+    this.sinceJumpPress = 99;
+  }
+
+  private updateGroundPound(delta: number): void {
+    if (this.poundPhase === 'hover') {
+      this.poundTimer -= delta;
+      this.velocity.set(0, 0, 0);
+      if (this.poundTimer <= 0) this.poundPhase = 'slam';
+      return;
+    }
+    if (this.poundPhase === 'slam') {
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+      this.velocity.y = -TUNING.groundPoundSpeed;
+    }
+  }
+
+  /**
+   * Catches a ladder when he comes close to one, and climbs it.
+   *
+   * A ladder is flush with its wall, so there is nothing to stand on and
+   * nothing to push against: it is handled as a box to be inside rather than
+   * a surface to be against. He is held at a fixed distance off the face
+   * while on it, which is also what stops him sinking into the wall.
+   */
+  private tryCatchLadder(towards?: Vector3): boolean {
+    if (this.state === 'ledge' || this.poundPhase !== 'none') return false;
+    const found = this.world.ladderAt(
+      this.capsuleCentre(this.scratchProbe),
+      TUNING.ladderSnagDistance,
+    );
+    if (!found) return false;
+    // Not straight after climbing off the top of it.
+    if (this.object.position.y > found.topY - 0.2) return false;
+
+    // From the ground he has to be going at it; in the air, being near it is
+    // enough, since that is the moment a ladder is worth catching.
+    if (towards) {
+      const into = this.scratchSide.set(Math.sin(found.facing), 0, Math.cos(found.facing));
+      if (towards.dot(into) < 0.3) return false;
+    }
+
+    this.ladder = found;
+    this.facing = found.facing;
+    this.velocity.set(0, 0, 0);
+    this.state = 'climb';
+    this.snapToLadder(found);
+    return true;
+  }
+
+  /** Holds him square to the ladder, a fixed distance off its face. */
+  private snapToLadder(ladder: LadderVolume): void {
+    const into = this.forwardVector(this.scratchMove);
+    this.object.position.x = ladder.anchor.x - into.x * TUNING.ladderStandOff;
+    this.object.position.z = ladder.anchor.z - into.z * TUNING.ladderStandOff;
+    this.object.rotation.y = this.facing;
+    this.syncCapsuleFromPosition();
+  }
+
+  private updateClimb(delta: number, input: Input, wish: Vector3, strength: number): void {
+    const ladder = this.ladder;
+    if (!ladder) {
+      this.state = 'air';
+      return;
+    }
+
+    // Up and down from the stick, measured along the way he is facing, so
+    // pushing toward the ladder climbs it.
+    const into = this.forwardVector(this.scratchMove);
+    const push = strength > 0.001 ? wish.x * into.x + wish.z * into.z : 0;
+    this.velocity.set(0, push * TUNING.ladderSpeed, 0);
+
+    // He climbs to just below the top rung and no further. Going right to
+    // the top would leave the edge barely above his feet, which is too close
+    // to reach for — the move that gets him over it needs the edge somewhere
+    // between his chest and over his head.
+    const highest = ladder.topY - TUNING.ladderTopGap;
+    this.object.position.y = MathUtils.clamp(
+      this.object.position.y + this.velocity.y * delta,
+      ladder.bounds.min.y - 0.2,
+      highest,
+    );
+    this.snapToLadder(ladder);
+
+    // At the top, the climb hands over to the move that gets him onto it:
+    // he takes hold of the edge and waits there, the same as any other.
+    if (this.object.position.y >= highest - 0.01 && push > 0.2) {
+      const previous = this.ladder;
+      this.ladder = null;
+      if (this.tryCatchLedge()) return;
+      this.ladder = previous;
+    }
+
+    // Jump pushes him off backwards; dropping to the bottom lets go.
+    if (input.wasPressed('jump')) {
+      this.ladder = null;
+      this.state = 'air';
+      this.velocity.set(
+        -into.x * TUNING.ladderJumpOff,
+        TUNING.jumpVelocity * 0.75,
+        -into.z * TUNING.ladderJumpOff,
+      );
+      this.jumpHeld = true;
+      this.jumpKind = 'normal';
+      return;
+    }
+    if (this.object.position.y <= ladder.bounds.min.y - 0.19) {
+      this.ladder = null;
+      this.state = 'air';
+    }
+  }
+
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
     this.skidding = false;
     const water = this.world.waterAt(this.capsuleCentre(this.scratchB));
@@ -715,6 +916,14 @@ export class Player {
 
     if (this.onGround) {
       if (!wasOnGround) {
+        if (this.poundPhase === 'slam') {
+          this.poundPhase = 'landed';
+          this.poundTimer = TUNING.groundPoundRecovery;
+          this.landingTimer = 0.17;
+          this.events.onLand?.(this.object.position, 1);
+        } else if (this.poundPhase !== 'landed') {
+          this.poundPhase = 'none';
+        }
         this.flipTimer = -1;
         this.flipProgress = 0;
         this.flipDirection = 1;
@@ -871,6 +1080,7 @@ export class Player {
   }
 
   private updateJumpTimers(delta: number, input: Input): void {
+    if (input.wasPressed('jump')) this.sinceJumpPress = 0;
     if (this.coyoteTimer > 0) this.coyoteTimer -= delta;
     if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= delta;
     if (input.wasPressed('jump')) this.jumpBufferTimer = TUNING.jumpBufferTime;
@@ -884,6 +1094,14 @@ export class Player {
    * move rather than something to do on the spot.
    */
   private performJump(): void {
+    // Turning hard at a run and jumping during the turn is a side flip. It
+    // comes first because a skid is already the controller's own word for
+    // "he is changing his mind about which way he is going".
+    if (this.skidding) {
+      this.performSideFlip();
+      return;
+    }
+
     // A jump out of a crouch is a different move entirely, and which one it
     // is depends only on whether he is still travelling.
     if (this.crouching) {
@@ -914,6 +1132,7 @@ export class Player {
     this.flipProgress = 0;
 
     this.flipDirection = 1;
+    this.flipAxis = 'pitch';
     this.takeOff();
   }
 
@@ -936,6 +1155,30 @@ export class Player {
     this.flipTimer = -1;
     this.flipProgress = 0;
     this.flipDirection = 1;
+    this.flipAxis = 'pitch';
+    this.takeOff();
+  }
+
+  /**
+   * Thrown sideways over his own shoulder, out of a hard turn.
+   *
+   * The rotation is about a different axis from the somersault and the
+   * backflip: those go over head-first or heels-first, this one goes over
+   * sideways, which is the whole reason it looks like a different move.
+   */
+  private performSideFlip(): void {
+    const forward = this.forwardVector(this.scratchMove);
+    this.velocity.x = forward.x * TUNING.sideFlipSpeed;
+    this.velocity.z = forward.z * TUNING.sideFlipSpeed;
+    this.velocity.y = TUNING.sideFlipVelocity;
+
+    this.jumpKind = 'side';
+    this.jumpStage = 1;
+    this.flipTimer = 0;
+    this.flipDelay = TUNING.tripleJumpFlipDelay;
+    this.flipProgress = 0;
+    this.flipDirection = 1;
+    this.flipAxis = 'roll';
     this.takeOff();
   }
 
@@ -954,6 +1197,7 @@ export class Player {
     this.flipDelay = TUNING.tripleJumpFlipDelay;
     this.flipProgress = 0;
     this.flipDirection = -1;
+    this.flipAxis = 'pitch';
     this.takeOff();
   }
 
@@ -976,11 +1220,13 @@ export class Player {
     this.flipTimer = -1;
     this.flipProgress = 0;
     this.flipDirection = 1;
+    this.flipAxis = 'pitch';
     this.takeOff();
   }
 
   /** What every jump does, whichever one it is. */
   private takeOff(): void {
+    this.poundPhase = 'none';
     this.comboWindow = 0;
     this.jumpHeld = true;
     this.jumpBufferTimer = 0;
@@ -1335,6 +1581,10 @@ export class Player {
       jumpStage: this.jumpStage,
       flipAngle:
         this.flipTimer < 0 ? 0 : this.flipProgress * Math.PI * 2 * this.flipDirection,
+      flipAxis: this.flipAxis,
+      poundPhase: this.poundPhase,
+      climbing: this.state === 'climb',
+      climbSpeed: this.state === 'climb' ? this.velocity.y : 0,
       flipping: this.flipping,
       crouching: this.crouching,
       braking: this.braking,

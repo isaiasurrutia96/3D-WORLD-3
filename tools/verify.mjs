@@ -443,6 +443,60 @@ if (!ledges.wallTopByKicking.reached) {
 
 await resetPlayer(page);
 
+// ---- The side flip, the ground pound, the ladder, the pool, the crate ---
+const extras = await page.evaluate(() => window.__letsgo.debug.simulateExtras(1 / 60));
+
+if (!extras.sideFlip.sawSkid) {
+  problems.push('turning hard at a run no longer produces a skid to flip out of');
+}
+if (!extras.sideFlip.states.includes('side-flip')) {
+  problems.push(`jumping out of a skid gave ${extras.sideFlip.states.join(' > ')}`);
+}
+if (!(extras.sideFlip.peak > 2.2)) {
+  problems.push(`the side flip only reached ${extras.sideFlip.peak}m`);
+}
+
+for (const want of ['pound-hover', 'pound', 'pound-land']) {
+  if (!extras.groundPound.states.includes(want)) {
+    problems.push(
+      `two quick presses in the air gave ${extras.groundPound.states.join(' > ')}, ` +
+        `with no ${want}`,
+    );
+  }
+}
+
+if (!extras.ladder.caught) problems.push('walking into the ladder did not catch it');
+if (!(extras.ladder.to > extras.ladder.from + 4)) {
+  problems.push(`the ladder carried him only ${extras.ladder.to - extras.ladder.from}m up`);
+}
+// And the top of it hands over to the climb onto the wall.
+if (!extras.ladder.states.includes('hanging')) {
+  problems.push(
+    `the top of the ladder gave ${extras.ladder.states.join(' > ')} rather than taking ` +
+      `hold of the wall top (${extras.ladder.why})`,
+  );
+}
+
+if (!extras.pool.swam) {
+  problems.push(`walking into the pool gave ${extras.pool.states.join(' > ')}`);
+}
+if (!(extras.pool.depth < -0.3)) {
+  problems.push(`the pool left him at ${extras.pool.depth}m, which is not in it`);
+}
+
+if (!extras.crate.inReach) problems.push('the crate was never within reach');
+if (!extras.crate.carrying) problems.push('pressing grab did not pick the crate up');
+
+// The ramp has to lead all the way onto the circuit, not into the side of it.
+if (!(extras.ramp.reached >= extras.ramp.trackHeight - 0.1)) {
+  problems.push(
+    `running up the ramp reached ${extras.ramp.reached}m against a track at ` +
+      `${extras.ramp.trackHeight}m — it stops short of the road`,
+  );
+}
+
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -539,6 +593,21 @@ console.log('\n--- over a top edge ---');
 for (const [name, result] of Object.entries(ledges)) {
   console.log(` ${name.padEnd(18)} ends at ${result.landedAt}m  ${result.states.join(' > ')}`);
 }
+
+console.log('\n--- the newest moves ---');
+console.log(` side flip      ${extras.sideFlip.peak}m high  ${extras.sideFlip.states.join(' > ')}`);
+console.log(` ground pound   ${extras.groundPound.states.join(' > ')}`);
+console.log(
+  ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m  ` +
+    `${extras.ladder.states.join(' > ')}`,
+);
+console.log(` pool           down to ${extras.pool.depth}m  ${extras.pool.states.join(' > ')}`);
+console.log(
+  ` crate          in reach ${extras.crate.inReach}, carried ${extras.crate.carrying}`,
+);
+console.log(
+  ` ramp           up to ${extras.ramp.reached}m, circuit at ${extras.ramp.trackHeight}m`,
+);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

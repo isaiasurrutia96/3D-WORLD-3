@@ -339,12 +339,12 @@ function applyDeadzone(value: number): number {
 const KEY_ACTIONS: Record<string, ActionName | undefined> = {
   Space: 'jump',
   KeyR: 'grab',
-  KeyQ: 'interact',
+  KeyQ: 'crouch',
   KeyL: 'togglePointerLock',
   Escape: 'pause',
   ControlLeft: 'dive',
   KeyC: 'dive',
-  KeyW: 'crouch',
+  KeyW: 'interact',
 };
 
 const GAMEPAD_ACTIONS: Record<number, ActionName> = {

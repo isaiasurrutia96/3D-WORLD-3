@@ -17,6 +17,7 @@ import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { buildSlab, type SlabWorld } from './world/Slab.ts';
+import { buildTrack, type TrackWorld } from './world/Track.ts';
 import { Hud } from './ui/Hud.ts';
 
 const container = document.getElementById('app');
@@ -34,6 +35,7 @@ class Game {
   private readonly effects: ParticleEffects;
 
   private readonly world: SlabWorld;
+  private readonly track: TrackWorld;
   private readonly player: Player;
   private readonly cameraRig: CameraRig;
 
@@ -45,6 +47,12 @@ class Game {
     this.effects = new ParticleEffects(this.engine.scene);
 
     this.world = buildSlab(this.engine.scene, this.collision);
+
+    // The circuit floats above the slab and is joined to it by a ramp, so it
+    // can be run on without anything else being built underneath it.
+    this.track = buildTrack();
+    this.engine.scene.add(this.track.root);
+    this.collision.addSolid(this.track.solid);
 
     this.player = new Player(
       this.collision,
@@ -58,6 +66,7 @@ class Game {
       { plain: true },
     );
     this.player.facing = this.world.spawnFacing;
+    this.player.carryables = this.world.carryables;
     this.engine.scene.add(this.player.object);
 
     this.cameraRig = new CameraRig(this.engine.camera, this.collision);
@@ -116,6 +125,8 @@ class Game {
     this.player.update(delta, this.input, this.cameraRig.movementYaw);
     this.cameraRig.update(delta, this.player);
 
+    for (const carryable of this.world.carryables) carryable.update(delta, this.collision);
+    this.world.water.update(this.engine.clock.elapsedTime);
     this.effects.update(delta);
     this.engine.focusShadowsOn(this.player.position);
     this.engine.render(delta);
@@ -143,6 +154,7 @@ class Game {
     return {
       engine: this.engine,
       player: this.player,
+      track: this.track,
       world: this.world,
       settings: this.settings,
       rig: this.player.rig,
@@ -785,6 +797,164 @@ class Game {
 
         place(0, 0, 10, this.world.spawnFacing);
         for (let i = 0; i < frames(0.4); i += 1) step();
+        return results;
+      },
+
+      /** The moves added last: side flip, ground pound, ladder, pool, crate. */
+      simulateExtras: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const held = new Set<string>();
+        const pressed = new Set<string>();
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: (a: string) => held.has(a),
+          wasPressed: (a: string) => pressed.has(a),
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const player = this.player;
+        const step = () => {
+          player.update(dt, stub, 0);
+          pressed.clear();
+        };
+        const frames = (s: number) => Math.max(1, Math.round(s / dt));
+        const round = (v: number, n = 2) => Math.round(v * 10 ** n) / 10 ** n;
+        const tap = (a: string) => {
+          held.add(a);
+          pressed.add(a);
+        };
+        const place = (x: number, y: number, z: number, facing: number) => {
+          held.clear();
+          pressed.clear();
+          stick.x = 0;
+          stick.y = 0;
+          player.teleport(new Vector3(x, y, z), facing);
+          for (let i = 0; i < frames(0.3); i += 1) step();
+        };
+        const watch = (seconds: number, stop?: (name: string) => boolean) => {
+          const states: string[] = [];
+          for (let i = 0; i < frames(seconds); i += 1) {
+            step();
+            const name = player.stateName;
+            if (states[states.length - 1] !== name) states.push(name);
+            if (stop?.(name)) break;
+          }
+          return states;
+        };
+
+        const results: Record<string, unknown> = {};
+
+        // Side flip: run, turn hard, jump during the turn.
+        place(0, 0, 30, Math.PI);
+        stick.y = -1;
+        for (let i = 0; i < frames(1); i += 1) step();
+        stick.y = 1;
+        let sawSkid = false;
+        for (let i = 0; i < frames(0.4); i += 1) {
+          step();
+          if (player.stateName === 'skid') {
+            sawSkid = true;
+            break;
+          }
+        }
+        tap('jump');
+        for (let i = 0; i < frames(0.3); i += 1) step();
+        held.delete('jump');
+        let peak = player.position.y;
+        const flipStates: string[] = [];
+        for (let i = 0; i < frames(2); i += 1) {
+          step();
+          peak = Math.max(peak, player.position.y);
+          const name = player.stateName;
+          if (flipStates[flipStates.length - 1] !== name) flipStates.push(name);
+        }
+        results.sideFlip = { sawSkid, states: flipStates, peak: round(peak) };
+
+        // Ground pound: jump, then two quick presses in the air.
+        place(0, 0, 30, Math.PI);
+        tap('jump');
+        for (let i = 0; i < frames(0.3); i += 1) step();
+        held.delete('jump');
+        for (let i = 0; i < frames(0.15); i += 1) step();
+        tap('jump');
+        step();
+        held.delete('jump');
+        step();
+        tap('jump');
+        step();
+        held.delete('jump');
+        results.groundPound = { states: watch(2.5, (n) => n === 'idle') };
+
+        // The ladder, on the single wall: walk into it.
+        place(12.6, 0, -6, Math.PI / 2);
+        stick.x = 1;
+        const ladderStates = watch(0.8, (n) => n === 'climb');
+        const caught = player.stateName === 'climb';
+        const bottom = round(player.position.y);
+        const climbed = watch(3, () => false);
+        results.ladder = {
+          caught,
+          from: bottom,
+          to: round(player.position.y),
+          states: [...ladderStates, ...climbed],
+          why: player.ledgeDiagnostics.reason,
+          lip: player.ledgeDiagnostics.lip,
+        };
+
+        // The pool: walk in from the side.
+        place(-22, 0, 36, Math.PI);
+        stick.x = 0;
+        stick.y = -1;
+        const swimStates = watch(2.5, (n) => n.startsWith('swim'));
+        results.pool = {
+          swam: player.stateName.startsWith('swim'),
+          states: swimStates,
+          depth: round(player.position.y),
+        };
+
+        // The crate: walk to it and pick it up.
+        place(3, 0, 16.4, Math.PI);
+        stick.x = 0;
+        stick.y = -0.4;
+        for (let i = 0; i < frames(0.55); i += 1) step();
+        stick.y = 0;
+        for (let i = 0; i < frames(0.3); i += 1) step();
+        const target = player.findCarryTarget();
+        tap('grab');
+        step();
+        held.delete('grab');
+        for (let i = 0; i < frames(0.5); i += 1) step();
+        results.crate = {
+          inReach: target !== null,
+          carrying: player.carried !== null,
+        };
+
+        // The ramp onto the circuit: run up it from the bottom.
+        const foot = this.track.rampFoot;
+        const top = this.track.rampTop;
+        const toTrack = new Vector3(top.x - foot.x, 0, top.z - foot.z).normalize();
+        place(foot.x - toTrack.x * 2, 0, foot.z - toTrack.z * 2, Math.atan2(toTrack.x, toTrack.z));
+        stick.x = toTrack.x;
+        stick.y = toTrack.z;
+        let highest = 0;
+        for (let i = 0; i < frames(6); i += 1) {
+          step();
+          highest = Math.max(highest, player.position.y);
+        }
+        results.ramp = {
+          foot: { x: round(foot.x), z: round(foot.z) },
+          trackHeight: round(top.y),
+          reached: round(highest),
+          stoppedAt: {
+            x: round(player.position.x),
+            y: round(player.position.y),
+            z: round(player.position.z),
+          },
+          state: player.stateName,
+        };
+
+        place(0, 0, 10, this.world.spawnFacing);
         return results;
       },
 

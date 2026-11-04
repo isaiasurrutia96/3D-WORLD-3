@@ -46,12 +46,14 @@ export class Hud {
     hints.innerHTML = `
       Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b> ·
       Walk <b>hold Shift</b> · Jump <b>Space</b><br />
-      Jump again right after landing, while moving, for a higher second and
-      third jump<br />
-      Crouch <b>W</b> — crouch while running then jump for a <b>long jump</b>,
-      crouch standing still then jump for a <b>backflip</b><br />
-      Jump again against a wall to <b>kick off it</b> · let go at a run to
-      <b>skid to a stop</b><br />
+      Jump again on landing for a higher second and third jump · turn hard at
+      a run and jump for a <b>side flip</b><br />
+      Crouch <b>Q</b> — crouch running then jump for a <b>long jump</b>, crouch
+      still then jump for a <b>backflip</b><br />
+      <b>Space twice</b> in the air to <b>ground pound</b> · jump at a wall to
+      <b>kick off it</b> · <b>Space</b> on a ledge to climb up<br />
+      <b>R</b> pick up and drop · walk into the ladder to climb · let go at a
+      run to <b>skid</b><br />
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
       Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high
     `;

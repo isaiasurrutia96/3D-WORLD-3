@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — shadows, hanging, the vault, and planted hands.
+Last updated: 4 November 2026 — side flip, ground pound, ladder, pool, crate, circuit.
 
 ---
 
@@ -242,6 +242,62 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, eighth entry.** Checkpoint 4 taken as the branch
+`checkpoint-4-ledges`. Then the keys were changed and five things added.
+
+**1. Crouch moved to Q, interact to W.** Interact had Q and nothing uses it
+yet, so the swap costs nothing today.
+
+**2. The side flip.** Turning hard at a run and jumping during the turn
+throws him sideways over his own shoulder. It comes out of the skid the
+controller already knew about, which is its own definition of "he is
+changing his mind about which way he is going". It turns about a different
+axis from the somersault and the backflip — those go head over heels, this
+one goes over sideways — which is the whole reason it reads as a different
+move.
+
+**3. The ground pound, on a double tap of jump.** He stops dead, turns over,
+hangs for a fifth of a second and then drives into the ground. The pause is
+most of the move: dropping straight away reads as nothing more than falling
+faster.
+
+**4. A ladder on the tall wall.** A ladder is flush with its wall, so there
+is nothing to stand on and nothing to push against; it is handled as a box to
+be inside rather than a surface to be against. Walking into one catches it,
+and so does passing near one in the air. He climbs to a little below the top
+and then takes hold of the wall above in the ordinary way, so getting off the
+top of a ladder is the same move as getting off the top of anything else.
+
+**5. A pool, with a hole cut in the floor above it.** The floor is one plane
+of two-metre squares, so the triangles over the pool are simply dropped. A
+basin underneath and a water volume in it make it a pool set into the ground
+rather than a tank standing on it.
+
+**6. A crate to carry.** The hands were moved further out in front so a box
+the size of his chest sits clear of it rather than halfway through it.
+Throwing is already there — the same button throws what he is holding.
+
+**7. The circuit.** Built from a closed curve rather than placed piece by
+piece: the curve is sampled at a fixed spacing, and the road, the striped
+kerbs, the guard rails and their posts are all ribbons of quads laid along
+the left and right edges at each sample. The shape of the circuit is
+therefore a list of corner points and nothing else. It floats thirteen metres
+up and is joined to the slab by a ramp at twenty-four degrees.
+
+Two things the ramp taught. It has to meet the *outside edge* of the
+circuit, not its centre line — run to the centre line it arrived two metres
+below the road, under the lip of the kerb, which is a wall to run into rather
+than a way up. And the guard rail has to be left out where it joins, or the
+only route onto the circuit is fenced off.
+
+**8. A fault found on the way.** The ladder search borrowed the same scratch
+vector the ground step keeps the character's horizontal velocity in, so
+looking for a ladder overwrote the velocity with a position and everything
+downstream went with it. Worth remembering: these vectors are reused on
+purpose to avoid allocating every frame, and that only works while no two
+users of one overlap.
+
 
 **4 November 2026, seventh entry.** Four fixes around the climb.
 

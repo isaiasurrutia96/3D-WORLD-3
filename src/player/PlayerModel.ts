@@ -365,9 +365,10 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const legLeft = buildLeg(-1);
   const legRight = buildLeg(1);
 
-  // Where carried objects attach: out in front, at chest height.
+  // Where carried objects attach: out in front, at chest height, and far
+  // enough forward that a box the size of his chest does not sink into it.
   const carryAnchor = new Object3D();
-  carryAnchor.position.set(0, 0.24, 0.52);
+  carryAnchor.position.set(0, 0.3, 0.68);
   torso.add(carryAnchor);
 
   root.traverse((object) => {

@@ -129,6 +129,46 @@ export const TUNING = {
   /** Downward speed while sliding against a wall, which slows the fall. */
   wallSlideSpeed: 3.4,
 
+  // ---- The side flip -------------------------------------------------------
+  /**
+   * Turning hard at a run and jumping during the turn throws him sideways
+   * over his own shoulder. It is the one jump that comes out of a skid, and
+   * it exists because a hard reversal is already a distinct thing the
+   * controller knows about.
+   */
+  sideFlipVelocity: 13.2,
+  /** How fast it carries him in the new direction. */
+  sideFlipSpeed: 5,
+
+  // ---- The ground pound ----------------------------------------------------
+  /**
+   * Press jump twice quickly in the air and he stops dead, turns over, and
+   * drives himself into the ground. This is the window between the two
+   * presses.
+   */
+  groundPoundWindow: 0.32,
+  /** How long he hangs before the drop. The pause is most of the move. */
+  groundPoundHover: 0.22,
+  /** How fast he comes down. Far quicker than falling. */
+  groundPoundSpeed: 34,
+  /** How long he is planted on landing before he can move again. */
+  groundPoundRecovery: 0.3,
+
+  // ---- Ladders -------------------------------------------------------------
+  /** How far from a ladder he will catch hold of it. */
+  ladderSnagDistance: 0.85,
+  /** How fast he goes up and down one. */
+  ladderSpeed: 2.8,
+  /** How far he stands off the face of the ladder while on it. */
+  ladderStandOff: 0.42,
+  /** Push away from the ladder when he jumps off backwards. */
+  ladderJumpOff: 4.5,
+  /**
+   * How far below the top of a ladder he stops climbing, so the edge above
+   * is within the band the climb over it can reach.
+   */
+  ladderTopGap: 1.2,
+
   // ---- Getting over a ledge ------------------------------------------------
   /**
    * How far in front of him the search for a ledge reaches. A little over

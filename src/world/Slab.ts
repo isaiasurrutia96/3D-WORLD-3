@@ -14,9 +14,11 @@
  */
 
 import {
+  Box3,
   BoxGeometry,
   BufferAttribute,
   Color,
+  CylinderGeometry,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -25,6 +27,9 @@ import {
   Vector3,
 } from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld.ts';
+import { Carryable } from './Carryable.ts';
+import { Water } from './Water.ts';
+import { STUDIO_SUN_DIRECTION } from '../core/Engine.ts';
 
 /** Side length of the slab, in metres. Large enough to get up to full speed. */
 export const SLAB_SIZE = 80;
@@ -40,7 +45,16 @@ export interface SlabWorld {
   spawn: Vector3;
   spawnFacing: number;
   triangleCount: number;
+  /** Things that can be picked up and carried. */
+  carryables: Carryable[];
+  /** The pool's surface, which needs a clock to move. */
+  water: Water;
 }
+
+/** The pool: a hole in the slab, with a basin under it. */
+const POOL = { x: -22, z: 25, half: 7, depth: 3.4 };
+/** The ladder, on the face of the single tall wall. */
+const LADDER = { x: 14.45, z: -6, width: 0.9, top: 7.14 };
 
 const WALL_COLOUR = new Color('#565e6c');
 const WALL_TRIM = new Color('#646d7d');
@@ -101,6 +115,41 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   body.name = 'slab-body';
   root.add(body);
 
+  // ---- The pool ----------------------------------------------------------
+  // The floor has a hole cut in it above the basin, so he swims in a pool
+  // rather than in a tank sitting on the ground.
+  for (const wall of poolBasin()) solid.add(wall);
+  collision.addWater(
+    new Box3(
+      new Vector3(POOL.x - POOL.half, -POOL.depth, POOL.z - POOL.half),
+      new Vector3(POOL.x + POOL.half, 0, POOL.z + POOL.half),
+    ),
+    -0.12,
+  );
+  const water = new Water(POOL.half * 2, -0.12, STUDIO_SUN_DIRECTION, false);
+  water.position.set(POOL.x, 0, POOL.z);
+  water.renderOrder = 2;
+  root.add(water);
+
+  // ---- The ladder --------------------------------------------------------
+  solid.add(createLadder());
+  collision.addLadder(
+    new Box3(
+      new Vector3(LADDER.x - LADDER.width, 0, LADDER.z - LADDER.width),
+      new Vector3(LADDER.x + 0.3, LADDER.top, LADDER.z + LADDER.width),
+    ),
+    // He faces +x while on it, into the wall the ladder is fixed to.
+    Math.PI / 2,
+    LADDER.top,
+    new Vector3(LADDER.x, 0, LADDER.z),
+  );
+
+  // ---- Something to pick up ----------------------------------------------
+  const crate = createCrate();
+  crate.position.set(3, 0.3, 14);
+  root.add(crate);
+  const carryables = [new Carryable(crate, 0.3)];
+
   collision.addSolid(solid);
 
   let triangleCount = 0;
@@ -112,6 +161,8 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   });
 
   return {
+    carryables,
+    water,
     root,
     spawn: SPAWN_POSITION.clone(),
     spawnFacing: SPAWN_FACING,
@@ -173,6 +224,80 @@ function createWall(x: number, z: number): Mesh {
  * rather than a climb. Same height as the platform, so the difference
  * between the two moves is the only thing that varies.
  */
+/**
+ * The walls and bottom of the pool. The floor above has a matching hole cut
+ * in it, so what is left is a basin set into the ground rather than a tank
+ * standing on it.
+ */
+function poolBasin(): Mesh[] {
+  const material = new MeshStandardMaterial({ color: new Color('#3a4350'), roughness: 0.9 });
+  const size = POOL.half * 2;
+  const parts: Mesh[] = [];
+
+  const bottom = new Mesh(
+    new PlaneGeometry(size, size, POOL.half, POOL.half).rotateX(-Math.PI / 2),
+    material,
+  );
+  bottom.position.set(POOL.x, -POOL.depth, POOL.z);
+  bottom.receiveShadow = true;
+  parts.push(bottom);
+
+  // Four walls, each a thin box standing in the hole.
+  const sides: Array<[number, number, number, number]> = [
+    [POOL.x, POOL.z - POOL.half, size, 0.4],
+    [POOL.x, POOL.z + POOL.half, size, 0.4],
+    [POOL.x - POOL.half, POOL.z, 0.4, size],
+    [POOL.x + POOL.half, POOL.z, 0.4, size],
+  ];
+  for (const [x, z, width, depth] of sides) {
+    const wall = new Mesh(
+      new BoxGeometry(width, POOL.depth, depth, Math.ceil(width), POOL.depth, Math.ceil(depth)),
+      material,
+    );
+    wall.position.set(x, -POOL.depth / 2, z);
+    wall.receiveShadow = true;
+    wall.castShadow = true;
+    parts.push(wall);
+  }
+  return parts;
+}
+
+/** A ladder: two rails and a run of rungs, flush against the wall. */
+function createLadder(): Group {
+  const group = new Group();
+  group.name = 'ladder';
+  const material = new MeshStandardMaterial({ color: new Color('#8a7a63'), roughness: 0.8 });
+  const rise = LADDER.top - 0.1;
+
+  for (const side of [-1, 1]) {
+    const rail = new Mesh(new BoxGeometry(0.1, rise, 0.1, 1, Math.ceil(rise), 1), material);
+    rail.position.set(LADDER.x, rise / 2, LADDER.z + side * 0.34);
+    rail.castShadow = true;
+    rail.receiveShadow = true;
+    group.add(rail);
+  }
+  for (let y = 0.35; y < rise; y += 0.42) {
+    const rung = new Mesh(new CylinderGeometry(0.045, 0.045, 0.76, 8), material);
+    rung.rotation.x = Math.PI / 2;
+    rung.position.set(LADDER.x, y, LADDER.z);
+    rung.castShadow = true;
+    group.add(rung);
+  }
+  return group;
+}
+
+/** A crate to pick up, carry and put down. */
+function createCrate(): Mesh {
+  const crate = new Mesh(
+    new BoxGeometry(0.52, 0.52, 0.52, 2, 2, 2),
+    new MeshStandardMaterial({ color: new Color('#9a7a4b'), roughness: 0.82 }),
+  );
+  crate.castShadow = true;
+  crate.receiveShadow = true;
+  crate.name = 'crate';
+  return crate;
+}
+
 function createThinWall(x: number, z: number): Mesh {
   const mesh = new Mesh(
     new BoxGeometry(
@@ -231,10 +356,44 @@ function createPlatform(x: number, z: number): Mesh {
   return mesh;
 }
 
+/**
+ * Removes the floor triangles that sit over the pool.
+ *
+ * The floor is one plane divided into two-metre squares, so cutting a hole in
+ * it is a matter of dropping the triangles whose middle falls inside the
+ * pool. Anything else — a second plane with a gap, or a pool standing proud
+ * of the ground — either leaves a seam or stops it reading as a pool.
+ */
+function cutPool(geometry: PlaneGeometry): void {
+  const index = geometry.index;
+  const position = geometry.attributes.position as BufferAttribute;
+  if (!index) return;
+
+  const kept: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    let x = 0;
+    let z = 0;
+    for (let k = 0; k < 3; k += 1) {
+      const v = index.getX(i + k);
+      x += position.getX(v);
+      z += position.getZ(v);
+    }
+    x /= 3;
+    z /= 3;
+    const inside =
+      Math.abs(x - POOL.x) < POOL.half - 0.01 && Math.abs(z - POOL.z) < POOL.half - 0.01;
+    if (inside) continue;
+    kept.push(index.getX(i), index.getX(i + 1), index.getX(i + 2));
+  }
+  geometry.setIndex(kept);
+}
+
 function createFloor(): Mesh {
   const segments = SLAB_SIZE / GRID_SQUARE;
   const geometry = new PlaneGeometry(SLAB_SIZE, SLAB_SIZE, segments, segments);
   geometry.rotateX(-Math.PI / 2);
+
+  cutPool(geometry);
 
   const position = geometry.attributes.position as BufferAttribute;
   const colors = new Float32Array(position.count * 3);
