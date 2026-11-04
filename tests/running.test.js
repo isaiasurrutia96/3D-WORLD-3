@@ -5,7 +5,7 @@ import { readMoveAxes,wantsSprint } from '../src/input.js';
 import { createAvatar } from '../src/avatar.js';
 import { createRunner, stepRunner, RUN_SPEED,SPRINT_SPEED } from '../src/running-controller.js';
 import { createRunningAnimator } from '../src/animation/running.js';
-import { createSprintClip,SPRINT_DURATION,SPRINT_STRIDE,sprintArmSwing } from '../src/animation/sprint-clip.js';
+import { createSprintClip,SPRINT_DURATION,SPRINT_STRIDE,sprintArmSwing,SPRINT_CONTACT_END } from '../src/animation/sprint-clip.js';
 import { createRunClip, RUN_DURATION, RUN_STRIDE } from '../src/animation/run-clip.js';
 
 function advance(state,seconds,input,dt=1/120) {
@@ -116,10 +116,10 @@ test('sprint has higher recovery and longer stride without curling the back',()=
 });
 
 test('faster run extends the rear leg while keeping diagonal speed normalized',()=>{
-  assert.equal(SPRINT_DURATION,.23);
+  assert.equal(SPRINT_DURATION,.46);
   assert.equal(SPRINT_SPEED,SPRINT_STRIDE/SPRINT_DURATION);
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
-  animation.update({speed:SPRINT_SPEED,phase:.199,distance:0,sprinting:true,sprintStarts:1},1);
+  animation.update({speed:SPRINT_SPEED,phase:SPRINT_CONTACT_END,distance:0,sprinting:true,sprintStarts:1},1);
   avatar.updateMatrixWorld(true);
   const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
   assert.ok(ankle.z<-.35);assert.ok(avatar.skeleton.getBoneByName('left_calf').rotation.x<.6);
@@ -131,7 +131,7 @@ test('faster run extends the rear leg while keeping diagonal speed normalized',(
 test('sprint balances opposite arm/knee drive with a straight leaning torso and extended push-off',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
   const bones=avatar.skeleton;
-  for(const [side,phase] of [['left',.199],['right',.699]]){
+  for(const [side,phase] of [['left',SPRINT_CONTACT_END],['right',SPRINT_CONTACT_END+.5]]){
     animation.update({speed:SPRINT_SPEED,phase,distance:0,sprinting:true},1);
     avatar.updateMatrixWorld(true);
     const point=name=>bones.getBoneByName(name).getWorldPosition(new THREE.Vector3());
@@ -139,7 +139,7 @@ test('sprint balances opposite arm/knee drive with a straight leaning torso and 
     const bend=knee.clone().sub(hip).angleTo(ankle.clone().sub(knee));
     assert.ok(bend<.20 && bend>.04,`push-off bend ${bend}`);
     const opposite=side==='left'?'right':'left';
-    assert.ok(point(`${opposite}_foot`).z-point(`${opposite}_thigh`).z<.26,'recovery stays close to the body');
+    assert.ok(point(`${opposite}_foot`).z-point(`${opposite}_thigh`).z<.39,'recovery reach stays bounded');
     const hand=bones.getBoneByName(`${side}_hand`).localToWorld(new THREE.Vector3(side==='left'?-.01:.01,-.095,.015));
     const head=bones.getBoneByName('head').localToWorld(new THREE.Vector3(0,.15,0));
     assert.ok(hand.y<head.y-.15,'arm range stays below the old exaggerated head-height reach');
@@ -177,17 +177,17 @@ test('sprint reduces forward reach and recovery knee bend across the complete cy
       maximumBend=Math.max(maximumBend,knee.clone().sub(hip).angleTo(ankle.clone().sub(knee)));
     }
   }
-  assert.ok(maximumReach<.26);assert.ok(maximumBend<2.3);
+  assert.ok(maximumReach<.39);assert.ok(maximumBend<2.3);
 });
 
 test('faster default run keeps the planted ankle fixed through the longer stride',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);let previous,contacts=0;
-  for(let frame=0;frame<240;frame++){
-    const phase=frame/240;avatar.position.z=phase*SPRINT_STRIDE;
+  for(let frame=0;frame<480;frame++){
+    const phase=frame/480;avatar.position.z=phase*SPRINT_STRIDE;
     animation.update({speed:SPRINT_SPEED,phase,distance:phase*SPRINT_STRIDE,sprinting:true},1);
     avatar.updateMatrixWorld(true);
     const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
-    if(phase>.02&&phase<.199){if(previous)assert.ok(Math.abs(ankle.z-previous.z)<.001);previous=ankle;contacts++;}
+    if(phase>.01&&phase<SPRINT_CONTACT_END-.001){if(previous)assert.ok(Math.abs(ankle.z-previous.z)<.001);previous=ankle;contacts++;}
   }
-  assert.ok(contacts>30);assert.ok(Math.abs(SPRINT_SPEED-2*(3/.46))<1e-10);assert.equal(SPRINT_DURATION,.23);
+  assert.ok(contacts>30);assert.ok(Math.abs(SPRINT_SPEED-3/.23)<1e-10);assert.equal(SPRINT_DURATION,.46);assert.equal(SPRINT_STRIDE,6);
 });

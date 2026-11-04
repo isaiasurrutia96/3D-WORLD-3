@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-One gray skinned avatar on the existing charcoal 260 × 460 slab, now connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. The avatar geometry and the approved walking/sprint clips are unchanged. The previous SM64 retargeting, animation data and comparison viewer have been removed.
+One gray skinned avatar on the existing charcoal 260 × 460 slab, now connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. The avatar geometry and approved walking clip are unchanged; running has been refined separately. The previous SM64 retargeting, animation data and comparison viewer have been removed.
 
 ## Controls
 
@@ -37,7 +37,7 @@ Input, planar movement, authored poses and animation playback are separate:
 - `src/world.js` supplies exact road-triangle support heights, separate upper/lower crossing levels and guardrail collision. The existing slab remains 260 × 460.
 - `src/main.js` converts input into camera space, runs fixed simulation and interpolates presentation. Camera controls do not author animation poses.
 
-Walking keeps the accepted 0.58-second, 1.7 m cycle (about 2.93 m/s); its track values were checked unchanged. Sprinting uses a 0.23-second, 3.0 m cycle (about 13.04 m/s), with higher recovery, a longer rearward extension and shorter ground contact. Running speed is exactly twice the previous 6.52 m/s. Clip cadence is doubled with it so planted-foot travel still matches the ground; travel speed is derived from stride length divided by cycle duration, with no extra speed multiplier. Acceleration and the first push-off stride start together. These are authored starting values for this stylized body, not a claim to reproduce Mario or motion capture. The body has oversized shoes and short legs, so its silhouette remains stylized.
+Walking keeps the accepted 0.58-second, 1.7 m cycle (about 2.93 m/s). Running now uses a 0.46-second, 6.0 m left/right cycle at the same 13.04 m/s travel speed. Consecutive footfalls are about 3 m apart rather than 1.5 m, and both arm and leg cadence are halved from the previous version. Wider front/rear extension and a longer flight phase replace the previous rapid cycling. Ground-contact ankle travel remains matched to root travel; denser baked sprint keys limit interpolation drift. These are stylized authored values for this short-legged avatar, not motion capture.
 
 Tests cover input mapping, diagonal normalization, acceleration/braking, loop closure, opposing limb phases, stance-foot drift, floor clearance, reversals and exact rest-pose restoration. Browser checks cover walking, default E/D/S/F running and Shift walking, launch event count, return to walking, exact stillness after stopping, and single jumping. Technical checks support stability; visual quality still requires review in motion.
 
@@ -49,6 +49,6 @@ Jump speed is 7.8 m/s with 22 m/s² gravity, giving about 1.35 m of rise and 0.7
 
 Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a complete circuit traversal including both crossing levels, held-key single jumps, landing on elevated track, unsupported falling, finite geometry and exact stillness after landing.
 
-## Unpainted go-kart prototype
+## Colored go-kart prototype
 
-`src/kart.js` builds an unpainted, static go-kart construction frame beside the slab's bridge approach: tubular chassis, front/rear axles, four skeletal wheel hoops with hubs/spokes, seat outline and a steering column/wheel. Wheels and steering have separate named groups for future rigging. The frame now carries a low nose panel, side pods, rear shell, floor pan and seat shell inspired by simple retro kart proportions. All surfaces remain plain neutral gray with no paint, textures, logos or engine details. There are no driving controls. This is a visual frame study; vehicle collision and driving are not enabled yet.
+`src/kart.js` builds a static retro go-kart beside the bridge approach. It has cherry-red nose/side/rear panels, a dark navy seat, exposed silver chassis, four full black rubber tires and silver rims with dark hubs. The old skeletal wheel hoops have been replaced. Wheels and steering retain separate named groups for future rigging. The design uses flat material colors without textures or logos. Vehicle collision and driving are not enabled yet.

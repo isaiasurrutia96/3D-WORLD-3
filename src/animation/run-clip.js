@@ -66,8 +66,9 @@ export function bakeGaitClip(avatar, profile) {
   });
   const authored = new Set(['pelvis','spine','chest','neck','head']);
   for (const side of ['left','right']) for (const part of ['thigh','calf','foot','upper_arm','forearm','hand']) authored.add(`${side}_${part}`);
-  for (let frame=0; frame<=120; frame++) {
-    const phase=frame/120;
+  const samples=profile.samples??120;
+  for (let frame=0; frame<=samples; frame++) {
+    const phase=frame/samples;
     const bob=curve(profile.compression,(phase % .5));
     times.push(phase*profile.duration); pelvisHeights.push(pelvis.position.y+bob);
     rotation('pelvis',wholeLean); rotation('spine',profile.lean);
