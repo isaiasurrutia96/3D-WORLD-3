@@ -9,6 +9,7 @@ export function createWorld(){
     new THREE.MeshLambertMaterial({color:'#303238'}),
   );
   floor.name='Charcoal floor slab';
+  floor.receiveShadow=true;
   floor.position.y=-0.125;
   return floor;
 }

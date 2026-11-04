@@ -1,6 +1,8 @@
-# LetsGo — native skeleton motion study
+# LetsGo — static avatar review
 
-A plain gray test body on a charcoal **260 × 460** slab. Only the LetsGo logo and a compact bottom control chart are shown. No track, outfit, hat, obstacles, pool or vehicles.
+One plain gray avatar, standing still on the charcoal **260 × 460** slab. The small key chart and LetsGo logo remain. Movement keys in the chart are informational and inactive.
+
+There are no idle, breathing, bobbing, running, walking or jumping animations. There is no movement controller, animation sampler, imported clip data, track, vehicle, course or pool. Rendering occurs only when the viewing camera or viewport changes.
 
 ## Development
 
@@ -11,26 +13,18 @@ npm ci
 npm run dev
 ```
 
-Build with `npm run build`; serve with `npm run preview`. `npm test` checks the controller, original skeleton structure, and direct animation-channel playback.
+`npm run build` produces the application; `npm run preview` serves that build. `npm test` verifies geometry, skin weights, the neutral skeleton and bind-pose stability.
 
-## Controls
+## Model construction
 
-- E forward, D backward, S left, F right, relative to the camera.
-- Hold Shift + E to walk forward; otherwise run.
-- Space performs one jump. No midair repeat or automatic repeat while held.
-- Drag to look, scroll/pinch to zoom, L toggles mouse lock, Esc releases it.
-- R, with the canvas focused, resets the view. Touch controls the camera only.
+`src/avatar.js` creates one indexed `SkinnedMesh` in a fixed neutral pose. Body dimensions and joint landmarks are authored in meters, with +Y up and +Z forward. The left/right landmarks are symmetric. The arms and legs use continuous ring surfaces with normalized skin weights across elbows and knees, rather than detached primitives driven by animation data. The soles rest at Y=0.
 
-## Why this body is different
+The neutral skeleton and visible geometry are defined without an animation source. This is a new review model, not a claim to reproduce Mario's mesh or skeleton. Any future motion must be a separate, explicitly requested step, validated against this approved neutral pose and ground contact before enabling a controller.
 
-The body is constructed around SM64's original 20 animated parts, with the exact original parent hierarchy, joint offsets and limb lengths, in original model coordinates. A single uniform scale fits the scene. Original local XYZ animation rotations are applied directly using the matching matrix convention. There is no humanoid retargeting, custom arm formula, joint-angle clamp or per-limb rescaling.
+## Viewing
 
-The mannequin's visible surfaces are simple custom geometry, not Mario's original mesh. A constant vertical alignment accommodates those surfaces without changing animation curves. Run, walk, idle, braking, turning and single-jump/fall/landing pose data are included. Controller acceleration and braking retain the previously tuned behavior; the complete game engine is not reproduced.
+Drag to orbit, scroll/pinch to zoom, L to toggle mouse lock and Esc to release it. R, with the canvas focused, resets the view. Camera movement never changes the model's pose.
 
-See [animation provenance](third_party/sm64/README.md).
-
-- `src/sm64-rig.js`: native skeleton, plain body and direct clip playback.
-- `src/animation/sm64.json`: original animation values and channel indices.
-- `src/locomotion.js`: flat-floor controller and single jump.
-- `src/world.js`: one charcoal slab.
-- `src/main.js`: input, camera and rendering.
+- `src/avatar.js`: static body geometry, neutral bones and bind weights.
+- `src/world.js`: charcoal floor.
+- `src/main.js`: lighting and event-driven viewing only; no simulation loop.
