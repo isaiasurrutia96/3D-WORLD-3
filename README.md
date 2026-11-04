@@ -1,8 +1,10 @@
-# LetsGo — Izzy's first ground
+# LetsGo — movement rebuild baseline
 
-A small Three.js test scene: a 260 × 460 floor slab and a mannequin Izzy wearing a white T-shirt, charcoal chinos, white shoes, and a dark LA cap with running, jumping, swimming, and ladder climbing. Drag to orbit, scroll or pinch to zoom, and use **Reset view** (or press **R** with the canvas focused) to restore the camera.
+Izzy is a static, articulated character on one unbroken **260 × 460** slab. The surrounding oval track, markings, and barriers remain as scenery.
 
-## Development
+The previous character controller, running/jumping animations, swimming, ladder climbing, movement course, kart, driving physics, bubbles, checkpoints, and related controls/tests have been removed. Movement will be designed and implemented again in small, validated steps. Nothing currently moves the character.
+
+## Run
 
 Requires Node.js 24 and npm 11.
 
@@ -11,33 +13,20 @@ npm ci
 npm run dev
 ```
 
-Build with `npm run build`; serve the result with `npm run preview`. Run the movement tests with `npm test`.
+Build with `npm run build`; serve that build with `npm run preview`.
 
-## Controls
+## Viewing controls
 
-- E forward, D back, A left, F right (or arrow keys): camera-relative running, with acceleration and braking.
-- Space: jump. Hold for a higher jump; release early for a short hop.
-- The chase camera eases behind Izzy while moving and tracks his actual depth when swimming/diving, with underwater fog and rising bubbles. Drag or use locked mouse-look to look around; automatic recentering resumes after a short pause. Scroll/pinch zooms.
-- L: lock/unlock the mouse for mouse-look. Escape also releases it.
-- Maximum running speed: 11.5 world units/second.
-- Walk or jump toward the ladder to grab automatically. E climbs up; D climbs down. Space jumps away; C optionally releases. Approach the roof edge and press D to descend.
-- Walk into the rectangular pool to swim. E/D/A/F steer; Space strokes upward; C dives. Tap Space near the surface at an edge to start a staged pull-up onto the deck; Izzy plants his arms, lifts his body, brings a knee up, and stands.
-- Phones/tablets: drag the left joystick to move, hold Jump/swim or Dive on the right, and drag the scene with another finger to look around. Pinch zooms. Both portrait and landscape layouts respect device safe areas.
+- Drag to orbit Izzy. Scroll or pinch to zoom.
+- **View whole slab** shows the retained floor and static perimeter track.
+- **View Izzy** resets the camera to the character.
+- **L** toggles mouse lock; **Esc** releases it. **R**, with the canvas focused, resets the camera.
+- Mouse and touch camera controls work on desktop and mobile.
 
-Mouse/trackpad orbit changes the movement direction: E runs toward where the camera looks, D goes back, and A/F strafe relative to the view. The run cycle has a forward lean, higher knees, bent elbows, larger arm/leg swings, ankle compensation with toe-off and recovery flex, and a midnight blue sky.
+## Structure
 
-Momentum carries through jumps, with limited air steering. Walking off the slab causes a fall and respawn at the center. Movement uses a fixed 120 Hz physics step.
+- `src/avatar.js`: character geometry, outfit, cap, and named joint hierarchy; no animation.
+- `src/world.js`: solid floor and static oval track; no obstacles or vehicles.
+- `src/main.js`: scene lighting, camera, and rendering only.
 
-The model matches the gray mannequin reference: round featureless head, visible neck, broad rounded torso, capsule-shaped limb segments, simple hands and rounded feet, with a blank face, painted short sleeves, white T-shirt and shoes, charcoal chinos, and a snug, structured six-panel 59FIFTY-inspired LA cap with a flat brim. It is procedural, with named pivots for the spine, neck, shoulders, elbows, wrists, hips, knees, and ankles. The joints animate during running, jumping, swimming, and climbing. Arms and legs use 1.65× the original segment lengths, keeping hands and shoes their original size. Standing height and pool-exit reach adapt to the longer limbs. The pool is 20 × 20 units. The ladder is attached to the purple box to the left of spawn; the pool is to the right. The box has solid sides and a walkable roof; the pool is an actual opening with a bottom and walls. Climbing alternates arms and legs with a phase tied to rung spacing; swimming tilts the body and adds alternating strokes and kicks. This is independently tuned movement inspired by Super Mario 64, not an exact port of its mechanics or animations. LifeSheet integration, breath/health systems, and other moves are not included.
-
-## Movement course
-
-Follow the numbered gold rings in order: stairs, gap-jump platforms, down the ramp, ladder roof, pool, finish. The course timer begins when you move; passed rings turn green. Tap Space for shorter hops across the gaps, or hold it to jump higher. **Restart course** resets Izzy, the camera, timer, and progress. The slab is 260 × 460 units.
-
-Sleeves have a hard color boundary, the cap tilts back slightly to raise its brim, Dive appears only while swimming, and the pool pull-up takes 0.65 seconds. A separate basic kart-driving circuit surrounds the movement course.
-
-## Oval circuit and kart
-
-Click **Visit circuit**, then press **H** or tap **Drive** near the kart. E accelerates, D brakes and then reverses, and A/F steer; steering is relative to the kart rather than the camera. Stop before pressing H or Exit to get out. On mobile, use the joystick to steer and the Gas/Brake pedals. The chase camera follows the kart.
-
-The oval has two 200-unit straights, broad 75-unit-radius turns, an 18-unit-wide road, lane markings, low barriers, and an infield entrance beside the kart. Lap gates must be passed in order. The center movement course remains available. This is a placeholder kart and independently tuned arcade handling; drifting, opponents, items, and a detailed vehicle model are future work.
+The model keeps its current proportions, white T-shirt, charcoal trousers, white shoes, and dark fitted LA-style cap.
