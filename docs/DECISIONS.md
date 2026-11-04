@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 3 November 2026 (sixth entry).
+Last updated: 4 November 2026 — checkpoint 1 taken.
 
 ---
 
@@ -218,7 +218,28 @@ that something works; it cannot tell that something looks or feels wrong.
 
 ---
 
-## J) Change log
+## J) Checkpoints
+
+A checkpoint is a named, permanent marker on a commit that was played and
+approved by the owner. It can always be returned to, whatever is built
+afterwards.
+
+**1. `checkpoint-1-jumps` — 4 November 2026, commit `c7d2a40`.** Approved by the
+owner with "wow i love it". It contains the floor slab, the avatar's body and
+rig, walking, running, the single jump, the double jump and the triple jump
+with its somersault, the orbit and chase cameras, and the GitHub Pages
+deployment.
+
+**2. What is known to be imperfect at this checkpoint, and was accepted
+anyway.** The feet dip a few centimetres through the floor during the ordinary
+run cycle, so the contact with the ground does not read as solidly as it
+should. The upper body has not yet been reduced in size as requested. Neither
+was changed before the checkpoint was taken, because the gait was approved as
+it stands.
+
+---
+
+## K) Change log
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
