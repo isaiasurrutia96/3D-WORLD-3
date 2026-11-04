@@ -8,11 +8,15 @@
 
 name: Deploy to GitHub Pages
 
+# Only from the default branch. Pages will not publish from any other, so a
+# run on the working branch could never do anything but fail — and because
+# every deploy shares one queue, those doomed runs sat in front of the real
+# one and held it up. Work is pushed to the branch and then fast-forwarded
+# into main, so main always has it.
 on:
   push:
     branches:
       - main
-      - claude/intelligent-clarke-occyfc
   # Also allows publishing by hand from the Actions tab.
   workflow_dispatch:
 
@@ -22,11 +26,14 @@ permissions:
   pages: write
   id-token: write
 
-# One deployment at a time. A queued run waits rather than cancelling the
-# one in progress, so a half-finished deploy is never published.
+# One deployment at a time, and the newest wins. Waiting instead of
+# superseding meant a backlog could only ever grow: four runs queued behind
+# each other, each publishing a version already out of date by the time it
+# got its turn. Nothing is published until the very last step, so a cancelled
+# run leaves the live site exactly as it was.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
