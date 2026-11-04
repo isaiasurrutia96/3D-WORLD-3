@@ -15,8 +15,6 @@ import { loadSettings, saveSettings, type UserSettings } from './core/Settings.t
 import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
-import { lastGroundLift } from './player/PlayerAnimation.ts';
-import { lowestSole } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { buildSlab, type SlabWorld } from './world/Slab.ts';
 import { Hud } from './ui/Hud.ts';
@@ -325,83 +323,6 @@ class Game {
           lowestAt,
           completedBeforeLanding,
         };
-      },
-
-      /**
-       * Checks the feet against the floor.
-       *
-       * `lift` is how far the body had to be raised to keep the lower shoe
-       * out of the ground, which is also how deep that shoe used to sink.
-       * `jolt` is the largest change in that lift between one frame and the
-       * next: the correction has to grow and shrink smoothly or it would
-       * show up as a twitch in the run.
-       */
-      measureFooting: (dt = 1 / 60) => {
-        let jumpHeld = false;
-        const stick = { x: 0, y: 0 };
-        const stub = {
-          move: stick,
-          look: { x: 0, y: 0 },
-          isDown: (action: string) => action === 'jump' && jumpHeld,
-          wasPressed: (action: string) => action === 'jump' && jumpHeld,
-          wasReleased: () => false,
-        } as unknown as Input;
-
-        const yaw = this.cameraRig.movementYaw;
-        const rig = this.player.rig;
-        const round = (v: number, places = 4) => Math.round(v * 10 ** places) / 10 ** places;
-
-        const run = (frames: number) => {
-          let lift = 0;
-          let jolt = 0;
-          let sole = Infinity;
-          let previous = lastGroundLift();
-          const states = new Set<string>();
-          for (let i = 0; i < frames; i += 1) {
-            this.player.update(dt, stub, yaw);
-            this.player.object.updateMatrixWorld(true);
-            states.add(this.player.stateName);
-            if (this.player.stateName === 'jump' || this.player.stateName === 'fall') continue;
-            const now = lastGroundLift();
-            lift = Math.max(lift, now);
-            jolt = Math.max(jolt, Math.abs(now - previous));
-            previous = now;
-            sole = Math.min(sole, this.player.position.y + lowestSole(rig));
-          }
-          return {
-            lift: round(lift),
-            jolt: round(jolt),
-            sole: round(sole),
-            states: [...states],
-          };
-        };
-
-        const results: Record<string, unknown> = {};
-        const seconds = (value: number) => Math.round(value / dt);
-
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
-        results.idle = run(seconds(1));
-
-        stick.y = -0.3;
-        run(seconds(1));
-        results.walk = run(seconds(2));
-
-        stick.y = -1;
-        run(seconds(1.5));
-        results.run = run(seconds(2));
-
-        stick.y = 1;
-        results.skid = run(seconds(0.8));
-
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
-        stick.y = 0;
-        run(seconds(0.4));
-        jumpHeld = true;
-        run(3);
-        jumpHeld = false;
-        results.landing = run(seconds(2));
-
-        return results;
       },
 
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {

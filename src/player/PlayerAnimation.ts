@@ -8,7 +8,7 @@
  */
 
 import { MathUtils } from 'three';
-import { HIP_HEIGHT, lowestSole, type CharacterRig } from './PlayerModel.ts';
+import { HIP_HEIGHT, type CharacterRig } from './PlayerModel.ts';
 import type { MovementState } from './Player.ts';
 
 export interface AnimationInputs {
@@ -142,58 +142,6 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   rig.kneeRight.rotation.x = current.kneeRight;
   rig.ankleLeft.rotation.x = current.ankleLeft;
   rig.ankleRight.rotation.x = current.ankleRight;
-
-  restOnTheFloor(rig, input);
-}
-
-/** How far the body was lifted on the last frame, for the verification pass. */
-let groundLift = 0;
-/** Seconds left of standing down after a skid. */
-let skidHold = 0;
-
-export function lastGroundLift(): number {
-  return groundLift;
-}
-
-/**
- * Stops a shoe going through the floor, and nothing else.
- *
- * Every pose above is left exactly as it was written. All this does is lift
- * the body by however much the lower shoe is below the ground, which is at
- * most a few centimetres and changes smoothly through a stride, so the gait
- * itself is untouched — the feet simply meet the floor instead of passing
- * through it.
- *
- * It is worth saying why they were passing through. The legs are driven by
- * two sine waves, and a leg built that way is at its longest when it hangs
- * straight down. That is also the moment the hips are at their lowest and
- * the toe is tipped down a little, and the three together put the sole a
- * couple of centimetres under. The skid, which is posed by hand, was worse:
- * it buried a foot by ten.
- */
-function restOnTheFloor(rig: CharacterRig, input: AnimationInputs): void {
-  // Not in the air, and not during or just after a skid.
-  //
-  // A skid is a hand-built pose that the walk cycle blends into and out of,
-  // so through all of it both feet are swinging and the deeper of the two
-  // keeps changing hands. Worse, the skid itself switches on and off from
-  // one frame to the next as the character slows past the speed that
-  // triggers it. Correcting the floor through that made the body flicker up
-  // and down by several centimetres, which is a good deal worse than the
-  // fault being fixed, so the correction stands down until the skid has
-  // finished and blended away. The skid plants a foot ten centimetres into
-  // the floor and wants its own pass.
-  if (input.skidding) skidHold = 0.35;
-  else skidHold = Math.max(0, skidHold - input.delta);
-
-  if (input.state !== 'ground' || skidHold > 0) {
-    groundLift = 0;
-    return;
-  }
-
-  const lowest = lowestSole(rig);
-  groundLift = lowest < 0 ? -lowest : 0;
-  rig.body.position.y += groundLift;
 }
 
 function buildTargetPose(input: AnimationInputs): void {

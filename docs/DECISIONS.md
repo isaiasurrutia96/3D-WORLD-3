@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — footing.
+Last updated: 4 November 2026 — back at checkpoint 1.
 
 ---
 
@@ -243,36 +243,42 @@ it stands.
 
 ## K) Change log
 
-**4 November 2026, third entry.** A gait solver was built to make the feet
-hold the ground, measured well, and was then reverted. It placed every foot
-exactly and removed the sliding, but it decided the stride, the posture and
-the cadence itself, and the run it produced was not the run that had already
-been approved. Recorded here so the work is not repeated: solving the legs
-from the feet does fix the footing completely, and the cost is that the run
-becomes a sprinter's crouch with fast legs, because the character covers 8.6
-metres a second on legs under a metre long. It is available if the run speed
-ever comes down.
+**4 November 2026, second entry.** Two attempts at making the feet hold the
+ground were built, measured and then reverted at the owner's request. The
+code is back to exactly what checkpoint 1 holds. What was learned is kept
+here so neither is rebuilt by accident.
 
-**4 November 2026, second entry.** The walk and run keep their feet on the
-floor, with nothing else about them changed. Every joint angle is exactly as
-it was at checkpoint 1; the only addition is that the body is lifted by
-however much the lower shoe would otherwise be below the ground. The feet
-were sinking because the legs are driven by two sine waves, and a leg built
-that way is at its longest hanging straight down — which is also the moment
-the hips are at their lowest and the toe is tipped down a little. Measured:
-the walk was sinking up to 4.7 centimetres and the run up to 1.6, and neither
-now goes below the floor at all. The correction grows and shrinks over about
-fifteen frames, by at most 1.4 centimetres from one frame to the next, so it
-does not read as a twitch.
+**1. Why the feet sink.** The legs are driven by two sine waves, one for the
+hip and one for the knee. A leg built that way is at its longest when it
+hangs straight down, which is also the moment the hips are at their lowest
+and the toe is tipped down a little. All three line up at the instant the
+foot should be planting, so the sole goes under: measured at up to 4.7
+centimetres walking and 1.6 running. The skid, which is a hand-built pose,
+buries a foot by about eight. Standing still the figure hovers about a
+centimetre and a half clear of the ground, which is simply how the rig is
+built.
 
-Two places are deliberately left as they were. The skid still plants a foot
-eight centimetres into the floor: it is a hand-built pose that the walk cycle
-blends into and out of, and the skid itself switches on and off frame by
-frame as the character slows past the speed that triggers it, so correcting
-the floor through it made the body flicker by several centimetres. It wants
-its own pass. Standing still, the figure also hovers about a centimetre and a
-half clear of the ground, which is how the rig is built; lowering it would
-change the idle, which was not asked for.
+**2. Why the feet slide.** The stride runs on its own clock rather than on
+the ground. At a full run the feet sweep backwards at under half the speed
+the ground goes past, so a foot that is down is still sliding.
+
+**3. The small fix, reverted.** Lifting the body by however much the lower
+shoe is below the floor removes all of the sinking and changes no joint
+angle at all. It grows and fades over about fifteen frames and moves at most
+1.4 centimetres between frames, so it does not read as a twitch. It cannot
+be applied through a skid, because the skid flag flickers on and off as the
+character slows past the speed that triggers it and the correction then makes
+the body jump by up to seven centimetres.
+
+**4. The full fix, reverted.** Solving the hip and knee angles backwards from
+where each foot has to be removes the sinking and the sliding completely. The
+cost is that the solver decides the stride, the posture and the cadence, and
+what it produces is a sprinter's crouch with fast legs, because the character
+covers 8.6 metres a second on legs under a metre long. It only becomes the
+right answer if the run speed comes down to around 6 metres a second.
+
+**5. Decision.** The run as it stands at checkpoint 1 is preferred to either.
+Neither is to be applied again without being asked for.
 
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
