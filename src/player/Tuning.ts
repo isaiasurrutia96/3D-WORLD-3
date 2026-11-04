@@ -135,10 +135,37 @@ export const TUNING = {
    * slowdown: he digs his heels in and slides to a stop.
    */
   brakeMinSpeed: 5.4,
-  /** How hard that skid sheds speed. */
-  brakeDeceleration: 18,
   /** Below this speed the skid is over and he is simply standing. */
   brakeEndSpeed: 1.2,
+  /**
+   * How far the skid carries him, from a short burst of running to a
+   * sustained one.
+   *
+   * It is written as a distance rather than a braking force because the
+   * distance is the thing being judged by eye, and because the force that
+   * produces it depends on the speed he is carrying. The short figure is
+   * deliberately small: a couple of steps and a stop should not look like a
+   * skid on ice.
+   */
+  brakeSlideShort: 0.35,
+  brakeSlideLong: 2,
+  /**
+   * How long he has to keep running before the full slide is earned.
+   *
+   * Speed alone cannot carry this, because full speed is reached in about a
+   * third of a second: by that measure a two-step dash and a ten-second run
+   * end identically, which is what made the stop look like slipping rather
+   * than braking.
+   */
+  brakeMomentumBuild: 2.8,
+  /** How long it takes to lose that again once he is no longer running. */
+  brakeMomentumFade: 1.2,
+  /**
+   * Shapes how the slide follows the momentum. Above one, the first second
+   * of running adds little and the later ones add most, which is what makes
+   * a brief burst stop short while a long run still slides as it did.
+   */
+  brakeMomentumCurve: 1.4,
 
   // ---- Slopes ------------------------------------------------------------
   /** Surfaces steeper than this are walls, not floors. */

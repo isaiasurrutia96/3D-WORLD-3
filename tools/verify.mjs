@@ -336,8 +336,34 @@ if (!moves.brake.states.includes('brake')) {
   problems.push(`letting go at ${moves.brake.speedBefore}m/s gave ${moves.brake.states.join(' > ')}`);
 }
 if (!(moves.brake.slideDistance > 1 && moves.brake.slideDistance < 4)) {
-  problems.push(`the braking skid slid ${moves.brake.slideDistance}m, which is not a skid`);
+  problems.push(
+    `after a sustained run the braking skid slid ${moves.brake.slideDistance}m, ` +
+      `which is not a skid`,
+  );
 }
+
+// And the length of that skid has to answer how long he has been running.
+// Full speed arrives in about a third of a second, so without this a
+// two-step dash and a ten-second run ended identically, which read as
+// slipping rather than braking.
+const braking = await page.evaluate(() => window.__letsgo.debug.measureBraking(1 / 60));
+const brief = braking[0];
+const sustained = braking[braking.length - 1];
+if (!(brief.slide < sustained.slide * 0.35)) {
+  problems.push(
+    `running for ${brief.ran}s then stopping slides ${brief.slide}m, against ` +
+      `${sustained.slide}m after ${sustained.ran}s — the slide does not build`,
+  );
+}
+for (let i = 1; i < braking.length; i += 1) {
+  if (braking[i].slide < braking[i - 1].slide - 0.01) {
+    problems.push(
+      `running for ${braking[i].ran}s slides ${braking[i].slide}m, less than ` +
+        `${braking[i - 1].slide}m after only ${braking[i - 1].ran}s`,
+    );
+  }
+}
+await resetPlayer(page);
 
 // Neither of the two new standing poses may put a foot through the floor.
 for (const [name, result] of [
@@ -436,6 +462,10 @@ console.log(
 console.log(
   ` braking skid   ${moves.brake.slideDistance}m in ${moves.brake.seconds}s from ` +
     `${moves.brake.speedBefore}m/s`,
+);
+console.log(
+  `                after running ` +
+    braking.map((b) => `${b.ran}s: ${b.slide}m`).join(', '),
 );
 console.log(
   ` floor          crouch ${moves.crouchFloor.lowestPart}m, skid ${moves.brakeSettled.lowestPart}m`,

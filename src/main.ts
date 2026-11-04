@@ -411,11 +411,11 @@ class Game {
 
         reset();
         stick.y = -1;
-        for (let i = 0; i < frames(1.4); i += 1) step();
+        for (let i = 0; i < frames(4); i += 1) step();
         stick.y = 0;
         results.brakeFloor = lowestOver(0.35);
         stick.y = -1;
-        for (let i = 0; i < frames(1.4); i += 1) step();
+        for (let i = 0; i < frames(4); i += 1) step();
         stick.y = 0;
         // Once the pose has finished easing in, rather than during it.
         results.brakeSettled = lowestOver(0.35, 0.22);
@@ -554,7 +554,7 @@ class Game {
         {
           reset();
           stick.y = -1;
-          for (let i = 0; i < frames(1.4); i += 1) step();
+          for (let i = 0; i < frames(4); i += 1) step();
           const speedBefore = round(player.speed);
           const from = player.position.clone();
           stick.y = 0;
@@ -579,6 +579,53 @@ class Game {
 
         reset();
         return results;
+      },
+
+      /**
+       * How far the braking skid carries him after running for various
+       * lengths of time. Full speed arrives in about a third of a second, so
+       * this is the only way to see whether the slide answers how long he
+       * has been running or merely how fast he is going.
+       */
+      measureBraking: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: () => false,
+          wasPressed: () => false,
+          wasReleased: () => false,
+        } as unknown as Input;
+        const player = this.player;
+        const step = () => player.update(dt, stub, 0);
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
+
+        return [0.5, 1, 2, 3, 5].map((seconds) => {
+          stick.x = 0;
+          stick.y = 0;
+          player.teleport(new Vector3(0, 0, 34), Math.PI);
+          for (let i = 0; i < frames(0.6); i += 1) step();
+
+          stick.y = -1;
+          for (let i = 0; i < frames(seconds); i += 1) step();
+          const speed = round(player.speed);
+          const from = player.position.clone();
+
+          stick.y = 0;
+          let braked = false;
+          for (let i = 0; i < frames(3); i += 1) {
+            step();
+            if (player.stateName === 'brake') braked = true;
+            if (player.speed < 0.05) break;
+          }
+          return {
+            ran: seconds,
+            speed,
+            slide: round(Math.hypot(player.position.x - from.x, player.position.z - from.z)),
+            skidded: braked,
+          };
+        });
       },
 
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {

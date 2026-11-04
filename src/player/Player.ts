@@ -88,6 +88,20 @@ export class Player {
    * produces.
    */
   private braking = false;
+  /**
+   * How much running he has built up, from 0 to 1. It decides how far a
+   * braking skid carries him, which speed alone cannot: full speed arrives
+   * in a third of a second, so without this a two-step dash and a long run
+   * stop identically.
+   */
+  private momentum = 0;
+  /** The braking force for the skid in progress, fixed when it begins. */
+  private brakeRate = 0;
+  /**
+   * How much of a skid this one is, from 0 to 1. A brief dash stops with a
+   * lean; a long run gets the whole dug-in pose.
+   */
+  private brakeStrength = 0;
   /** Which jump is in the air, which decides both the arc and the pose. */
   private jumpKind: JumpKind = 'normal';
   /** 1 turns the somersault forwards, -1 backwards for a backflip. */
@@ -290,16 +304,35 @@ export class Player {
       // and slides to a stop, still going the way he was. Below the
       // threshold it is an ordinary stop, so a walk does not end in a
       // dramatic halt.
-      if (speed > TUNING.brakeMinSpeed) this.braking = true;
+      if (!this.braking && speed > TUNING.brakeMinSpeed) {
+        this.braking = true;
+        // How far this skid should carry him, and from that the force that
+        // does it. Working from the distance rather than a fixed force is
+        // what lets the length be chosen: a short burst of running stops
+        // almost at once, a sustained one slides as far as it always did.
+        const earned = Math.pow(this.momentum, TUNING.brakeMomentumCurve);
+        const slide = MathUtils.lerp(TUNING.brakeSlideShort, TUNING.brakeSlideLong, earned);
+        this.brakeRate = (speed * speed) / (2 * Math.max(0.1, slide));
+        this.brakeStrength = earned;
+      }
       if (this.braking && speed < TUNING.brakeEndSpeed) this.braking = false;
 
-      const decel = (this.braking ? TUNING.brakeDeceleration : TUNING.deceleration) * delta;
+      const decel = (this.braking ? this.brakeRate : TUNING.deceleration) * delta;
       const newSpeed = Math.max(0, speed - decel);
       if (speed > 0.001) horizontal.multiplyScalar(newSpeed / speed);
     }
 
     this.velocity.x = horizontal.x;
     this.velocity.z = horizontal.z;
+
+    // Running builds momentum; anything slower loses it again. It is kept
+    // through a jump, so a run-up is not thrown away by leaving the ground.
+    const nowSpeed = Math.hypot(horizontal.x, horizontal.z);
+    if (nowSpeed > TUNING.brakeMinSpeed && !this.braking) {
+      this.momentum = Math.min(1, this.momentum + delta / TUNING.brakeMomentumBuild);
+    } else if (!this.braking) {
+      this.momentum = Math.max(0, this.momentum - delta / TUNING.brakeMomentumFade);
+    }
 
     // Hold the character against the ground so slopes do not launch them.
     if (this.velocity.y < 0) this.velocity.y = -2;
@@ -1080,6 +1113,7 @@ export class Player {
       flipping: this.flipping,
       crouching: this.crouching,
       braking: this.braking,
+      brakeStrength: this.braking ? this.brakeStrength : 0,
       jumpKind: this.jumpKind,
       againstWall: this.againstWall,
       inputStrength,

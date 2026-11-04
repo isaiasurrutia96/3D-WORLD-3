@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — crouch, long jump, backflip, wall kick, braking skid.
+Last updated: 4 November 2026 — the braking skid builds with momentum.
 
 ---
 
@@ -242,6 +242,32 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, fifth entry.** Checkpoint 3 taken as the branch
+`checkpoint-3-crouch-moves`. Then the braking skid was made to answer how
+long he has been running rather than only how fast he is going.
+
+**1. Why it needed changing.** Acceleration is 32 metres per second squared,
+so full speed arrives in about a third of a second. The skid's length came
+from the speed alone, which meant a two-step dash and a ten-second run ended
+in exactly the same slide. That reads as slipping rather than braking.
+
+**2. What was added.** A momentum value that builds while running above the
+skid threshold and fades again when he is not. The skid now works from a
+distance rather than a braking force — short 0.35 metres, long 2 — and the
+force that achieves it is worked out from the speed he is carrying when he
+lets go. The distance follows the momentum through a curve, so the first
+second of running adds little and the later ones add most.
+
+**3. Measured.** Half a second of running slides 0.36 metres, one second
+0.59, two seconds 1.19, three seconds 1.92, and anything longer 1.92 — the
+same as before the change, which was the part that was asked to be kept.
+
+**4. The pose follows it too.** How far into the dug-in skid he goes now
+follows the same momentum. Throwing the whole pose on for a two-step dash
+looked like a stumble, because it was arriving and leaving inside a tenth of
+a second; a brief stop is now a lean, and a long run is still the full thing.
+
 
 **4 November 2026, fourth entry.** Checkpoint 2 taken as the branch
 `checkpoint-2-body-and-jumps`: the slimmer body and the three jumps with the

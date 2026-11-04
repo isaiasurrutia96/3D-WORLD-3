@@ -23,6 +23,11 @@ export interface AnimationInputs {
   crouching: boolean;
   /** True while sliding to a stop after letting go at speed. */
   braking: boolean;
+  /**
+   * How much of a skid it is, from 0 to 1, which follows how long he had
+   * been running. A two-step dash leans; a long run digs in.
+   */
+  brakeStrength: number;
   /** Which jump is in the air: normal, long, backflip or wall kick. */
   jumpKind: JumpKind;
   /** True while pressed against a wall in the air. */
@@ -236,22 +241,27 @@ function poseGround(input: AnimationInputs): void {
     // The braking skid: still going the way he was, heels dug in, weight
     // thrown back and arms out. One foot forward as the brake, the other
     // trailing.
-    pose.bodyPitch = -0.34;
-    pose.bodyHeight = -0.025;
-    pose.bodyRoll = 0.07;
-    pose.shoulderLeftPitch = -1.15;
-    pose.shoulderRightPitch = -0.55;
-    pose.shoulderLeftRoll = 0.95;
-    pose.shoulderRightRoll = 0.8;
-    pose.elbowLeft = -0.35;
-    pose.elbowRight = -0.25;
-    pose.hipLeft = -0.72;
-    pose.hipRight = 0.22;
-    pose.kneeLeft = 0.62;
-    pose.kneeRight = 1.15;
-    pose.ankleLeft = 0.0;
-    pose.ankleRight = -0.35;
-    pose.headPitch = -0.12;
+    //
+    // How far into that pose he goes follows how long he had been running.
+    // Throwing the whole thing on for a two-step dash looked like a stumble,
+    // because the pose was arriving and leaving inside a tenth of a second.
+    const dig = MathUtils.lerp(0.4, 1, MathUtils.clamp(input.brakeStrength, 0, 1));
+    pose.bodyPitch = -0.34 * dig;
+    pose.bodyHeight = -0.025 * dig;
+    pose.bodyRoll = 0.07 * dig;
+    pose.shoulderLeftPitch = -1.15 * dig;
+    pose.shoulderRightPitch = -0.55 * dig;
+    pose.shoulderLeftRoll = MathUtils.lerp(0.17, 0.95, dig);
+    pose.shoulderRightRoll = MathUtils.lerp(0.17, 0.8, dig);
+    pose.elbowLeft = -0.35 * dig;
+    pose.elbowRight = -0.25 * dig;
+    pose.hipLeft = -0.72 * dig;
+    pose.hipRight = 0.22 * dig;
+    pose.kneeLeft = 0.62 * dig;
+    pose.kneeRight = 1.15 * dig;
+    pose.ankleLeft = 0;
+    pose.ankleRight = -0.35 * dig;
+    pose.headPitch = -0.12 * dig;
     return;
   }
 
