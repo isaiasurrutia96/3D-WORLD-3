@@ -7,12 +7,18 @@ export const RUN_DURATION = .58;
 // Authored contact, compression, toe-off, recovery and passing poses. This
 // curve is in avatar meters, not borrowed from a differently proportioned rig.
 // Each entry is [cycle phase, value, tangent per cycle].
-const swingForward = [[.36,-.312,-RUN_STRIDE],[.49,-.30,1.0],[.65,-.02,2.6],[.82,.29,.8],[.92,.36,-.1],[1,.30,-RUN_STRIDE]];
-const lift = [[0,0,0],[.36,0,0],[.50,.16,1.3],[.64,.23,0],[.80,.15,-.8],[1,0,0]];
-const pitch = [[0,-.06,0],[.10,0,0],[.25,0,0],[.36,.18,1],[.50,.34,0],[.67,.04,-1],[.85,-.12,0],[1,-.06,0]];
-const compression = [[0,-.075,-.12],[.125,-.085,0],[.25,-.055,.22],[.375,-.045,0],[.5,-.075,-.12]];
-const armSwing = [[0,.30,-.4],[.18,.14,-1.4],[.4,-.30,-.8],[.56,-.34,.5],[.8,.13,1.5],[1,.30,-.4]];
-const elbow = [[0,-1.35,-.2],[.25,-1.48,0],[.5,-1.20,.3],[.75,-1.25,-.4],[1,-1.35,-.2]];
+// Shorter support time permits a taller, more extended leg pose without
+// moving the planted ankle faster than the unchanged root travel.
+const CONTACT_END = .30;
+const CONTACT_FORWARD = .245;
+const swingForward = [[CONTACT_END,-.265,-RUN_STRIDE],[.46,-.30,.7],[.63,-.05,2.4],[.82,.23,.8],[.92,.30,-.1],[1,CONTACT_FORWARD,-RUN_STRIDE]];
+const lift = [[0,0,0],[CONTACT_END,0,0],[.48,.09,.8],[.64,.12,0],[.80,.08,-.4],[1,0,0]];
+const pitch = [[0,-.06,0],[.10,0,0],[.22,0,0],[CONTACT_END,.14,1],[.48,.25,0],[.67,.04,-.7],[.85,-.10,0],[1,-.06,0]];
+const compression = [[0,-.055,-.10],[.125,-.060,0],[.25,-.040,.18],[.375,-.025,0],[.5,-.055,-.10]];
+// Open elbows and let the arms sweep behind the hips instead of holding
+// forearms horizontally in front of the chest.
+const armSwing = [[0,.48,-.4],[.18,.24,-1.7],[.4,-.24,-.8],[.56,-.30,.5],[.8,.22,1.6],[1,.48,-.4]];
+const elbow = [[0,-.38,-.1],[.25,-.46,0],[.5,-.28,.2],[.75,-.32,-.2],[1,-.38,-.1]];
 const wrap = value => ((value % 1) + 1) % 1;
 
 function curve(keys, phase) {
@@ -26,10 +32,10 @@ function curve(keys, phase) {
 export function footPose(phase) {
   const p = wrap(phase);
   return {
-    forward: p <= .36 ? .30 - RUN_STRIDE * p : curve(swingForward, p),
+    forward: p <= CONTACT_END ? CONTACT_FORWARD - RUN_STRIDE * p : curve(swingForward, p),
     lift: Math.max(0, curve(lift, p)),
     pitch: curve(pitch, p),
-    contact: p <= .36,
+    contact: p <= CONTACT_END,
   };
 }
 function ankleSupport(angle) {
@@ -62,9 +68,9 @@ export function createRunClip(avatar) {
     const phase=frame/120;
     const bob=curve(compression,(phase % .5));
     times.push(phase*RUN_DURATION); pelvisHeights.push(pelvis.position.y+bob);
-    rotation('pelvis'); rotation('spine',.12);
+    rotation('pelvis'); rotation('spine',.045);
     const torsoTwist=.035*Math.cos(phase*Math.PI*2);
-    rotation('chest',0,torsoTwist); rotation('neck',-.045); rotation('head');
+    rotation('chest',0,torsoTwist); rotation('neck',-.02); rotation('head');
     legs.forEach((leg,index) => {
       const p=wrap(phase+index*.5), pose=footPose(p);
       const down=ankleSupport(pose.pitch)+pose.lift-(leg.hipHeight+bob);
