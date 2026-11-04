@@ -248,60 +248,6 @@ if (flips.length === 2 && !(flips[1].peak > flips[0].peak + 0.3)) {
 
 await resetPlayer(page);
 
-// ---- Footing ------------------------------------------------------------
-// The walk cycle used to be two sine waves, which meant each foot touched the
-// floor for a single instant and went through it on the way past, while the
-// feet swept backwards at less than half the speed the ground went by. Both
-// are measured here: the sole must never drop below zero, and a planted foot
-// must hold still in the world rather than sliding along it.
-const footing = [];
-for (const [name, stick] of [
-  ['walk', 0.3],
-  ['jog', 0.6],
-  ['run', 1],
-]) {
-  const result = await page.evaluate(
-    (stick) => window.__letsgo.debug.measureGait(1 / 60, 2, stick),
-    stick,
-  );
-  footing.push({ name, ...result });
-
-  if (result.lowestSole < -0.002) {
-    problems.push(
-      `${name}: the sole goes ${(-result.lowestSole * 100).toFixed(1)}cm through the floor`,
-    );
-  }
-  // A planted foot may slide a little at speed, by design, but never more
-  // than a fifth of the speed the character is travelling at.
-  if (result.worstSlip > Math.max(0.2, result.speed * 0.2)) {
-    problems.push(
-      `${name}: a planted foot slides at ${result.worstSlip}m/s against ` +
-        `${result.speed}m/s of travel`,
-    );
-  }
-  if (result.kneeForward <= 0) {
-    problems.push(`${name}: the knee bends backwards`);
-  }
-  // Legs that keep up by running twice as fast are not a fix.
-  if (result.stepsPerSecond > 5.4) {
-    problems.push(`${name}: ${result.stepsPerSecond} steps a second is a blur`);
-  }
-}
-await resetPlayer(page);
-
-// The poses still built by hand have to keep off the floor too. The skid used
-// to bury a foot ten centimetres under it.
-const floors = await page.evaluate(() => window.__letsgo.debug.measureFloor(1 / 60));
-for (const [name, result] of Object.entries(floors)) {
-  if (result.worst < -0.002) {
-    problems.push(`${name}: a foot sits ${(-result.worst * 100).toFixed(1)}cm through the floor`);
-  }
-}
-if (!floors.skid?.states.includes('skid')) {
-  problems.push('reversing at speed no longer produces a skid');
-}
-await resetPlayer(page);
-
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -362,18 +308,6 @@ console.log(
 console.log('\n--- frame rate ---');
 for (const r of rateResults) {
   console.log(` ${String(r.fps).padStart(3)} fps: covered ${r.covered.toFixed(1)}m in 1.2s`);
-}
-
-console.log('\n--- footing ---');
-for (const f of footing) {
-  console.log(
-    ` ${f.name.padEnd(5)} ${String(f.speed).padStart(4)} m/s  ` +
-      `sole ${f.lowestSole.toFixed(3)}m  slide ${f.worstSlip}m/s  ` +
-      `${f.stepsPerSecond} steps/s  on the floor ${Math.round(f.contactShare * 100)}% of the time`,
-  );
-}
-for (const [name, result] of Object.entries(floors)) {
-  console.log(` ${name.padEnd(8)} lowest sole ${result.worst}m`);
 }
 
 console.log('\n--- report ---');

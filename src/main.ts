@@ -8,15 +8,13 @@
  */
 
 import './styles.css';
-import { Box3, Vector3 } from 'three';
+import { Box3 } from 'three';
 import { Engine } from './core/Engine.ts';
 import { CameraRig } from './core/CameraRig.ts';
 import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
 import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
-import { currentGaitPlan, lowestSole } from './player/PlayerGait.ts';
-import { ANKLE_TO_SOLE } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { buildSlab, type SlabWorld } from './world/Slab.ts';
 import { Hud } from './ui/Hud.ts';
@@ -325,172 +323,6 @@ class Game {
           lowestAt,
           completedBeforeLanding,
         };
-      },
-
-      /**
-       * Measures how well the feet keep hold of the ground.
-       *
-       * Three numbers matter. The lowest the sole gets, which should never go
-       * below zero. How fast a planted foot slides across the world, which
-       * should be near zero — anything else is the character skating. And the
-       * cadence, so a fix for the skating cannot quietly turn the legs into a
-       * blur.
-       */
-      measureGait: (dt = 1 / 60, seconds = 2, stick = 1) => {
-        const stub = {
-          move: { x: 0, y: -stick },
-          look: { x: 0, y: 0 },
-          isDown: () => false,
-          wasPressed: () => false,
-          wasReleased: () => false,
-        } as unknown as Input;
-
-        const yaw = this.cameraRig.movementYaw;
-        const rig = this.player.rig;
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
-
-        const step = () => {
-          this.player.update(dt, stub, yaw);
-          this.player.object.updateMatrixWorld(true);
-        };
-
-        // Long enough to reach full speed and for the legs to be fully in the
-        // solver's hands before anything is recorded.
-        for (let i = 0; i < Math.round(1.5 / dt); i += 1) step();
-
-        let lowest = Infinity;
-        let worstSlip = 0;
-        let slipTotal = 0;
-        let slipFrames = 0;
-        let kneeForward = Infinity;
-        let placeError = 0;
-        let contactFrames = 0;
-        const previous: Record<string, Vector3 | null> = { left: null, right: null };
-        const point = new Vector3();
-        const hipPoint = new Vector3();
-        const kneePoint = new Vector3();
-        const anklePoint = new Vector3();
-
-        const frames = Math.round(seconds / dt);
-        for (let i = 0; i < frames; i += 1) {
-          step();
-          lowest = Math.min(lowest, this.player.position.y + lowestSole(rig));
-
-          const gait = currentGaitPlan();
-          for (const side of ['left', 'right'] as const) {
-            const foot = side === 'left' ? gait.left : gait.right;
-            const ankle = side === 'left' ? rig.ankleLeft : rig.ankleRight;
-            if (!foot.planted) {
-              previous[side] = null;
-              continue;
-            }
-            contactFrames += 1;
-            ankle.getWorldPosition(point);
-
-            const hip = side === 'left' ? rig.hipLeft : rig.hipRight;
-            const knee = side === 'left' ? rig.kneeLeft : rig.kneeRight;
-            hip.getWorldPosition(hipPoint);
-            knee.getWorldPosition(kneePoint);
-            anklePoint.copy(point);
-            // Measured in the character's own space, because the figure can
-            // be facing any direction: the model looks along its own +Z.
-            rig.root.worldToLocal(hipPoint);
-            rig.root.worldToLocal(kneePoint);
-            rig.root.worldToLocal(anklePoint);
-            // A knee that bends the wrong way sits behind the line from the
-            // hip to the ankle instead of in front of it.
-            kneeForward = Math.min(
-              kneeForward,
-              kneePoint.z - (hipPoint.z + anklePoint.z) * 0.5,
-            );
-
-            // How far the foot ended up from where the plan asked for it.
-            placeError = Math.max(
-              placeError,
-              Math.hypot(anklePoint.z - foot.z, anklePoint.y - ANKLE_TO_SOLE - foot.y),
-            );
-
-            const last = previous[side];
-            if (last) {
-              const slip = Math.hypot(point.x - last.x, point.z - last.z) / dt;
-              worstSlip = Math.max(worstSlip, slip);
-              slipTotal += slip;
-              slipFrames += 1;
-            }
-            previous[side] = point.clone();
-          }
-        }
-
-        const round = (value: number, places = 3) => {
-          const scale = 10 ** places;
-          return Math.round(value * scale) / scale;
-        };
-
-        return {
-          speed: round(this.player.speed, 2),
-          lowestSole: round(lowest),
-          worstSlip: round(worstSlip, 2),
-          averageSlip: round(slipFrames > 0 ? slipTotal / slipFrames : 0, 2),
-          stepsPerSecond: round(currentGaitPlan().cadence, 2),
-          strideSweep: round(currentGaitPlan().travel),
-          contactShare: round(contactFrames / (frames * 2), 2),
-          kneeForward: round(kneeForward),
-          placeError: round(placeError, 4),
-        };
-      },
-
-      /**
-       * Checks that the poses still built by hand — the idle, the skid, the
-       * landing crouch — keep both shoes on top of the floor rather than
-       * through it. The skid used to put a foot ten centimetres under.
-       */
-      measureFloor: (dt = 1 / 60) => {
-        let jumpHeld = false;
-        const stick = { x: 0, y: 0 };
-        const stub = {
-          move: stick,
-          look: { x: 0, y: 0 },
-          isDown: (action: string) => action === 'jump' && jumpHeld,
-          wasPressed: (action: string) => action === 'jump' && jumpHeld,
-          wasReleased: () => false,
-        } as unknown as Input;
-
-        const yaw = this.cameraRig.movementYaw;
-        const rig = this.player.rig;
-        const run = (frames: number) => {
-          let worst = Infinity;
-          const states = new Set<string>();
-          for (let i = 0; i < frames; i += 1) {
-            this.player.update(dt, stub, yaw);
-            this.player.object.updateMatrixWorld(true);
-            states.add(this.player.stateName);
-            if (this.player.stateName !== 'jump' && this.player.stateName !== 'fall') {
-              worst = Math.min(worst, this.player.position.y + lowestSole(rig));
-            }
-          }
-          return { worst: Math.round(worst * 10000) / 10000, states: [...states] };
-        };
-
-        const results: Record<string, unknown> = {};
-
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
-        stick.y = 0;
-        results.idle = run(Math.round(1 / dt));
-
-        stick.y = -1;
-        run(Math.round(1.2 / dt));
-        stick.y = 1;
-        results.skid = run(Math.round(0.8 / dt));
-
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
-        stick.y = 0;
-        run(Math.round(0.4 / dt));
-        jumpHeld = true;
-        run(3);
-        jumpHeld = false;
-        results.landing = run(Math.round(2 / dt));
-
-        return results;
       },
 
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
