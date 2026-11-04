@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — out of the pool, swimming and ladder poses.
+Last updated: 4 November 2026 — bare floor again.
 
 ---
 
@@ -242,6 +242,23 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, twelfth entry.** The floor is bare again: no walls, no
+platform, no thin wall, no pool, no ladder and no crate. Just the slab and
+the character.
+
+The obstacles are not deleted. They are behind a flag on the world builder,
+off by default, so bringing them back is one argument. Everything they were
+for — the wall kick, the three climbs over an edge, the ladder, swimming,
+carrying — is still in the controller and still works; it simply has nothing
+to act on until they return.
+
+The verification pass asks the world whether anything was built besides the
+floor, and when the answer is no it skips those checks **and says that it
+skipped them**. A check that silently passes because there was nothing to
+fail against is worse than no check at all: it reports green for something
+it never tested.
+
 
 **4 November 2026, eleventh entry.** Four faults around the water and the
 ladder, each a different kind of mistake.

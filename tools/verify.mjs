@@ -71,6 +71,11 @@ await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, n
 });
 await page.waitForTimeout(1500);
 
+// Whether anything was built besides the floor. Everything that needs
+// something to climb, swim in or carry is skipped while it is bare, and says
+// so rather than quietly passing because there was nothing to fail against.
+const hasObstacles = await page.evaluate(() => window.__letsgo.debug.world.hasObstacles);
+
 // ---- Running --------------------------------------------------------------
 const steps = [];
 await page.screenshot({ path: `${SHOTS}01-standing.png` });
@@ -321,13 +326,15 @@ if (flips.length && !(flips[flips.length - 1].peak > moves.backflip.peak)) {
 }
 
 // A wall kick needs a wall to be found, caught on, and pushed off.
-if (!moves.wallKick.touchedWall) problems.push('the character never caught on a wall');
-if (!moves.wallKick.kicked) problems.push('the wall kick never fired');
-if (!(moves.wallKick.gained > 1)) {
-  problems.push(`the wall kick gained only ${moves.wallKick.gained}m of height`);
-}
-if (!(moves.wallKick.movedAway > 1)) {
-  problems.push(`the wall kick carried him only ${moves.wallKick.movedAway}m from the wall`);
+if (hasObstacles) {
+  if (!moves.wallKick.touchedWall) problems.push('the character never caught on a wall');
+  if (!moves.wallKick.kicked) problems.push('the wall kick never fired');
+  if (!(moves.wallKick.gained > 1)) {
+    problems.push(`the wall kick gained only ${moves.wallKick.gained}m of height`);
+  }
+  if (!(moves.wallKick.movedAway > 1)) {
+    problems.push(`the wall kick carried him only ${moves.wallKick.movedAway}m from the wall`);
+  }
 }
 
 // Letting go at a run is a skid, and it is the braking one: he keeps going
@@ -384,7 +391,10 @@ await resetPlayer(page);
 // the last few inches and a drop all the way back down, because nothing knew
 // the difference between a wall and the top of one. He now takes hold and
 // waits there until the jump button says to climb.
-const ledges = await page.evaluate(() => window.__letsgo.debug.simulateLedges(1 / 60));
+const ledges = hasObstacles
+  ? await page.evaluate(() => window.__letsgo.debug.simulateLedges(1 / 60))
+  : null;
+if (ledges) {
 
 const WALL_TOP = 7.14;
 const PLATFORM_TOP = 2.71;
@@ -440,10 +450,14 @@ if (Math.abs(ledges.thinWall.landedAt) > 0.05) {
 if (!ledges.wallTopByKicking.reached) {
   problems.push('kicking up the gap between two walls never reached the top');
 }
+}
 
 await resetPlayer(page);
 
 // ---- The side flip, the ground pound, the ladder, the pool, the crate ---
+// The last three need something to climb, swim in or carry. When the floor
+// is bare they are skipped and said to be skipped, rather than quietly
+// passing because there was nothing to fail against.
 const extras = await page.evaluate(() => window.__letsgo.debug.simulateExtras(1 / 60));
 
 // The side flip takes jump and the flip button within a third of a second of
@@ -488,6 +502,7 @@ for (const want of ['pound-hover', 'pound', 'pound-land']) {
   }
 }
 
+if (hasObstacles) {
 if (!extras.ladder.caught) problems.push('walking into the ladder did not catch it');
 if (!(extras.ladder.to > extras.ladder.from + 4)) {
   problems.push(`the ladder carried him only ${extras.ladder.to - extras.ladder.from}m up`);
@@ -526,6 +541,7 @@ if (extras.ladder.dropAtTop > 0.02) {
 
 if (!extras.crate.inReach) problems.push('the crate was never within reach');
 if (!extras.crate.carrying) problems.push('pressing grab did not pick the crate up');
+}
 
 await resetPlayer(page);
 
@@ -622,8 +638,12 @@ console.log(
 );
 
 console.log('\n--- over a top edge ---');
-for (const [name, result] of Object.entries(ledges)) {
-  console.log(` ${name.padEnd(18)} ends at ${result.landedAt}m  ${result.states.join(' > ')}`);
+if (ledges) {
+  for (const [name, result] of Object.entries(ledges)) {
+    console.log(` ${name.padEnd(18)} ends at ${result.landedAt}m  ${result.states.join(' > ')}`);
+  }
+} else {
+  console.log(' skipped: the floor is bare, so there is nothing to climb');
 }
 
 console.log('\n--- the newest moves ---');
@@ -634,15 +654,19 @@ for (const [name, result, shouldFlip] of flipCases) {
   );
 }
 console.log(` ground pound   ${extras.groundPound.states.join(' > ')}`);
-console.log(
-  ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m, drop at the top ` +
-    `${extras.ladder.dropAtTop}m  ${extras.ladder.states.join(' > ')}`,
-);
-console.log(` pool           down to ${extras.pool.depth}m, out again ${extras.pool.gotOut}`);
-console.log(`                ${extras.pool.outStates.join(' > ')}`);
-console.log(
-  ` crate          in reach ${extras.crate.inReach}, carried ${extras.crate.carrying}`,
-);
+if (hasObstacles) {
+  console.log(
+    ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m, drop at the top ` +
+      `${extras.ladder.dropAtTop}m  ${extras.ladder.states.join(' > ')}`,
+  );
+  console.log(` pool           down to ${extras.pool.depth}m, out again ${extras.pool.gotOut}`);
+  console.log(`                ${extras.pool.outStates.join(' > ')}`);
+  console.log(
+    ` crate          in reach ${extras.crate.inReach}, carried ${extras.crate.carrying}`,
+  );
+} else {
+  console.log(' ladder, pool, crate, wall kick: skipped, the floor is bare');
+}
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

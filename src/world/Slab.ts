@@ -47,8 +47,23 @@ export interface SlabWorld {
   triangleCount: number;
   /** Things that can be picked up and carried. */
   carryables: Carryable[];
-  /** The pool's surface, which needs a clock to move. */
-  water: Water;
+  /** The pool's surface, which needs a clock to move. Null without a pool. */
+  water: Water | null;
+  /** Whether anything was built besides the floor. */
+  hasObstacles: boolean;
+}
+
+export interface SlabOptions {
+  /**
+   * Whether to build the walls, the platform, the pool, the ladder and the
+   * crate, or leave the floor bare.
+   *
+   * Bare is the default because the floor is for judging the character, and
+   * everything else in the way of that is in the way. The moves that need
+   * something to climb, swim in or carry are all still in the controller;
+   * they simply have nothing to act on until this is switched back on.
+   */
+  obstacles?: boolean;
 }
 
 /** The pool: a hole in the slab, with a basin under it. */
@@ -72,7 +87,12 @@ const FLOOR_LIGHT = new Color('#4a515d');
 const FLOOR_DARK = new Color('#424954');
 const FLOOR_LINE = new Color('#5f6774');
 
-export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
+export function buildSlab(
+  scene: Scene,
+  collision: CollisionWorld,
+  options: SlabOptions = {},
+): SlabWorld {
+  const obstacles = options.obstacles === true;
   const root = new Group();
   root.name = 'slab-world';
   scene.add(root);
@@ -81,25 +101,26 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   solid.name = 'solid';
   root.add(solid);
 
-  solid.add(createFloor());
+  solid.add(createFloor(obstacles));
 
-  // A narrow gap to climb by kicking from one side to the other, off to the
-  // left of the spawn.
-  solid.add(createWall(-14 - KICK_GAP - WALL_THICKNESS / 2, -6));
-  solid.add(createWall(-14 + KICK_GAP + WALL_THICKNESS / 2, -6));
+  if (obstacles) {
+    // A narrow gap to climb by kicking from one side to the other, off to
+    // the left of the spawn.
+    solid.add(createWall(-14 - KICK_GAP - WALL_THICKNESS / 2, -6));
+    solid.add(createWall(-14 + KICK_GAP + WALL_THICKNESS / 2, -6));
 
-  // And a single face, for one kick on its own.
-  solid.add(createWall(15, -6));
+    // And a single face, for one kick on its own.
+    solid.add(createWall(15, -6));
 
-  // A broad, low platform. At this height the top is just within reach at
-  // the peak of an ordinary jump, which is the case the climb onto a roof is
-  // for: hands barely on the edge, then haul.
-  solid.add(createPlatform(15, 12));
+    // A broad, low platform. At this height the top is just within reach at
+    // the peak of an ordinary jump, which is the case the climb onto a roof
+    // is for: hands barely on the edge, then haul.
+    solid.add(createPlatform(15, 12));
 
-  // A thin wall at the same height, too narrow to stand on, so the swing
-  // over the top has something to be seen on. Both are reachable from a
-  // standing jump, which makes the two climbs easy to compare.
-  solid.add(createThinWall(4, 2));
+    // A thin wall at the same height, too narrow to stand on, so the swing
+    // over the top has something to be seen on.
+    solid.add(createThinWall(4, 2));
+  }
 
   // The slab's underside is decoration only. Its triangles are eighty metres
   // across, and the collision octree stops descending as soon as it reaches a
@@ -115,40 +136,45 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   body.name = 'slab-body';
   root.add(body);
 
-  // ---- The pool ----------------------------------------------------------
-  // The floor has a hole cut in it above the basin, so he swims in a pool
-  // rather than in a tank sitting on the ground.
-  for (const wall of poolBasin()) solid.add(wall);
-  collision.addWater(
-    new Box3(
-      new Vector3(POOL.x - POOL.half, -POOL.depth, POOL.z - POOL.half),
-      new Vector3(POOL.x + POOL.half, 0, POOL.z + POOL.half),
-    ),
-    -0.12,
-  );
-  const water = new Water(POOL.half * 2, -0.12, STUDIO_SUN_DIRECTION, false);
-  water.position.set(POOL.x, 0, POOL.z);
-  water.renderOrder = 2;
-  root.add(water);
+  let water: Water | null = null;
+  const carryables: Carryable[] = [];
 
-  // ---- The ladder --------------------------------------------------------
-  solid.add(createLadder());
-  collision.addLadder(
-    new Box3(
-      new Vector3(LADDER.x - LADDER.width, 0, LADDER.z - LADDER.width),
-      new Vector3(LADDER.x + 0.3, LADDER.top, LADDER.z + LADDER.width),
-    ),
-    // He faces +x while on it, into the wall the ladder is fixed to.
-    Math.PI / 2,
-    LADDER.top,
-    new Vector3(LADDER.x, 0, LADDER.z),
-  );
+  if (obstacles) {
+    // ---- The pool --------------------------------------------------------
+    // The floor has a hole cut in it above the basin, so he swims in a pool
+    // rather than in a tank sitting on the ground.
+    for (const wall of poolBasin()) solid.add(wall);
+    collision.addWater(
+      new Box3(
+        new Vector3(POOL.x - POOL.half, -POOL.depth, POOL.z - POOL.half),
+        new Vector3(POOL.x + POOL.half, 0, POOL.z + POOL.half),
+      ),
+      -0.12,
+    );
+    water = new Water(POOL.half * 2, -0.12, STUDIO_SUN_DIRECTION, false);
+    water.position.set(POOL.x, 0, POOL.z);
+    water.renderOrder = 2;
+    root.add(water);
 
-  // ---- Something to pick up ----------------------------------------------
-  const crate = createCrate();
-  crate.position.set(3, 0.3, 14);
-  root.add(crate);
-  const carryables = [new Carryable(crate, 0.3)];
+    // ---- The ladder ------------------------------------------------------
+    solid.add(createLadder());
+    collision.addLadder(
+      new Box3(
+        new Vector3(LADDER.x - LADDER.width, 0, LADDER.z - LADDER.width),
+        new Vector3(LADDER.x + 0.3, LADDER.top, LADDER.z + LADDER.width),
+      ),
+      // He faces +x while on it, into the wall the ladder is fixed to.
+      Math.PI / 2,
+      LADDER.top,
+      new Vector3(LADDER.x, 0, LADDER.z),
+    );
+
+    // ---- Something to pick up --------------------------------------------
+    const crate = createCrate();
+    crate.position.set(3, 0.3, 14);
+    root.add(crate);
+    carryables.push(new Carryable(crate, 0.3));
+  }
 
   collision.addSolid(solid);
 
@@ -163,6 +189,7 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   return {
     carryables,
     water,
+    hasObstacles: obstacles,
     root,
     spawn: SPAWN_POSITION.clone(),
     spawnFacing: SPAWN_FACING,
@@ -388,12 +415,12 @@ function cutPool(geometry: PlaneGeometry): void {
   geometry.setIndex(kept);
 }
 
-function createFloor(): Mesh {
+function createFloor(withPool: boolean): Mesh {
   const segments = SLAB_SIZE / GRID_SQUARE;
   const geometry = new PlaneGeometry(SLAB_SIZE, SLAB_SIZE, segments, segments);
   geometry.rotateX(-Math.PI / 2);
 
-  cutPool(geometry);
+  if (withPool) cutPool(geometry);
 
   const position = geometry.attributes.position as BufferAttribute;
   const colors = new Float32Array(position.count * 3);

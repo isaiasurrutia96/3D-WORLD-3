@@ -118,7 +118,7 @@ class Game {
     this.cameraRig.update(delta, this.player);
 
     for (const carryable of this.world.carryables) carryable.update(delta, this.collision);
-    this.world.water.update(this.engine.clock.elapsedTime);
+    this.world.water?.update(this.engine.clock.elapsedTime);
     this.effects.update(delta);
     this.engine.focusShadowsOn(this.player.position);
     this.engine.render(delta);

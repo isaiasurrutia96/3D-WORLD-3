@@ -51,9 +51,7 @@ export class Hud {
       Crouch <b>Q</b> — crouch running then jump for a <b>long jump</b>, crouch
       still then jump for a <b>backflip</b><br />
       <b>Space</b> again in the air for a boost, and <b>again</b> to <b>ground
-      pound</b> · jump at a wall to <b>kick off it</b><br />
-      <b>R</b> pick up and drop · walk into the ladder to climb · let go at a
-      run to <b>skid</b><br />
+      pound</b> · let go at a run to <b>skid</b><br />
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
       Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high<br />
       <span class="hud__build">build ${__BUILD_STAMP__}</span>
