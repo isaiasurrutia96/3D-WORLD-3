@@ -382,12 +382,27 @@ await resetPlayer(page);
 // ---- Getting over a top edge --------------------------------------------
 // Reaching the top of a wall by kicking up it used to end in a bounce off
 // the last few inches and a drop all the way back down, because nothing knew
-// the difference between a wall and the top of one.
+// the difference between a wall and the top of one. He now takes hold and
+// waits there until the jump button says to climb.
 const ledges = await page.evaluate(() => window.__letsgo.debug.simulateLedges(1 / 60));
 
 const WALL_TOP = 7.14;
 const PLATFORM_TOP = 2.71;
-const onTop = (result, height, what) => {
+const THIN_WALL_FAR_SIDE = 4.15;
+
+for (const [name, result] of Object.entries(ledges)) {
+  if (name === 'wallTopByKicking') continue;
+  if (!result.hung) {
+    problems.push(`${name}: never took hold of the edge (${result.states.join(' > ')})`);
+    continue;
+  }
+  // Half a second of pressing nothing: he has to still be there.
+  if (!result.stayed) {
+    problems.push(`${name}: let go, or climbed, without the jump button being pressed`);
+  }
+}
+
+const standsOn = (result, height, what) => {
   if (Math.abs(result.landedAt - height) > 0.05) {
     problems.push(
       `${what}: ended at ${result.landedAt}m rather than on top at ${height}m ` +
@@ -396,27 +411,34 @@ const onTop = (result, height, what) => {
   }
 };
 
-onTop(ledges.wallTopFromHang, WALL_TOP, 'hanging at the top of a wall');
-onTop(ledges.platformFromHang, PLATFORM_TOP, 'hanging at the edge of a platform');
-onTop(ledges.platformJumped, PLATFORM_TOP, 'jumping at a platform');
-onTop(ledges.wallTopByKicking, WALL_TOP, 'kicking up a wall');
+standsOn(ledges.wallTop, WALL_TOP, 'the top of a wall');
+standsOn(ledges.platform, PLATFORM_TOP, 'the edge of a platform');
+standsOn(ledges.platformJumped, PLATFORM_TOP, 'jumping at a platform');
+standsOn(ledges.wallTopByKicking, WALL_TOP, 'kicking up a wall');
 
-// The two climbs are different moves and the right one has to be chosen:
-// over the top of a wall he swings, onto a roof he hauls.
-if (!ledges.wallTopFromHang.states.includes('ledge-swing')) {
+// The three climbs are different moves and the right one has to be picked:
+// over a wall top he swings, onto a roof he hauls, over something too thin
+// to stand on he vaults and carries on down the far side.
+if (!ledges.wallTop.states.includes('ledge-swing')) {
+  problems.push(`the top of a wall gave ${ledges.wallTop.states.join(' > ')}, not a swing`);
+}
+if (!ledges.platform.states.includes('mantle')) {
+  problems.push(`a platform edge gave ${ledges.platform.states.join(' > ')}, not a haul`);
+}
+if (!ledges.thinWall.states.includes('ledge-vault')) {
+  problems.push(`a thin wall gave ${ledges.thinWall.states.join(' > ')}, not a vault`);
+}
+if (!(ledges.thinWall.landedAhead > THIN_WALL_FAR_SIDE)) {
   problems.push(
-    `the top of a wall produced ${ledges.wallTopFromHang.states.join(' > ')} ` +
-      `rather than a swing over it`,
+    `the vault left him at ${ledges.thinWall.landedAhead}m, not past the far side of ` +
+      `the wall at ${THIN_WALL_FAR_SIDE}m`,
   );
 }
-if (!ledges.platformFromHang.states.includes('mantle')) {
-  problems.push(
-    `the edge of a platform produced ${ledges.platformFromHang.states.join(' > ')} ` +
-      `rather than a haul onto it`,
-  );
+if (Math.abs(ledges.thinWall.landedAt) > 0.05) {
+  problems.push(`the vault ended at ${ledges.thinWall.landedAt}m rather than back on the floor`);
 }
-if (!(ledges.wallTopByKicking.kicks >= 1)) {
-  problems.push('kicking up the gap between two walls never got off the first wall');
+if (!ledges.wallTopByKicking.reached) {
+  problems.push('kicking up the gap between two walls never reached the top');
 }
 
 await resetPlayer(page);

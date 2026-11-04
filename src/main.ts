@@ -667,48 +667,75 @@ class Game {
           player.teleport(new Vector3(x, y, z), facing);
         };
 
-        // Watches until he is standing still on something, or time runs out.
-        const settle = (seconds: number) => {
+        /**
+         * Waits for him to take hold, checks he stays there without being
+         * asked to climb, then presses jump and watches the climb out.
+         */
+        const hangThenClimb = (waitFor: number, after: number) => {
           const states: string[] = [];
-          for (let i = 0; i < frames(seconds); i += 1) {
-            step();
+          const note = () => {
             const name = player.stateName;
             if (states[states.length - 1] !== name) states.push(name);
+          };
+          let caught = -1;
+          for (let i = 0; i < frames(waitFor); i += 1) {
+            step();
+            note();
+            if (player.stateName === 'hanging') {
+              caught = i;
+              break;
+            }
           }
-          return { states, landedAt: round(player.position.y), state: player.stateName };
+          if (caught < 0) {
+            return { hung: false, heldFor: 0, states, landedAt: round(player.position.y) };
+          }
+
+          // Half a second of doing nothing: he must still be there.
+          const hangY = player.position.y;
+          for (let i = 0; i < frames(0.5); i += 1) step();
+          const stayed = player.stateName === 'hanging' && Math.abs(player.position.y - hangY) < 0.01;
+
+          tap('jump');
+          for (let i = 0; i < frames(0.2); i += 1) step();
+          held.delete('jump');
+          for (let i = 0; i < frames(after); i += 1) {
+            step();
+            note();
+          }
+          return {
+            hung: true,
+            stayed,
+            states,
+            hangLift: round(player.ledgeDiagnostics.lip),
+            landedAt: round(player.position.y),
+            landedAhead: round(player.position.x),
+          };
         };
 
         const results: Record<string, unknown> = {};
 
-        // Dropped beside the top of a wall, hands at the edge.
-        // The corridor's right-hand wall faces -x, its face at x = -12.75.
+        // The top of a corridor wall, whose face is at x = -12.3.
         place(-12.7, 5.9, -6, Math.PI / 2);
-        results.wallTopFromHang = settle(2);
+        results.wallTop = hangThenClimb(1, 2);
 
-        // Dropped beside the platform, which is 5.5 across at x 15, z 12, so
-        // its near face in z is at 9.25.
+        // The platform, 5.5 across at x 15, z 12: near face at z = 9.25.
         place(15, 1.5, 8.6, 0);
-        results.platformFromHang = settle(2.2);
+        results.platform = hangThenClimb(1, 2.4);
 
-        // Jumped at the platform from the floor, which is how it would be met.
+        // The thin wall at x 4, 0.3 thick: near face at x = 3.85.
+        place(3.3, 1.3, 2, Math.PI / 2);
+        results.thinWall = hangThenClimb(1, 2.4);
+
+        // Jumped at the platform from the floor, which is how it is met.
         place(15, 0, 6.2, 0);
         for (let i = 0; i < frames(0.4); i += 1) step();
         stick.y = 1;
         for (let i = 0; i < frames(0.5); i += 1) step();
-        // Held, not tapped: letting go a frame later cuts the jump to a hop.
         tap('jump');
         for (let i = 0; i < frames(0.32); i += 1) step();
         held.delete('jump');
-        const seen = new Set<string>();
-        for (let i = 0; i < frames(2.4); i += 1) {
-          step();
-          seen.add(player.ledgeDiagnostics.reason);
-          if (player.stateName === 'mantle' || player.stateName === 'ledge-swing') break;
-        }
-        stick.x = 0;
         stick.y = 0;
-        const rest = settle(1.6);
-        results.platformJumped = { ...rest, saw: [...seen] };
+        results.platformJumped = hangThenClimb(1.6, 2);
 
         // Kicked up the corridor to the top of a wall, alternating sides.
         place(-14, 0, -6, Math.PI / 2);
@@ -721,10 +748,15 @@ class Game {
         const climbStates: string[] = [];
         let kicks = 0;
         let holdFor = 0;
+        let reached = false;
         for (let i = 0; i < frames(6); i += 1) {
           step();
           const name = player.stateName;
           if (climbStates[climbStates.length - 1] !== name) climbStates.push(name);
+          if (name === 'hanging') {
+            reached = true;
+            break;
+          }
           if (holdFor > 0) {
             holdFor -= 1;
             if (holdFor === 0) held.delete('jump');
@@ -732,20 +764,24 @@ class Game {
             tap('jump');
             holdFor = frames(0.3);
             kicks += 1;
-            // Push toward the other wall for the next one.
             stick.x = -stick.x;
           }
-          if (name === 'ledge-swing' || name === 'mantle') break;
         }
         stick.x = 0;
         stick.y = 0;
-        const after = settle(1.8);
-        results.wallTopByKicking = {
-          kicks,
-          states: [...climbStates, ...after.states],
-          landedAt: after.landedAt,
-          state: after.state,
-        };
+        let topped = { landedAt: round(player.position.y) };
+        if (reached) {
+          tap('jump');
+          for (let i = 0; i < frames(0.2); i += 1) step();
+          held.delete('jump');
+          for (let i = 0; i < frames(1.6); i += 1) {
+            step();
+            const name = player.stateName;
+            if (climbStates[climbStates.length - 1] !== name) climbStates.push(name);
+          }
+          topped = { landedAt: round(player.position.y) };
+        }
+        results.wallTopByKicking = { kicks, reached, states: climbStates, ...topped };
 
         place(0, 0, 10, this.world.spawnFacing);
         for (let i = 0; i < frames(0.4); i += 1) step();

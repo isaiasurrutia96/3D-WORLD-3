@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — the slide, and getting over a top edge.
+Last updated: 4 November 2026 — shadows, hanging, the vault, and planted hands.
 
 ---
 
@@ -242,6 +242,41 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, seventh entry.** Four fixes around the climb.
+
+**1. The shadow flicker near a wall.** In studio mode the sun sat nine metres
+from the character along a direction two thirds upward, which put it barely
+six metres above him — lower than the top of a seven-metre wall. The shadow
+box was 4.4 metres across, sized for a scene with nothing in it but the
+figure. Tall geometry was therefore level with the light and only partly
+inside the box, so the part outside stopped casting and the edge of the box
+swept across the walls as he moved. The sun now sits twenty-six metres back,
+well above anything in the scene, the box is eighteen metres across, and the
+shadow map is doubled in studio mode to keep the figure's own shadow sharp at
+that width. The stray triangles of shadow on the floor near a wall are gone.
+
+**2. He hangs until told to climb.** Taking hold of an edge no longer runs
+the climb by itself: he holds there until the jump button is pressed. Crouch
+lets go, because hanging with no way down would be a trap. He is also settled
+onto the hang rather than left at whatever height he caught at, which was
+often with the edge level with his shoulders — arms out in front, reading as
+standing beside the thing rather than hanging off it.
+
+**3. A thin wall to vault.** The walls are 0.9 metres thick and the platform
+5.5, so there was nothing a top too narrow to stand on. There is now a wall
+0.3 thick at the same height as the platform, and a third climb to go with
+it: over the top and down the far side, rather than onto it.
+
+**4. The hands stay on the edge.** The arms were posed by angle like
+everything else, so the hands rose with the shoulders — as though the edge
+were coming up too. The hand is now the thing that is decided: it stays where
+the edge is, and the shoulder and elbow are worked out backwards from it. As
+the body climbs past its own hands the arms straighten downward on their own,
+and once the shoulders are more than an arm's length above the edge there is
+nothing left to reach for and they fall to his sides. The release needs no
+separate animation.
+
 
 **4 November 2026, sixth entry.** The slide's figures were set to the ones
 asked for, and getting over a top edge was added.

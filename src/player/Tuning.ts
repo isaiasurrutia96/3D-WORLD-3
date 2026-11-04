@@ -150,12 +150,38 @@ export const TUNING = {
    * treated as getting onto a roof rather than over a wall.
    */
   ledgeWideDepth: 1.15,
-  /** Where he ends up, measured past the edge, for each of the two climbs. */
+  /** Where he ends up, measured past the edge, for each of the climbs. */
   ledgeStandNarrow: 0.5,
   ledgeStandWide: 0.95,
+  /**
+   * And for a top too narrow to stand on, where he is carried to instead. A
+   * thin wall is vaulted rather than climbed: he goes over it and down the
+   * far side rather than balancing on the top.
+   */
+  ledgeVaultOver: 1.15,
+  /**
+   * How far in front of his centre line his hands are while he holds the
+   * edge. Used to work out the shoulder and elbow that keep them there.
+   */
+  ledgeHandForward: 0.36,
+  /**
+   * How far above his feet the edge sits once he has taken hold.
+   *
+   * Without settling him onto a hang, he keeps whatever height he happened
+   * to catch at, which is often with the edge level with his shoulders — so
+   * his arms reach out in front rather than up, and it reads as standing
+   * beside the thing rather than hanging off it. His shoulders are 1.27
+   * above his feet and his arms are 0.66 long, so an edge about this far up
+   * is one he hangs from with his hands over his head.
+   */
+  ledgeHangLift: 1.72,
+  /** The most he is allowed to be settled down, and up, onto that hang. */
+  ledgeSettleDown: 0.8,
+  ledgeSettleUp: 0.25,
   /** How long each climb takes. Hauling onto a roof is the slower of the two. */
   ledgeSwingSeconds: 0.52,
   ledgeMantleSeconds: 0.8,
+  ledgeVaultSeconds: 0.5,
   /** How long after a climb before another one can start. */
   ledgeCooldown: 0.25,
 

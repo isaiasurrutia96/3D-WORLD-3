@@ -49,6 +49,8 @@ const KICK_GAP = 1.7;
 const WALL_HEIGHT = 7;
 const PLATFORM_SIZE = 5.5;
 const PLATFORM_HEIGHT = 2.6;
+const THIN_WALL_THICKNESS = 0.3;
+const THIN_WALL_LENGTH = 9;
 const WALL_LENGTH = 11;
 const WALL_THICKNESS = 0.9;
 
@@ -79,6 +81,11 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
   // the peak of an ordinary jump, which is the case the climb onto a roof is
   // for: hands barely on the edge, then haul.
   solid.add(createPlatform(15, 12));
+
+  // A thin wall at the same height, too narrow to stand on, so the swing
+  // over the top has something to be seen on. Both are reachable from a
+  // standing jump, which makes the two climbs easy to compare.
+  solid.add(createThinWall(4, 2));
 
   // The slab's underside is decoration only. Its triangles are eighty metres
   // across, and the collision octree stops descending as soon as it reaches a
@@ -161,6 +168,40 @@ function createWall(x: number, z: number): Mesh {
  * enough that the top is within reach at the peak of a normal jump, and deep
  * enough that there is somewhere to haul onto once he is up.
  */
+/**
+ * A wall too thin to stand on top of, so getting over it has to be a vault
+ * rather than a climb. Same height as the platform, so the difference
+ * between the two moves is the only thing that varies.
+ */
+function createThinWall(x: number, z: number): Mesh {
+  const mesh = new Mesh(
+    new BoxGeometry(
+      THIN_WALL_THICKNESS,
+      PLATFORM_HEIGHT,
+      THIN_WALL_LENGTH,
+      1,
+      PLATFORM_HEIGHT,
+      THIN_WALL_LENGTH,
+    ),
+    new MeshStandardMaterial({ color: WALL_COLOUR, roughness: 0.92 }),
+  );
+  mesh.position.set(x, PLATFORM_HEIGHT / 2, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = 'thin-wall';
+
+  const cap = new Mesh(
+    new BoxGeometry(THIN_WALL_THICKNESS + 0.08, 0.16, THIN_WALL_LENGTH + 0.08, 1, 1, THIN_WALL_LENGTH),
+    new MeshStandardMaterial({ color: WALL_TRIM, roughness: 0.85 }),
+  );
+  cap.position.y = PLATFORM_HEIGHT / 2 - 0.08;
+  cap.castShadow = true;
+  cap.receiveShadow = true;
+  mesh.add(cap);
+
+  return mesh;
+}
+
 function createPlatform(x: number, z: number): Mesh {
   const mesh = new Mesh(
     new BoxGeometry(

@@ -194,6 +194,40 @@ export interface RigOptions {
   plain?: boolean;
 }
 
+/** Total height of the rig in world units, used to size the collision capsule. */
+export const CHARACTER_HEIGHT = 1.82;
+
+/**
+ * Height of the hip line, and the point the whole figure rotates about.
+ *
+ * The body group used to sit at the character's feet, so a somersault swung
+ * the head a full body-length below the ground. Putting the group on the hip
+ * line means the figure turns about its own middle, the way a person does.
+ */
+export const HIP_HEIGHT = 0.92;
+export const CHARACTER_RADIUS = 0.34;
+
+/**
+ * Arm measurements, in metres, taken from the pivots the rig is built with.
+ *
+ * The climb over a ledge works backwards from these: it is given where the
+ * hand has to stay — on the edge — and solves the shoulder and elbow that
+ * put it there, so the hands hold still while the body rises past them.
+ */
+export const ARM = {
+  /** Sideways offset of the shoulder pivot from the centre line. */
+  shoulderX: 0.282,
+  /** Height of the shoulder pivot above the body group's origin. */
+  shoulderY: 0.345,
+  /** Shoulder pivot to elbow pivot. */
+  upper: 0.32,
+  /** Elbow pivot to the centre of the glove. */
+  lower: 0.34,
+} as const;
+
+/** Height of the shoulder pivot above the ground, standing still. */
+export const SHOULDER_HEIGHT = HIP_HEIGHT + ARM.shoulderY;
+
 export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const materials: MeshStandardMaterial[] = [];
   const make = (color: string, roughness?: number, metalness?: number) => {
@@ -279,18 +313,18 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.282 * UPPER_BODY_SCALE * side, 0.345, 0);
+    shoulder.position.set(ARM.shoulderX * UPPER_BODY_SCALE * side, ARM.shoulderY, 0);
     torso.add(shoulder);
 
     shoulder.add(part(taperedLimb(0.1, 0.11, 0.14), shirtMaterial, [0, -0.16, 0]));
 
     const elbow = new Group();
-    elbow.position.y = -0.32;
+    elbow.position.y = -ARM.upper;
     shoulder.add(elbow);
     elbow.add(part(taperedLimb(0.096, 0.104, 0.17), shirtMaterial, [0, -0.17, 0]));
 
     // Big round gloves: one of the most recognisable things about him.
-    const glove = part(new SphereGeometry(0.142, 14, 12), gloveMaterial, [0, -0.34, 0]);
+    const glove = part(new SphereGeometry(0.142, 14, 12), gloveMaterial, [0, -ARM.lower, 0]);
     // Flattened front to back, so it reads as a hand rather than a ball.
     glove.scale.set(1.08, 1.0, 0.82);
     elbow.add(glove);
@@ -362,16 +396,3 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     materials,
   };
 }
-
-/** Total height of the rig in world units, used to size the collision capsule. */
-export const CHARACTER_HEIGHT = 1.82;
-
-/**
- * Height of the hip line, and the point the whole figure rotates about.
- *
- * The body group used to sit at the character's feet, so a somersault swung
- * the head a full body-length below the ground. Putting the group on the hip
- * line means the figure turns about its own middle, the way a person does.
- */
-export const HIP_HEIGHT = 0.92;
-export const CHARACTER_RADIUS = 0.34;

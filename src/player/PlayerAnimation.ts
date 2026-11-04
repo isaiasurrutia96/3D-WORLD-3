@@ -8,7 +8,8 @@
  */
 
 import { MathUtils } from 'three';
-import { HIP_HEIGHT, type CharacterRig } from './PlayerModel.ts';
+import { TUNING } from './Tuning.ts';
+import { ARM, HIP_HEIGHT, SHOULDER_HEIGHT, type CharacterRig } from './PlayerModel.ts';
 import type { JumpKind, MovementState } from './Player.ts';
 
 export interface AnimationInputs {
@@ -36,6 +37,10 @@ export interface AnimationInputs {
   ledgeProgress: number;
   /** True when the climb is onto a roof rather than over the top of a wall. */
   ledgeWide: boolean;
+  /** True while he is holding the edge, waiting for the jump button. */
+  ledgeHanging: boolean;
+  /** How far the edge he is holding is above his feet, right now. */
+  ledgeLift: number;
   landing: boolean;
   carrying: boolean;
   submerged: boolean;
@@ -361,8 +366,8 @@ function poseGround(input: AnimationInputs): void {
  * over it instead and swings a leg across.
  */
 function poseLedge(input: AnimationInputs): void {
-  const p = MathUtils.clamp(input.ledgeProgress, 0, 1);
   const wide = input.ledgeWide;
+  const p = input.ledgeHanging ? 0 : MathUtils.clamp(input.ledgeProgress, 0, 1);
 
   // Which pair of beats is in play, and how far between them.
   const second = p >= 0.45;
@@ -371,30 +376,89 @@ function poseLedge(input: AnimationInputs): void {
   const mix = (hang: number, pull: number, stand: number) =>
     second ? MathUtils.lerp(pull, stand, t) : MathUtils.lerp(hang, pull, t);
 
-  // Hanging: arms overhead with the hands on the edge, legs long beneath.
-  // Pulling: elbows folded, knees up, chest coming level with the edge.
-  // Standing: arms down, legs under him, upright on top.
-  pose.bodyPitch = mix(0.14, wide ? 0.34 : 0.52, 0.05);
-  pose.bodyHeight = mix(-0.06, -0.02, 0);
+  pose.bodyPitch = mix(0.1, wide ? 0.34 : 0.52, 0.05);
+  pose.bodyHeight = mix(-0.04, -0.02, 0);
   pose.bodySquash = mix(1.02, 0.97, 1);
-  pose.headPitch = mix(-0.32, -0.16, 0);
-
-  pose.shoulderLeftPitch = mix(-2.88, -2.45, -0.34);
-  pose.shoulderRightPitch = mix(-2.88, -2.45, -0.34);
-  pose.shoulderLeftRoll = mix(0.2, 0.36, 0.24);
-  pose.shoulderRightRoll = mix(0.2, 0.36, 0.24);
-  pose.elbowLeft = mix(-0.14, -1.95, -0.3);
-  pose.elbowRight = mix(-0.14, -1.95, -0.3);
+  pose.headPitch = mix(-0.3, -0.16, 0);
 
   // Over a wall the legs are not symmetrical: one swings across the top
   // first, which is what makes it read as going over rather than up.
-  pose.hipLeft = mix(-0.22, wide ? -1.4 : -1.75, -0.24);
-  pose.hipRight = mix(-0.22, wide ? -1.4 : -0.6, -0.24);
-  pose.kneeLeft = mix(0.42, wide ? 1.85 : 1.95, 0.34);
-  pose.kneeRight = mix(0.42, wide ? 1.85 : 0.9, 0.34);
-  pose.ankleLeft = mix(0.18, 0.24, 0);
-  pose.ankleRight = mix(0.18, 0.24, 0);
+  pose.hipLeft = mix(-0.16, wide ? -1.4 : -1.75, -0.24);
+  pose.hipRight = mix(-0.16, wide ? -1.4 : -0.6, -0.24);
+  pose.kneeLeft = mix(0.3, wide ? 1.85 : 1.95, 0.34);
+  pose.kneeRight = mix(0.3, wide ? 1.85 : 0.9, 0.34);
+  pose.ankleLeft = mix(0.2, 0.24, 0);
+  pose.ankleRight = mix(0.2, 0.24, 0);
   pose.bodyRoll = wide ? 0 : mix(0, 0.18, 0);
+
+  reachForTheEdge(input);
+}
+
+/**
+ * Puts the hands on the edge and leaves them there.
+ *
+ * The arms used to be posed by angle like everything else, which meant the
+ * hands travelled upward with the shoulders: he rose and his hands rose with
+ * him, as though the edge were coming along too. Here the hand is the thing
+ * that is decided — it stays where the edge is — and the shoulder and elbow
+ * are worked out backwards from it. As the body climbs past its own hands
+ * the arms straighten downward on their own, and once the shoulders are
+ * higher than the edge by more than the length of an arm there is nothing
+ * left to reach for and they come down to his sides. That is the release,
+ * and it needs no separate animation.
+ */
+function reachForTheEdge(input: AnimationInputs): void {
+  // Where the edge is, measured from the shoulder.
+  const shoulderAboveFeet = SHOULDER_HEIGHT + pose.bodyHeight;
+  const up = input.ledgeLift - shoulderAboveFeet;
+  const ahead = TUNING.ledgeHandForward;
+
+  const span = Math.hypot(up, ahead);
+  const reach = ARM.upper + ARM.lower;
+  if (span > reach - 0.01) {
+    // Out of reach: the hands have left the edge, so the arms simply hang.
+    const released = MathUtils.clamp((span - reach) / 0.3, 0, 1);
+    pose.shoulderLeftPitch = MathUtils.lerp(pose.shoulderLeftPitch, -0.3, released);
+    pose.shoulderRightPitch = MathUtils.lerp(pose.shoulderRightPitch, -0.3, released);
+    pose.elbowLeft = MathUtils.lerp(pose.elbowLeft, -0.28, released);
+    pose.elbowRight = MathUtils.lerp(pose.elbowRight, -0.28, released);
+    if (released >= 1) return;
+  }
+
+  const distance = MathUtils.clamp(span, 0.1, reach - 0.012);
+  // Direction from the shoulder to the hand, in the measure the joints use:
+  // zero hangs straight down, and a negative angle swings the arm forward.
+  const direction = Math.atan2(-ahead, -up);
+
+  const atShoulder = Math.acos(
+    MathUtils.clamp(
+      (ARM.upper * ARM.upper + distance * distance - ARM.lower * ARM.lower) /
+        (2 * ARM.upper * distance),
+      -1,
+      1,
+    ),
+  );
+  const atElbow = Math.acos(
+    MathUtils.clamp(
+      (ARM.upper * ARM.upper + ARM.lower * ARM.lower - distance * distance) /
+        (2 * ARM.upper * ARM.lower),
+      -1,
+      1,
+    ),
+  );
+
+  // The elbow bends the opposite way to a knee, so the triangle is closed
+  // from the other side.
+  const shoulderPitch = direction + atShoulder;
+  const elbowBend = -(Math.PI - atElbow);
+
+  pose.shoulderLeftPitch = shoulderPitch;
+  pose.shoulderRightPitch = shoulderPitch;
+  pose.elbowLeft = elbowBend;
+  pose.elbowRight = elbowBend;
+  // Hands a little wider than the shoulders, as they would be on an edge.
+  pose.shoulderLeftRoll = 0.14;
+  pose.shoulderRightRoll = 0.14;
 }
 
 function poseAir(input: AnimationInputs): void {

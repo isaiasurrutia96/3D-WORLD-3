@@ -127,6 +127,12 @@ export class Player {
   private ledgeTimer = -1;
   private ledgeSeconds = 0;
   private ledgeWide = false;
+  /** True for a top too narrow to stand on, which is gone over rather than onto. */
+  private ledgeVault = false;
+  /** True while he is holding the edge, waiting for the jump button. */
+  private ledgeHanging = false;
+  /** How far the edge he is holding is above his feet. */
+  private ledgeLift = 0;
   private ledgeCooldown = 0;
   private readonly ledgeFrom = new Vector3();
   private readonly ledgeTo = new Vector3();
@@ -196,7 +202,11 @@ export class Player {
   }
 
   get stateName(): string {
-    if (this.state === 'ledge') return this.ledgeWide ? 'mantle' : 'ledge-swing';
+    if (this.state === 'ledge') {
+      if (this.ledgeHanging) return 'hanging';
+      if (this.ledgeWide) return 'mantle';
+      return this.ledgeVault ? 'ledge-vault' : 'ledge-swing';
+    }
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
     if (this.state === 'air') {
       // Catching on a wall comes first: a kick that has already peaked and
@@ -242,7 +252,7 @@ export class Player {
     // caught hold to where he ends up standing, and nothing else gets a say
     // until it is finished.
     if (this.state === 'ledge') {
-      this.updateLedge(delta);
+      this.updateLedge(delta, input);
       this.updateCarry(delta, input);
       this.updateRecovery(delta);
       this.syncModel(delta, strength);
@@ -481,15 +491,29 @@ export class Player {
     this.ledgeDiagnostics.surface = Math.round(top * 100) / 100;
     if (lip < TUNING.ledgeGrabLow || lip > TUNING.ledgeGrabHigh) return why('out of reach');
 
-    // How far the surface carries on past the edge decides which climb it is.
-    const beyond = this.ledgeSurfaceAt(
+    // How far the surface carries on past the edge decides which of the
+    // three it is: somewhere to stand just past the edge, somewhere to stand
+    // well past it, or nothing at all — a top too thin to stand on, which is
+    // gone over rather than onto.
+    const justPast = this.ledgeSurfaceAt(
+      forward,
+      TUNING.ledgeReach + TUNING.ledgeStandNarrow,
+      feet,
+    );
+    const wellPast = this.ledgeSurfaceAt(
       forward,
       TUNING.ledgeReach + TUNING.ledgeWideDepth,
       feet,
     );
-    this.ledgeWide = beyond !== null && Math.abs(beyond - top) < 0.25;
+    const standable = justPast !== null && Math.abs(justPast - top) < 0.25;
+    this.ledgeWide = standable && wellPast !== null && Math.abs(wellPast - top) < 0.25;
+    this.ledgeVault = !standable;
 
-    const stand = this.ledgeWide ? TUNING.ledgeStandWide : TUNING.ledgeStandNarrow;
+    const stand = this.ledgeWide
+      ? TUNING.ledgeStandWide
+      : this.ledgeVault
+        ? TUNING.ledgeVaultOver
+        : TUNING.ledgeStandNarrow;
     this.ledgeFrom.copy(this.object.position);
     this.ledgeTo.set(
       this.object.position.x + forward.x * (TUNING.ledgeReach + stand),
@@ -497,12 +521,29 @@ export class Player {
       this.object.position.z + forward.z * (TUNING.ledgeReach + stand),
     );
 
+    // Settle him onto the hang rather than leaving him at whatever height he
+    // caught at, so the edge is over his head and his arms reach up to it.
+    const hangY = MathUtils.clamp(
+      top - TUNING.ledgeHangLift,
+      feet - TUNING.ledgeSettleDown,
+      feet + TUNING.ledgeSettleUp,
+    );
+    this.ledgeFrom.y = hangY;
+    this.object.position.y = hangY;
+    this.syncCapsuleFromPosition();
+
     this.facing = Math.atan2(forward.x, forward.z);
     this.velocity.set(0, 0, 0);
     this.ledgeTimer = 0;
+    this.ledgeLift = top - hangY;
+    // He holds the edge and waits. Nothing happens until the jump button
+    // says so, which is what makes it a hold rather than an escalator.
+    this.ledgeHanging = true;
     this.ledgeSeconds = this.ledgeWide
       ? TUNING.ledgeMantleSeconds
-      : TUNING.ledgeSwingSeconds;
+      : this.ledgeVault
+        ? TUNING.ledgeVaultSeconds
+        : TUNING.ledgeSwingSeconds;
     this.againstWall = false;
     this.wallTimer = 99;
     this.state = 'ledge';
@@ -532,7 +573,28 @@ export class Player {
    * straight line between the two points, because a straight line would take
    * him through the very edge he is climbing over.
    */
-  private updateLedge(delta: number): void {
+  private updateLedge(delta: number, input: Input): void {
+    if (this.ledgeHanging) {
+      // Held still on the edge. Jump climbs; crouch lets go, because hanging
+      // with no way down would be a trap.
+      this.object.position.copy(this.ledgeFrom);
+      this.object.rotation.y = this.facing;
+      this.syncCapsuleFromPosition();
+
+      if (input.wasPressed('jump')) {
+        this.ledgeHanging = false;
+        this.ledgeTimer = 0;
+        this.jumpBufferTimer = 0;
+      } else if (input.isDown('crouch')) {
+        this.ledgeHanging = false;
+        this.ledgeTimer = -1;
+        this.ledgeCooldown = TUNING.ledgeCooldown;
+        this.velocity.set(0, 0, 0);
+        this.state = 'air';
+      }
+      return;
+    }
+
     this.ledgeTimer += delta;
     const progress = MathUtils.clamp(this.ledgeTimer / this.ledgeSeconds, 0, 1);
 
@@ -551,6 +613,8 @@ export class Player {
     );
     this.object.rotation.y = this.facing;
     this.syncCapsuleFromPosition();
+
+    this.ledgeLift = this.ledgeTo.y - this.object.position.y;
 
     if (progress >= 1) {
       this.ledgeTimer = -1;
@@ -1280,6 +1344,8 @@ export class Player {
       ledgeProgress:
         this.ledgeTimer < 0 ? 0 : Math.min(1, this.ledgeTimer / this.ledgeSeconds),
       ledgeWide: this.ledgeWide,
+      ledgeHanging: this.ledgeHanging,
+      ledgeLift: this.ledgeLift,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

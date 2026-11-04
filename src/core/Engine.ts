@@ -36,6 +36,17 @@ export const SUN_DIRECTION = new Vector3(0.55, 0.72, 0.42).normalize();
  */
 export const STUDIO_SUN_DIRECTION = new Vector3(-0.45, 0.8, -0.75).normalize();
 
+/**
+ * Half-width of the studio shadow box, and how far back the studio sun sits.
+ *
+ * The distance matters as much as the width. At nine metres along a direction
+ * that is two thirds upward, the sun sat barely six metres above the
+ * character — lower than the top of a seven-metre wall, so tall geometry was
+ * level with the light and clipped against the shadow camera, which flickers.
+ */
+const STUDIO_SHADOW_HALF = 9;
+const STUDIO_SUN_DISTANCE = 26;
+
 export class Engine {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
@@ -123,6 +134,9 @@ export class Engine {
     this.studio = enabled;
     this.sky.visible = !enabled;
     this.configureShadowCamera();
+    // The map size depends on which mode this is, so it has to be reapplied
+    // here as well as when the quality changes.
+    this.applyShadowMapSize();
 
     if (enabled) {
       this.scene.fog = null;
@@ -163,7 +177,7 @@ export class Engine {
 
     this.renderer.shadowMap.enabled = preset.shadows;
     this.sun.castShadow = preset.shadows;
-    this.sun.shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
+    this.applyShadowMapSize();
     if (this.sun.shadow.map) {
       this.sun.shadow.map.dispose();
       this.sun.shadow.map = null;
@@ -189,19 +203,45 @@ export class Engine {
    * own shadow. In studio mode there is one figure to light, so the frustum
    * is a few metres across and the bias can be tiny.
    */
+  /**
+   * The studio scene is a few thousand triangles, so it can afford a sharper
+   * shadow map than the castle could — which it needs, now that the box
+   * around the character is four times wider than it was.
+   */
+  private applyShadowMapSize(): void {
+    const size = this.studio
+      ? Math.min(2048, this.preset.shadowMapSize * 2)
+      : this.preset.shadowMapSize;
+    if (this.sun.shadow.mapSize.x === size) return;
+    this.sun.shadow.mapSize.set(size, size);
+    if (this.sun.shadow.map) {
+      this.sun.shadow.map.dispose();
+      this.sun.shadow.map = null;
+    }
+  }
+
   private configureShadowCamera(): void {
-    const half = this.studio ? 2.2 : this.preset.shadowDistance * 0.5;
+    // The studio frustum used to be a 4.4-metre box around the figure, which
+    // was right when the figure was the only thing in the scene. It is not
+    // any more: walls seven metres tall only partly fit inside it, so the
+    // part that fell outside stopped casting and the edge of the box swept
+    // across them as the character moved. That is the shadow flicker near a
+    // wall. The box now covers the ground around him and the structures on
+    // it.
+    const half = this.studio ? STUDIO_SHADOW_HALF : this.preset.shadowDistance * 0.5;
     const shadowCamera = this.sun.shadow.camera;
     shadowCamera.left = -half;
     shadowCamera.right = half;
     shadowCamera.top = half;
     shadowCamera.bottom = -half;
-    shadowCamera.near = this.studio ? 0.5 : 1;
-    shadowCamera.far = this.studio ? 30 : this.preset.shadowDistance * 3.2;
+    shadowCamera.near = this.studio ? 1 : 1;
+    shadowCamera.far = this.studio ? STUDIO_SUN_DISTANCE * 2.4 : this.preset.shadowDistance * 3.2;
     shadowCamera.updateProjectionMatrix();
 
-    this.sun.shadow.bias = this.studio ? -0.0002 : -0.0012;
-    this.sun.shadow.normalBias = this.studio ? 0.012 : 0.035;
+    // A wider box spreads the same map over more ground, so the bias has to
+    // grow with it or the figure shadows itself.
+    this.sun.shadow.bias = this.studio ? -0.0009 : -0.0012;
+    this.sun.shadow.normalBias = this.studio ? 0.03 : 0.035;
   }
 
   private setUpComposer(): void {
@@ -243,7 +283,7 @@ export class Engine {
   /** Keeps the shadow frustum centred on the player so it stays sharp. */
   focusShadowsOn(target: Vector3): void {
     const direction = this.studio ? STUDIO_SUN_DIRECTION : SUN_DIRECTION;
-    const distance = this.studio ? 9 : this.preset.shadowDistance * 1.4;
+    const distance = this.studio ? STUDIO_SUN_DISTANCE : this.preset.shadowDistance * 1.4;
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();
     this.sun.position.copy(target).addScaledVector(direction, distance);
