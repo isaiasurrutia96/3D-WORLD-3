@@ -1,30 +1,31 @@
-export const RUN_SPEED = 5.5;
-export const STEP = 1 / 120;
-export const STRIDE_LENGTH = 1.6;
-const approach = (value, target, amount) => value < target
-  ? Math.min(target, value + amount) : Math.max(target, value - amount);
-
+import { RUN_DURATION, RUN_STRIDE } from './animation/run-clip.js';
+export const RUN_SPEED=RUN_STRIDE/RUN_DURATION;
+export const STRIDE_LENGTH=RUN_STRIDE;
+export const STEP=1/120;
+const ACCELERATION=18, BRAKING=24, TURN_RATE=14;
 export function createRunner() {
-  return { x: 0, z: 0, yaw: 0, speed: 0, distance: 0 };
+  return {x:0,z:0,yaw:0,speed:0,distance:0,velocityX:0,velocityZ:0,mode:'idle'};
 }
-
-// Running is the only locomotion state. Shift and Space are not inputs here.
-export function stepRunner(state, input, dt = STEP) {
-  const magnitude = Math.hypot(input.x, input.z);
-  const moving = magnitude > 0.01;
-  const desired = moving ? Math.atan2(input.x, input.z) : state.yaw;
-  let difference = Math.atan2(Math.sin(desired - state.yaw), Math.cos(desired - state.yaw));
-  if (moving && state.speed < 0.02) {
-    state.yaw = desired;
-    difference = 0;
+export function stepRunner(state,input,dt=STEP) {
+  const magnitude=Math.hypot(input.x,input.z),moving=magnitude>.01;
+  const targetX=moving?input.x/magnitude*RUN_SPEED:0;
+  const targetZ=moving?input.z/magnitude*RUN_SPEED:0;
+  const dx=targetX-state.velocityX,dz=targetZ-state.velocityZ;
+  const change=Math.hypot(dx,dz),limit=(moving?ACCELERATION:BRAKING)*dt;
+  const fraction=change>limit?limit/change:1;
+  const oldSpeed=state.speed;
+  state.velocityX+=dx*fraction;state.velocityZ+=dz*fraction;
+  const oldX=state.x,oldZ=state.z;
+  state.x=Math.max(-129,Math.min(129,state.x+state.velocityX*dt));
+  state.z=Math.max(-229,Math.min(229,state.z+state.velocityZ*dt));
+  if(state.x===oldX)state.velocityX=0;
+  if(state.z===oldZ)state.velocityZ=0;
+  state.speed=Math.hypot(state.velocityX,state.velocityZ);
+  if(state.speed>.001){
+    const desired=Math.atan2(state.velocityX,state.velocityZ);
+    const turn=Math.atan2(Math.sin(desired-state.yaw),Math.cos(desired-state.yaw));
+    state.yaw=oldSpeed<.001?desired:state.yaw+Math.max(-TURN_RATE*dt,Math.min(TURN_RATE*dt,turn));
   }
-  const target = moving ? RUN_SPEED * Math.max(0.15, Math.cos(difference / 2)) : 0;
-  state.speed = approach(state.speed, target, (moving ? 18 : 20) * dt);
-  state.yaw += Math.max(-8 * dt, Math.min(8 * dt, difference));
-  const previousX = state.x, previousZ = state.z;
-  state.x = Math.max(-129, Math.min(129, state.x + Math.sin(state.yaw) * state.speed * dt));
-  state.z = Math.max(-229, Math.min(229, state.z + Math.cos(state.yaw) * state.speed * dt));
-  const travelled = Math.hypot(state.x - previousX, state.z - previousZ);
-  state.distance += travelled;
-  if (moving && travelled < state.speed * dt * 0.1) state.speed = 0;
+  state.distance+=Math.hypot(state.x-oldX,state.z-oldZ);
+  state.mode=state.speed>.001?'run':'idle';
 }

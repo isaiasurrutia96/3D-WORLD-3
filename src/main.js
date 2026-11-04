@@ -5,6 +5,7 @@ import {createWorld} from './world.js';
 import './style.css';
 import {createRunner,stepRunner,STEP} from './running-controller.js';
 import {createRunningAnimator} from './animation/running.js';
+import {MOVEMENT_KEYS,readMoveAxes} from './input.js';
 
 const canvas=document.querySelector('canvas');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,logarithmicDepthBuffer:true});
@@ -75,7 +76,7 @@ document.addEventListener('mousemove', event => {
 });
 
 const keys=new Set();
-const directionKeys=new Set(['KeyE','KeyD','KeyS','KeyF']);
+const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
   if(event.target.closest('input,textarea,select'))return;
   if(directionKeys.has(event.code)){event.preventDefault();keys.add(event.code);}
@@ -87,8 +88,7 @@ const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
   right.crossVectors(forward,camera.up).normalize();
-  const vertical=Number(keys.has('KeyE'))-Number(keys.has('KeyD'));
-  const horizontal=Number(keys.has('KeyF'))-Number(keys.has('KeyS'));
+  const {forward:vertical,right:horizontal}=readMoveAxes(keys);
   direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
   return {x:direction.x,z:direction.z};
 }

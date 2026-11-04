@@ -1,70 +1,81 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
+import { readMoveAxes } from '../src/input.js';
 import { createAvatar } from '../src/avatar.js';
-import { createRunner, stepRunner, RUN_SPEED, STRIDE_LENGTH } from '../src/running-controller.js';
+import { createRunner, stepRunner, RUN_SPEED } from '../src/running-controller.js';
 import { createRunningAnimator } from '../src/animation/running.js';
-import { sampleRun } from '../src/animation/legacy-running.js';
+import { createRunClip, RUN_DURATION, RUN_STRIDE } from '../src/animation/run-clip.js';
 
-function advance(state, seconds, input, dt = 1 / 120) {
-  for (let i = 0; i < Math.round(seconds / dt); i++) stepRunner(state, input, dt);
+function advance(state,seconds,input,dt=1/120) {
+  for(let i=0;i<Math.round(seconds/dt);i++)stepRunner(state,input,dt);
 }
-test('running accelerates, stays level, and normalizes diagonal speed', () => {
-  const forward = createRunner(), diagonal = createRunner();
-  advance(forward, 0.1, { x: 0, z: 1 });assert.ok(forward.speed > 0 && forward.speed < RUN_SPEED);
-  advance(forward, 1, { x: 0, z: 1 });advance(diagonal, 1.1, { x: 1, z: 1 });
-  assert.equal(forward.speed, RUN_SPEED);assert.equal(diagonal.speed, RUN_SPEED);
-  assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.z) - forward.z) < 1e-8);
-  assert.equal('y' in forward, false);
+const pose = avatar => avatar.skeleton.bones.map(bone=>[...bone.position.toArray(),...bone.quaternion.toArray()]);
+
+test('remembered E/D/S/F mapping excludes jump and walk actions',()=>{
+  for(const [code,expected] of [
+    ['KeyE',{forward:1,right:0}],['KeyD',{forward:-1,right:0}],
+    ['KeyS',{forward:0,right:-1}],['KeyF',{forward:0,right:1}],
+  ])assert.deepEqual(readMoveAxes(new Set([code])),expected);
+  assert.deepEqual(readMoveAxes(new Set(['KeyE','KeyD','KeyS','KeyF','Space','ShiftLeft'])),{forward:0,right:0});
 });
-test('no walk or jump action is exposed; release stops without drifting', () => {
-  const a = createRunner(), b = createRunner();
-  advance(a, 1, { x: 0, z: 1, walk: true, jump: true });advance(b, 1, { x: 0, z: 1 });assert.deepEqual(a, b);
-  advance(a, 1, { x: 0, z: 0 });assert.equal(a.speed, 0);
-  const position = [a.x, a.z];advance(a, 1, { x: 0, z: 0 });assert.deepEqual([a.x, a.z], position);
+test('fixed-step controller normalizes diagonals, brakes to rest and has no walk/jump mode',()=>{
+  const forward=createRunner(),diagonal=createRunner();
+  advance(forward,1,{x:0,z:1});advance(diagonal,1,{x:1,z:1,walk:true,jump:true});
+  assert.equal(forward.speed,RUN_SPEED);assert.ok(Math.abs(diagonal.speed-RUN_SPEED)<1e-10);
+  assert.ok(Math.abs(Math.hypot(diagonal.x,diagonal.z)-forward.z)<1e-10);
+  assert.equal(forward.mode,'run');assert.equal('y' in forward,false);
+  advance(forward,1,{x:0,z:0});assert.equal(forward.mode,'idle');assert.equal(forward.speed,0);
+  const position=[forward.x,forward.z];advance(forward,1,{x:0,z:0});assert.deepEqual([forward.x,forward.z],position);
+  const low=createRunner(),high=createRunner();advance(low,1,{x:0,z:1},1/60);advance(high,1,{x:0,z:1},1/120);
+  assert.ok(Math.abs(low.z-high.z)<.03);
 });
-test('source study loops and keeps opposite left/right contact timing', () => {
-  assert.deepEqual(sampleRun(0), sampleRun(1));
-  assert.notDeepEqual(sampleRun(0).legs[0], sampleRun(0).legs[1]);
-  const a = createRunner(), b = createRunner();advance(a, 1, { x: 0, z: 1 }, 1 / 60);advance(b, 1, { x: 0, z: 1 });
-  assert.ok(Math.abs(a.z - b.z) < 0.03);
-});
-test('adapted running tucks elbows near ribs, softens shoes, and stays level when turning', () => {
-  const avatar = createAvatar(), runner = createRunner(), animation = createRunningAnimator(avatar);
-  const bones = new Map(avatar.skeleton.bones.map(bone => [bone.name, bone]));
-  const point = new THREE.Vector3();
-  let maximumKnee = 0;
-  for (let frame = 0; frame < 180; frame++) {
-    stepRunner(runner, { x: frame < 90 ? 0 : 1, z: 1 }, 1 / 60);
-    avatar.position.set(runner.x, 0, runner.z); avatar.rotation.y = runner.yaw;
-    animation.update(runner, 1 / 60);
-    avatar.updateMatrixWorld(true); avatar.skeleton.update();
-    for (let index = 0; index < avatar.geometry.attributes.position.count; index++) {
-      avatar.getVertexPosition(index, point); assert.ok(point.y > -1e-5, `floor at frame ${frame}: ${point.y}`);
-    }
-    const inverseChest = bones.get('chest').getWorldQuaternion(new THREE.Quaternion()).invert();
-    const inverseRoot = avatar.getWorldQuaternion(new THREE.Quaternion()).invert();
-    for (const side of ['left', 'right']) {
-      const shoulder = bones.get(`${side}_upper_arm`).getWorldPosition(new THREE.Vector3());
-      const elbow = bones.get(`${side}_forearm`).getWorldPosition(new THREE.Vector3());
-      const arm = elbow.sub(shoulder).normalize().applyQuaternion(inverseChest);
-      assert.ok(Math.abs(arm.x) < .26); assert.ok(arm.y < -.65);
-      const foot = bones.get(`${side}_foot`);
-      const toe = new THREE.Vector3(0, 0, 1).applyQuaternion(foot.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(inverseRoot);
-      assert.ok(Math.abs(toe.x) < (frame > 30 ? .01 : .15)); assert.ok(toe.z > .6);
-      maximumKnee = Math.max(maximumKnee, Math.abs(bones.get(`${side}_calf`).rotation.x));
-    }
-    assert.equal(avatar.position.y, 0);
+test('authored clip closes its loop and uses opposing arm/leg phases',()=>{
+  const avatar=createAvatar(),clip=createRunClip(avatar);
+  assert.ok(clip instanceof THREE.AnimationClip);assert.equal(clip.duration,RUN_DURATION);
+  for(const track of clip.tracks){
+    const size=track.getValueSize();
+    for(let i=0;i<size;i++)assert.ok(Math.abs(track.values[i]-track.values[track.values.length-size+i])<1e-7,track.name);
+    for(const value of track.values)assert.ok(Number.isFinite(value));
   }
-  assert.ok(maximumKnee > 1);
+  const mixer=new THREE.AnimationMixer(avatar),action=mixer.clipAction(clip).play();
+  action.time=0;mixer.update(0);
+  const left=avatar.skeleton.getBoneByName('left_upper_arm').rotation.x;
+  const right=avatar.skeleton.getBoneByName('right_upper_arm').rotation.x;
+  assert.ok(left*right<0);
 });
-test('after stopping the exact neutral pose is restored and stays unchanged', () => {
-  const avatar = createAvatar(), runner = createRunner(), animation = createRunningAnimator(avatar);
-  const snapshot = () => avatar.skeleton.bones.map(bone => [...bone.position.toArray(), ...bone.quaternion.toArray()]);
-  const neutral = snapshot();
-  for (let frame = 0; frame < 60; frame++) {stepRunner(runner, { x: 0, z: 1 }, 1 / 60);avatar.position.z = runner.z;animation.update(runner, 1 / 60);}
-  for (let frame = 0; frame < 120; frame++) {stepRunner(runner, { x: 0, z: 0 }, 1 / 60);avatar.position.z = runner.z;animation.update(runner, 1 / 60);}
-  assert.deepEqual(snapshot(), neutral);
-  for (let frame = 0; frame < 120; frame++) animation.update(runner, 1 / 60);
-  assert.deepEqual(snapshot(), neutral);
+test('contact ankles stay anchored while the root travels and recovery clears the floor',()=>{
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar),point=new THREE.Vector3();
+  let planted=0,maximumLift=0,previous;
+  for(let frame=0;frame<240;frame++){
+    const phase=frame/240,distance=phase*RUN_STRIDE;
+    avatar.position.z=distance;animation.update({speed:RUN_SPEED,distance},1);
+    avatar.updateMatrixWorld(true);avatar.skeleton.update();
+    const foot=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
+    if(phase>.03 && phase<.355){
+      if(previous)assert.ok(Math.abs(foot.z-previous.z)<.002);
+      previous=foot;planted++;
+    }
+    maximumLift=Math.max(maximumLift,foot.y);
+    for(let i=0;i<avatar.geometry.attributes.position.count;i++){
+      avatar.getVertexPosition(i,point);assert.ok(point.y>-.00001,`floor at phase ${phase}`);
+    }
+    const arm=avatar.skeleton.getBoneByName('left_upper_arm');
+    assert.ok(Math.abs(arm.rotation.x)<.4);
+    assert.ok(Math.abs(arm.rotation.z)<1e-6);
+  }
+  assert.ok(planted>50);assert.ok(maximumLift>.35);
+});
+test('start, reversal and stopping keep finite poses and restore exact stillness',()=>{
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar),state=createRunner(),neutral=pose(avatar);
+  for(let frame=0;frame<180;frame++){
+    stepRunner(state,{x:frame<90?0:1,z:frame<90?1:-1},1/60);
+    avatar.position.set(state.x,0,state.z);avatar.rotation.y=state.yaw;
+    animation.update(state,1/60);
+    for(const values of pose(avatar))for(const value of values)assert.ok(Number.isFinite(value));
+  }
+  for(let frame=0;frame<120;frame++){stepRunner(state,{x:0,z:0},1/60);animation.update(state,1/60);}
+  assert.deepEqual(pose(avatar),neutral);
+  for(let frame=0;frame<120;frame++)animation.update(state,1/60);
+  assert.deepEqual(pose(avatar),neutral);
 });
