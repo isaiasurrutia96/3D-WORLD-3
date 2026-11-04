@@ -115,8 +115,15 @@ export class Player {
    * is a different axis entirely.
    */
   private flipAxis: 'pitch' | 'roll' = 'pitch';
-  /** Seconds since the jump button was last pressed, for spotting a double tap. */
-  private sinceJumpPress = 99;
+  /**
+   * How many times jump has been pressed since the feet left the ground.
+   *
+   * The ground pound is the third press of the same button: one to jump, a
+   * second for a small push upward, a third to come down. Counting presses
+   * rather than timing a double tap means there is no window to miss — each
+   * press simply does the next thing.
+   */
+  private airPresses = 0;
   /** Seconds since the feet left the ground, and whether they left it at a run. */
   private sinceTakeOff = 99;
   private tookOffRunning = false;
@@ -270,7 +277,6 @@ export class Player {
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
-    if (this.sinceJumpPress < 10) this.sinceJumpPress += delta;
     if (this.sinceTakeOff < 10) this.sinceTakeOff += delta;
     if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
     if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
@@ -511,12 +517,21 @@ export class Player {
       return;
     }
 
-    // Two presses in quick succession, with no wall to kick off, is a ground
-    // pound. It is checked after the wall kick because a wall is the more
-    // specific thing to be doing.
-    if (input.wasPressed('jump') && this.sinceJumpPress < TUNING.groundPoundWindow) {
-      this.startGroundPound();
-      return;
+    // Each press of jump in the air does the next thing: the first gives a
+    // push upward, the second brings him down hard. Checked after the wall
+    // kick, because a wall is the more specific thing to be doing.
+    if (input.wasPressed('jump')) {
+      this.airPresses += 1;
+      if (this.airPresses === 1) {
+        this.velocity.y = Math.max(this.velocity.y, 0) + TUNING.airBoostVelocity;
+        this.jumpHeld = true;
+        this.jumpBufferTimer = 0;
+        return;
+      }
+      if (this.airPresses >= 2) {
+        this.startGroundPound();
+        return;
+      }
     }
 
     if (strength > 0.001) {
@@ -734,7 +749,6 @@ export class Player {
     this.flipTimer = -1;
     this.flipProgress = 0;
     this.jumpBufferTimer = 0;
-    this.sinceJumpPress = 99;
   }
 
   private updateGroundPound(delta: number): void {
@@ -962,6 +976,7 @@ export class Player {
       if (this.state === 'air') this.state = 'ground';
     } else if (this.state === 'ground') {
       this.state = 'air';
+      this.airPresses = 0;
     }
 
     this.syncPositionFromCapsule();
@@ -1098,7 +1113,6 @@ export class Player {
   }
 
   private updateJumpTimers(delta: number, input: Input): void {
-    if (input.wasPressed('jump')) this.sinceJumpPress = 0;
     if (this.coyoteTimer > 0) this.coyoteTimer -= delta;
     if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= delta;
     if (input.wasPressed('jump')) this.jumpBufferTimer = TUNING.jumpBufferTime;
@@ -1262,6 +1276,7 @@ export class Player {
 
   /** What every jump does, whichever one it is. */
   private takeOff(): void {
+    this.airPresses = 0;
     this.sinceTakeOff = 0;
     this.takeOffY = this.object.position.y;
     this.tookOffRunning = this.speed > TUNING.walkSpeed + 0.6;

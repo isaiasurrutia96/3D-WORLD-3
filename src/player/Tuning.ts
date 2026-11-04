@@ -164,11 +164,11 @@ export const TUNING = {
 
   // ---- The ground pound ----------------------------------------------------
   /**
-   * Press jump twice quickly in the air and he stops dead, turns over, and
-   * drives himself into the ground. This is the window between the two
-   * presses.
+   * The upward push the second press of jump gives while he is still in the
+   * air. Small on purpose: it is a nudge that extends a jump, and the thing
+   * that makes the third press a deliberate choice rather than an accident.
    */
-  groundPoundWindow: 0.32,
+  airBoostVelocity: 5.4,
   /** How long he hangs before the drop. The pause is most of the move. */
   groundPoundHover: 0.22,
   /** How fast he comes down. Far quicker than falling. */

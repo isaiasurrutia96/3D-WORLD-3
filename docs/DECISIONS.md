@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — side flip on a button, circuit parked.
+Last updated: 4 November 2026 — three-press ground pound, build stamp.
 
 ---
 
@@ -168,12 +168,6 @@ can be judged.
 
 ## G) Deferred features
 
-**The ground pound on three presses, rather than two.** Asked for on 4
-November and deliberately left until the rest of the movement work is
-finished. The shape wanted: the first press of jump jumps, a second press in
-the air gives a small upward boost, and a third press in the air starts the
-pound. Until then it stays on the double tap it has now.
-
 **1. Further control customisation.** Movement is bound to E, D, S and F, with
 R and Q reserved for picking up and interacting. Remaining bindings are to be
 specified in a later milestone; until then the defaults in the README stand. The input layer already maps physical keys and gamepad buttons to
@@ -248,6 +242,29 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, tenth entry.** The ground pound moved to three presses,
+and the build was given a stamp.
+
+**1. Three presses, not a double tap.** One press of jump to leave the
+ground, a second in the air for a small push upward, a third to come down
+hard. Counting presses rather than timing a double tap means there is no
+window to miss: each press simply does the next thing. The boost is about
+half a metre, which is enough to be worth having and small enough that the
+third press stays a decision rather than an accident. It was deferred in the
+entry above this one and then asked for again, so it is in.
+
+**2. The build is now stamped, and the stamp is on screen.** The panel shows
+the commit and the time it was built.
+
+Without it there is no way to tell a page that has not changed from a page
+that has not been deployed, or from a browser serving an old copy out of its
+cache. Those are three different problems that look identical from the
+outside, and all three have now happened — the previous round of work was
+correct and verified, and simply never reached the site, because the deploy
+sat in a queue for over half an hour. Half an hour of "nothing changed" that
+nobody could diagnose from the page.
+
 
 **4 November 2026, ninth entry.** Three changes asked for after playing.
 

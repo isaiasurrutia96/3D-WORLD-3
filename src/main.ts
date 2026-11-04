@@ -880,20 +880,43 @@ class Game {
         results.sideFlipTooLate = tryFlip(0.55, false, 1);
         results.sideFlipFromAWalk = tryFlip(0.12, false, 0.4);
 
-        // Ground pound: jump, then two quick presses in the air.
+        // Ground pound: three presses of jump. One to go up, one for the
+        // boost, one to come down. Each is held briefly, the way a person
+        // presses a button, and the height after each is recorded so the
+        // middle press can be seen to do something.
         place(0, 0, 30, Math.PI);
         tap('jump');
         for (let i = 0; i < frames(0.3); i += 1) step();
         held.delete('jump');
-        for (let i = 0; i < frames(0.15); i += 1) step();
+        for (let i = 0; i < frames(0.18); i += 1) step();
+        const beforeBoost = round(player.position.y);
+        tap('jump');
+        for (let i = 0; i < frames(0.12); i += 1) step();
+        held.delete('jump');
+        let boostPeak = player.position.y;
+        for (let i = 0; i < frames(0.3); i += 1) {
+          step();
+          boostPeak = Math.max(boostPeak, player.position.y);
+        }
         tap('jump');
         step();
         held.delete('jump');
-        step();
+        results.groundPound = {
+          beforeBoost,
+          boostPeak: round(boostPeak),
+          states: watch(2.5, (n) => n === 'idle'),
+        };
+
+        // And a single press in the air must not pound by itself.
+        place(0, 0, 30, Math.PI);
+        tap('jump');
+        for (let i = 0; i < frames(0.3); i += 1) step();
+        held.delete('jump');
+        for (let i = 0; i < frames(0.18); i += 1) step();
         tap('jump');
         step();
         held.delete('jump');
-        results.groundPound = { states: watch(2.5, (n) => n === 'idle') };
+        results.oneExtraPress = { states: watch(2.5, (n) => n === 'idle') };
 
         // The ladder, on the single wall: walk into it.
         place(12.6, 0, -6, Math.PI / 2);

@@ -278,7 +278,7 @@ function poseGround(input: AnimationInputs): void {
     // balance. Low enough to read as a crouch from any camera angle, and the
     // pose a long jump or a backflip is about to spring out of.
     pose.bodyPitch = 0.3;
-    pose.bodyHeight = -0.2;
+    pose.bodyHeight = -0.185;
     pose.hipLeft = -1.15;
     pose.hipRight = -1.15;
     pose.kneeLeft = 1.95;

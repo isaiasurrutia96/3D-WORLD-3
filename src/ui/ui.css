@@ -479,3 +479,9 @@
 .hud__focus[hidden] {
   display: none;
 }
+
+/* The build stamp, so an old page is visibly an old page. */
+.hud__build {
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
