@@ -13,19 +13,19 @@ function advance(state,seconds,input,dt=1/120) {
 }
 const pose = avatar => avatar.skeleton.bones.map(bone=>[...bone.position.toArray(),...bone.quaternion.toArray()]);
 
-test('remembered E/D/S/F mapping requires Shift plus movement for sprint and excludes jumping',()=>{
+test('remembered E/D/S/F mapping requires Shift plus movement for sprint and keeps Space out of directional axes',()=>{
   for(const [code,expected] of [
     ['KeyE',{forward:1,right:0}],['KeyD',{forward:-1,right:0}],
     ['KeyS',{forward:0,right:-1}],['KeyF',{forward:0,right:1}],
   ])assert.deepEqual(readMoveAxes(new Set([code])),expected);
   assert.deepEqual(readMoveAxes(new Set(['KeyE','KeyD','KeyS','KeyF','Space','ShiftLeft'])),{forward:0,right:0});
 });
-test('fixed-step controller normalizes diagonals, brakes to rest and switches walk/sprint and has no jump mode',()=>{
+test('fixed-step controller normalizes diagonals, brakes to rest and switches walk/sprint and returns to grounded rest',()=>{
   const forward=createRunner(),diagonal=createRunner();
   advance(forward,1,{x:0,z:1});advance(diagonal,1,{x:1,z:1,walk:true,jump:true});
   assert.equal(forward.speed,RUN_SPEED);assert.ok(Math.abs(diagonal.speed-RUN_SPEED)<1e-10);
   assert.ok(Math.abs(Math.hypot(diagonal.x,diagonal.z)-forward.z)<1e-10);
-  assert.equal(forward.mode,'walk');assert.equal('y' in forward,false);
+  assert.equal(forward.mode,'walk');assert.equal(forward.y,0);assert.equal(forward.grounded,true);
   advance(forward,1,{x:0,z:0});assert.equal(forward.mode,'idle');assert.equal(forward.speed,0);
   const position=[forward.x,forward.z];advance(forward,1,{x:0,z:0});assert.deepEqual([forward.x,forward.z],position);
   const low=createRunner(),high=createRunner();advance(low,1,{x:0,z:1},1/60);advance(high,1,{x:0,z:1},1/120);
