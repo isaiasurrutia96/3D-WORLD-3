@@ -28,3 +28,7 @@ Drag to orbit, scroll/pinch to zoom, L to toggle mouse lock and Esc to release i
 - `src/avatar.js`: static body geometry, neutral bones and bind weights.
 - `src/world.js`: charcoal floor.
 - `src/main.js`: lighting and event-driven viewing only; no simulation loop.
+
+Model refinement: rounded shoulder/thigh caps, a narrower stance with a small upper-thigh gap, and hands/feet enlarged about 10%. The skeleton and skin weights remain in a fixed neutral pose.
+
+Before any future movement work, read the animation input assembly requested by the user. That review and all animation work are deferred until the movement stage.
