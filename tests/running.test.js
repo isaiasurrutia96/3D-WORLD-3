@@ -5,7 +5,7 @@ import { readMoveAxes,wantsSprint } from '../src/input.js';
 import { createAvatar } from '../src/avatar.js';
 import { createRunner, stepRunner, RUN_SPEED,SPRINT_SPEED } from '../src/running-controller.js';
 import { createRunningAnimator } from '../src/animation/running.js';
-import { createSprintClip } from '../src/animation/sprint-clip.js';
+import { createSprintClip,SPRINT_DURATION,SPRINT_STRIDE } from '../src/animation/sprint-clip.js';
 import { createRunClip, RUN_DURATION, RUN_STRIDE } from '../src/animation/run-clip.js';
 
 function advance(state,seconds,input,dt=1/120) {
@@ -13,7 +13,7 @@ function advance(state,seconds,input,dt=1/120) {
 }
 const pose = avatar => avatar.skeleton.bones.map(bone=>[...bone.position.toArray(),...bone.quaternion.toArray()]);
 
-test('remembered E/D/S/F mapping requires Shift+E for sprint and excludes jumping',()=>{
+test('remembered E/D/S/F mapping requires Shift plus movement for sprint and excludes jumping',()=>{
   for(const [code,expected] of [
     ['KeyE',{forward:1,right:0}],['KeyD',{forward:-1,right:0}],
     ['KeyS',{forward:0,right:-1}],['KeyF',{forward:0,right:1}],
@@ -31,10 +31,12 @@ test('fixed-step controller normalizes diagonals, brakes to rest and switches wa
   const low=createRunner(),high=createRunner();advance(low,1,{x:0,z:1},1/60);advance(high,1,{x:0,z:1},1/120);
   assert.ok(Math.abs(low.z-high.z)<.03);
 });
-test('Shift+E gates sprint, increases speed, and triggers launch once per entry',()=>{
+test('Shift gates sprint in all four directions, with one launch per entry',()=>{
   assert.equal(wantsSprint(new Set(['ShiftLeft','KeyE'])),true);
   assert.equal(wantsSprint(new Set(['ShiftRight','KeyE'])),true);
-  for(const key of ['KeyD','KeyS','KeyF'])assert.equal(wantsSprint(new Set(['ShiftLeft',key])),false);
+  for(const shift of ['ShiftLeft','ShiftRight'])for(const key of ['KeyE','KeyD','KeyS','KeyF'])assert.equal(wantsSprint(new Set([shift,key])),true);
+  assert.equal(wantsSprint(new Set(['ShiftLeft'])),false);
+  assert.equal(wantsSprint(new Set(['ShiftLeft','KeyS','KeyF'])),false);
   assert.equal(wantsSprint(new Set(['ShiftLeft','KeyE','KeyD'])),false);
   const state=createRunner();advance(state,1,{x:0,z:1,sprint:true});
   assert.ok(Math.abs(state.speed-SPRINT_SPEED)<1e-10);assert.equal(state.mode,'sprint');assert.equal(state.sprintStarts,1);
@@ -108,4 +110,17 @@ test('sprint has higher recovery, longer stride and a stronger initial ground dr
   }
   assert.ok(maximumFoot>.45);assert.ok(maximumKnee>1.6);assert.ok(maximumLean>.30);
   assert.equal(state.mode,'walk');
+});
+
+test('longer sprint extends the rear leg without increasing cadence or diagonal speed',()=>{
+  assert.equal(SPRINT_DURATION,.46);
+  assert.equal(SPRINT_SPEED,SPRINT_STRIDE/SPRINT_DURATION);
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar);
+  animation.update({speed:SPRINT_SPEED,phase:.239,distance:0,sprinting:true,sprintStarts:1},1);
+  avatar.updateMatrixWorld(true);
+  const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
+  assert.ok(ankle.z<-.35);assert.ok(avatar.skeleton.getBoneByName('left_calf').rotation.x<.6);
+  const straight=createRunner(),diagonal=createRunner();
+  advance(straight,1,{x:0,z:1,sprint:true});advance(diagonal,1,{x:1,z:1,sprint:true});
+  assert.ok(Math.abs(straight.speed-diagonal.speed)<1e-10);
 });

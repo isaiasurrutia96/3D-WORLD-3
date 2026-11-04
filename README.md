@@ -5,7 +5,7 @@ One gray skinned avatar on the existing charcoal 260 × 460 slab. The avatar geo
 ## Controls
 
 - E: walk forward; D: walk backward; S: walk left; F: walk right, relative to the camera.
-- Hold Shift + E to sprint forward (either Shift key). Release Shift to return to walking. Shift alone or with D/S/F does not sprint.
+- Hold either Shift key with E, D, S or F to sprint in that direction. Diagonal combinations also work at the same speed. Release Shift to return to walking; Shift alone does not move.
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - Walking and sprinting are separate clips. Space does not jump. The avatar returns to its exact neutral pose after stopping; there is no idle animation.
 
@@ -33,6 +33,6 @@ Input, planar movement, authored poses and animation playback are separate:
 - `src/animation/running.js` blends walking and sprinting through AnimationMixer, preserves their shared stride phase, and blends back to the original rest pose. A shoe-penetration correction protects startup/stop blends; it does not generate the gait. Once stopped, the mixer releases its bindings and the exact rest pose is restored.
 - `src/main.js` converts input into camera space, runs fixed simulation and interpolates presentation. Camera controls do not author animation poses.
 
-Walking keeps the accepted 0.58-second, 1.7 m cycle (about 2.93 m/s); its track values were checked unchanged. Sprinting uses a 0.46-second, 2.4 m cycle (about 5.22 m/s), with higher recovery and shorter ground contact. Acceleration and launch drive start together. These are authored starting values for this stylized body, not a claim to reproduce Mario or motion capture. The body has oversized shoes and short legs, so its silhouette remains stylized.
+Walking keeps the accepted 0.58-second, 1.7 m cycle (about 2.93 m/s); its track values were checked unchanged. Sprinting uses a 0.46-second, 2.7 m cycle (about 5.87 m/s), with higher recovery, a longer rearward extension and shorter ground contact. Cadence remains unchanged; travel speed is derived from stride length divided by cycle duration, with no extra speed multiplier. Acceleration and launch drive start together. These are authored starting values for this stylized body, not a claim to reproduce Mario or motion capture. The body has oversized shoes and short legs, so its silhouette remains stylized.
 
-Tests cover input mapping, diagonal normalization, acceleration/braking, loop closure, opposing limb phases, stance-foot drift, floor clearance, reversals and exact rest-pose restoration. Browser checks cover walking, Shift+E sprinting, launch event count, return to walking, exact stillness after stopping, and inactive jumping. Technical checks support stability; visual quality still requires review in motion.
+Tests cover input mapping, diagonal normalization, acceleration/braking, loop closure, opposing limb phases, stance-foot drift, floor clearance, reversals and exact rest-pose restoration. Browser checks cover walking, Shift plus E/D/S/F sprinting, launch event count, return to walking, exact stillness after stopping, and inactive jumping. Technical checks support stability; visual quality still requires review in motion.
