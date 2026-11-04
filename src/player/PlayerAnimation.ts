@@ -9,6 +9,13 @@
 
 import { MathUtils } from 'three';
 import { HIP_HEIGHT, type CharacterRig } from './PlayerModel.ts';
+import {
+  STANDING_CLEARANCE,
+  applyGaitLegs,
+  lowestSole,
+  planGait,
+  type GaitPlan,
+} from './PlayerGait.ts';
 import type { MovementState } from './Player.ts';
 
 export interface AnimationInputs {
@@ -41,6 +48,13 @@ interface Pose {
   bodyRoll: number;
   bodyYaw: number;
   bodyHeight: number;
+  /**
+   * An extra drop added on top of whatever is setting the hip height, so a
+   * landing can crouch without having to fight the gait for control of it.
+   * With the feet solved against the floor, dropping the hips bends the knees
+   * and the landing absorbs itself.
+   */
+  bodyDrop: number;
   bodySquash: number;
   headPitch: number;
   headYaw: number;
@@ -63,16 +77,18 @@ const current: Pose = createPose();
 let initialised = false;
 
 /**
- * How far through the walk cycle the character is, in radians.
+ * Whether this frame's pose wants the gait solver to own the legs, and how
+ * much of the way there the hand-over has got.
  *
- * This is accumulated rather than computed as elapsed time multiplied by the
- * stride rate. The stride rate rises with speed, so multiplying jumped the
- * phase every time the speed changed: starting to run shifted the legs to a
- * completely different point in the cycle, and they appeared to scrabble for
- * a moment before settling. Adding up small steps means a change in rate
- * changes how fast the cycle advances, and nothing else.
+ * Walking and running do not pose their legs at all: the solver places the
+ * feet and works the joints out backwards, so a planted foot stays planted.
+ * Every other pose — idle, skidding, airborne, swimming — is still posed by
+ * hand, and the weight eases between the two so a hand-over reads as a
+ * transition rather than a snap.
  */
-let stridePhase = 0;
+let gaitWanted = false;
+let gaitWeight = 0;
+let gaitPlan: GaitPlan | null = null;
 
 function createPose(): Pose {
   return {
@@ -80,6 +96,7 @@ function createPose(): Pose {
     bodyRoll: 0,
     bodyYaw: 0,
     bodyHeight: 0,
+    bodyDrop: 0,
     bodySquash: 1,
     headPitch: 0,
     headYaw: 0,
@@ -99,6 +116,7 @@ function createPose(): Pose {
 }
 
 export function animateCharacter(rig: CharacterRig, input: AnimationInputs): void {
+  gaitWanted = false;
   buildTargetPose(input);
 
   // Blending rate: fast enough that the character never feels laggy, slow
@@ -115,10 +133,23 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
     }
   }
 
+  gaitWeight = MathUtils.lerp(gaitWeight, gaitWanted ? 1 : 0, blend);
+
   // The somersault is added after blending. Easing toward it like any other
   // pose value would smooth a full rotation into almost no rotation at all.
   rig.body.rotation.set(current.bodyPitch + input.flipAngle, current.bodyYaw, current.bodyRoll);
-  rig.body.position.y = HIP_HEIGHT + current.bodyHeight;
+
+  // The hips skip the easing while the gait owns them, for the same reason.
+  // The dip within a step happens about five times a second, and easing
+  // toward it flattened it to under half its depth and left it late. That
+  // mattered for more than the look: the solver sizes the stride to the
+  // depth of the stance crouch, so hips that had not got down there yet put
+  // the foot beyond the leg's reach, and the foot slid to make up for it.
+  const hipHeight =
+    gaitWeight > 0.001 && gaitPlan !== null
+      ? MathUtils.lerp(current.bodyHeight, gaitPlan.bodyHeight, gaitWeight)
+      : current.bodyHeight;
+  rig.body.position.y = HIP_HEIGHT + hipHeight + current.bodyDrop;
   rig.body.scale.set(
     1 / Math.sqrt(current.bodySquash),
     current.bodySquash,
@@ -136,12 +167,23 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   rig.elbowLeft.rotation.x = current.elbowLeft;
   rig.elbowRight.rotation.x = current.elbowRight;
 
-  rig.hipLeft.rotation.x = current.hipLeft;
-  rig.hipRight.rotation.x = current.hipRight;
-  rig.kneeLeft.rotation.x = current.kneeLeft;
-  rig.kneeRight.rotation.x = current.kneeRight;
-  rig.ankleLeft.rotation.x = current.ankleLeft;
-  rig.ankleRight.rotation.x = current.ankleRight;
+  applyLegs(rig, input);
+}
+
+/**
+ * Puts the legs where they belong, from whichever source owns them, and then
+ * makes sure neither shoe has ended up under the floor.
+ */
+function applyLegs(rig: CharacterRig, input: AnimationInputs): void {
+  applyGaitLegs(rig, gaitPlan, gaitWeight, current);
+
+  // On the ground, nothing is allowed through the floor. The solved gait
+  // already lands the sole exactly on it, so this only ever bites on the
+  // poses that are still built by hand.
+  if (input.state === 'ground') {
+    const lowest = lowestSole(rig);
+    if (lowest < 0) rig.body.position.y -= lowest;
+  }
 }
 
 function buildTargetPose(input: AnimationInputs): void {
@@ -168,6 +210,7 @@ function reset(target: Pose): void {
   target.bodyRoll = 0;
   target.bodyYaw = 0;
   target.bodyHeight = 0;
+  target.bodyDrop = 0;
   target.bodySquash = 1;
   target.headPitch = 0;
   target.headYaw = 0;
@@ -220,7 +263,9 @@ function poseGround(input: AnimationInputs): void {
   if (input.speed < 0.3) {
     // Idle: a slow breath, and the head drifts as if looking around.
     const breath = Math.sin(input.time * 1.7);
-    pose.bodyHeight = breath * 0.012;
+    // The breath is in the chest, not in the hips: raising the whole body
+    // lifted both feet clear of the floor twice a second.
+    pose.bodyHeight = -STANDING_CLEARANCE;
     pose.bodySquash = 1 + breath * 0.008;
     pose.headYaw = Math.sin(input.time * 0.45) * 0.22;
     pose.headPitch = Math.sin(input.time * 0.33) * 0.05;
@@ -233,48 +278,43 @@ function poseGround(input: AnimationInputs): void {
     return;
   }
 
-  // Stride frequency rises with speed, but not linearly: a run has longer
-  // strides as well as faster ones.
-  const stride = 2.6 + normalised * 5.4;
-  stridePhase = (stridePhase + stride * input.delta) % (Math.PI * 2);
-  const phase = stridePhase;
-  const swing = Math.sin(phase);
-  const counterSwing = Math.sin(phase + Math.PI);
+  // The legs are not posed here any more. Where the feet go is decided in
+  // PlayerGait and the joints are solved backwards from that, which is the
+  // only way a planted foot can be genuinely planted. What is left for this
+  // function is everything about a run that has nothing to do with the floor.
+  const gait = planGait(input.speed, input.maxSpeed, input.delta);
+  gaitWanted = true;
+  gaitPlan = gait;
 
-  const legAmplitude = MathUtils.lerp(0.42, 1.0, normalised);
   const armAmplitude = MathUtils.lerp(0.3, 0.95, normalised);
+  // Positive means the left foot is leading, so the left arm is the one going
+  // back. Arms swing against the legs, which is what the sign flip is for.
+  const lead = gait.armDrive;
+  const forwardLeft = Math.max(0, -lead);
+  const forwardRight = Math.max(0, lead);
 
-  pose.hipLeft = swing * legAmplitude;
-  pose.hipRight = counterSwing * legAmplitude;
-  // The knee bends on the trailing leg only, which is what stops a walk
-  // looking like a pair of scissors.
-  pose.kneeLeft = Math.max(0, swing) * legAmplitude * 1.25;
-  pose.kneeRight = Math.max(0, counterSwing) * legAmplitude * 1.25;
-
-  // The foot rolls through the stride: toes point down at push-off, when the
-  // thigh is furthest back, and come up again as the heel reaches forward.
-  pose.ankleLeft = swing * 0.42 + 0.08;
-  pose.ankleRight = counterSwing * 0.42 + 0.08;
-
-  pose.shoulderLeftPitch = counterSwing * armAmplitude;
-  pose.shoulderRightPitch = swing * armAmplitude;
+  pose.bodyHeight = gait.bodyHeight;
+  pose.shoulderLeftPitch = lead * armAmplitude;
+  pose.shoulderRightPitch = -lead * armAmplitude;
   // Elbows stay slightly bent, and bend more as the arm comes forward.
-  pose.elbowLeft = -0.22 - Math.max(0, -counterSwing) * armAmplitude * 0.6;
-  pose.elbowRight = -0.22 - Math.max(0, -swing) * armAmplitude * 0.6;
+  pose.elbowLeft = -0.22 - forwardLeft * armAmplitude * 0.6;
+  pose.elbowRight = -0.22 - forwardRight * armAmplitude * 0.6;
   // Arms tuck in across the body as they come forward, rather than swinging
   // like two pendulums hung off the sides.
-  pose.shoulderLeftRoll = 0.18 + normalised * 0.04 - Math.max(0, -counterSwing) * 0.1;
-  pose.shoulderRightRoll = 0.18 + normalised * 0.04 - Math.max(0, -swing) * 0.1;
+  pose.shoulderLeftRoll = 0.18 + normalised * 0.04 - forwardLeft * 0.1;
+  pose.shoulderRightRoll = 0.18 + normalised * 0.04 - forwardRight * 0.1;
 
-  // Lean into the run, bob twice per stride, and roll slightly with each step.
-  pose.bodyPitch = normalised * 0.26;
-  pose.bodyHeight = Math.abs(Math.sin(phase)) * 0.05 * normalised - 0.02 * normalised;
-  pose.bodyRoll = Math.sin(phase) * 0.055 * normalised;
-  pose.bodyYaw = Math.sin(phase) * 0.09 * normalised;
+  // Lean into the run, and roll and twist once per step. The lean is gentler
+  // than it was: the legs no longer inherit it, so what used to read as the
+  // whole figure tipping into the run now reads as a stoop at the waist.
+  pose.bodyPitch = normalised * 0.14;
+  pose.bodyRoll = lead * 0.055 * normalised;
+  pose.bodyYaw = lead * 0.09 * normalised;
   // The shoulders twist with the stride, so the head turns back against them
   // to keep looking where the character is going.
   pose.headYaw = -pose.bodyYaw * 0.7;
-  pose.headPitch = -normalised * 0.12;
+  // Head held level against the lean, so he looks where he is going.
+  pose.headPitch = -pose.bodyPitch * 0.8;
 }
 
 function poseAir(input: AnimationInputs): void {
@@ -410,7 +450,7 @@ function applyCarry(): void {
 
 function applyLandingSquash(): void {
   pose.bodySquash = 0.82;
-  pose.bodyHeight = -0.12;
+  pose.bodyDrop = -0.12;
   pose.hipLeft = -0.6;
   pose.hipRight = -0.6;
   pose.kneeLeft = 1.05;

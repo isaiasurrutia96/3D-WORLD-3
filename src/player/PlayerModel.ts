@@ -182,6 +182,83 @@ export interface RigOptions {
   plain?: boolean;
 }
 
+/** Total height of the rig in world units, used to size the collision capsule. */
+export const CHARACTER_HEIGHT = 1.82;
+
+/**
+ * Height of the hip line, and the point the whole figure rotates about.
+ *
+ * The body group used to sit at the character's feet, so a somersault swung
+ * the head a full body-length below the ground. Putting the group on the hip
+ * line means the figure turns about its own middle, the way a person does.
+ */
+export const HIP_HEIGHT = 0.92;
+export const CHARACTER_RADIUS = 0.34;
+
+/**
+ * The shoe, as built. Kept here as named numbers because the gait solver has
+ * to know exactly where the bottom of the shoe is: it places the sole on the
+ * floor, and a guess of a centimetre either way is the difference between a
+ * footstep that lands and one that sinks.
+ */
+const SHOE = {
+  radius: 0.172,
+  offsetY: 0.014,
+  offsetZ: 0.05,
+  scaleX: 0.82,
+  scaleY: 0.58,
+  scaleZ: 1.44,
+} as const;
+
+/**
+ * Leg measurements, in metres, measured from the pivots the rig is built with
+ * rather than copied by hand. The gait solver works out hip and knee angles
+ * from these, so they are the single source of truth: changing a bone length
+ * here changes both the model and the walk.
+ */
+export const LEG = {
+  /** Sideways offset of each hip pivot from the centre line. */
+  hipOffsetX: 0.158,
+  /** Height of the hip pivot relative to the body group's origin. */
+  hipOffsetY: -0.02,
+  /** Hip pivot to knee pivot. */
+  thigh: 0.42,
+  /** Knee pivot to ankle pivot. */
+  shin: 0.38,
+} as const;
+
+/** Height of the hip pivot above the ground with the figure standing still. */
+export const HIP_PIVOT_HEIGHT = HIP_HEIGHT + LEG.hipOffsetY;
+
+/**
+ * How far the bottom of the shoe sits below the ankle pivot. The shoe is a
+ * squashed sphere, so this is its centre offset plus its vertical radius.
+ */
+export const ANKLE_TO_SOLE = SHOE.radius * SHOE.scaleY - SHOE.offsetY;
+
+/**
+ * The shoe as an ellipsoid, for working out where the bottom of it actually
+ * is once the foot has been tilted. A squashed sphere's lowest point is not a
+ * fixed vertex, so it has to be measured rather than looked up.
+ */
+export const SHOE_SUPPORT = {
+  offsetY: SHOE.offsetY,
+  offsetZ: SHOE.offsetZ,
+  semiX: SHOE.radius * SHOE.scaleX,
+  semiY: SHOE.radius * SHOE.scaleY,
+  semiZ: SHOE.radius * SHOE.scaleZ,
+} as const;
+
+/** Straight-leg distance from the hip pivot to the ankle pivot. */
+export const LEG_REACH = LEG.thigh + LEG.shin;
+
+/**
+ * Height of the hip pivot when the leg is straight and the sole is exactly on
+ * the floor. The figure as built stands a centimetre and a half clear of the
+ * ground, so this is slightly lower than the hip pivot height.
+ */
+export const HIP_PIVOT_PLANTED = LEG_REACH + ANKLE_TO_SOLE;
+
 export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const materials: MeshStandardMaterial[] = [];
   const make = (color: string, roughness?: number, metalness?: number) => {
@@ -286,25 +363,29 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Legs ----------------------------------------------------------------
   const buildLeg = (side: -1 | 1) => {
     const hip = new Group();
-    hip.position.set(0.158 * side, -0.02, 0);
+    hip.position.set(LEG.hipOffsetX * side, LEG.hipOffsetY, 0);
     torso.add(hip);
     hip.add(part(taperedLimb(0.128, 0.148, 0.2), overallMaterial, [0, -0.2, 0]));
 
     const knee = new Group();
-    knee.position.y = -0.42;
+    knee.position.y = -LEG.thigh;
     hip.add(knee);
     knee.add(part(taperedLimb(0.115, 0.128, 0.18), overallMaterial, [0, -0.17, 0]));
 
     const ankle = new Group();
-    ankle.position.y = -0.38;
+    ankle.position.y = -LEG.shin;
     knee.add(ankle);
 
     // Big shoes, for the same reason as the gloves.
     // Narrowed across their width and set on wider hips, so the two shoes
     // stand with a visible gap between them rather than meeting at the
     // centre line, which made them look like one block.
-    const shoe = part(new SphereGeometry(0.172, 14, 12), shoeMaterial, [0, 0.014, 0.05]);
-    shoe.scale.set(0.82, 0.58, 1.44);
+    const shoe = part(
+      new SphereGeometry(SHOE.radius, 14, 12),
+      shoeMaterial,
+      [0, SHOE.offsetY, SHOE.offsetZ],
+    );
+    shoe.scale.set(SHOE.scaleX, SHOE.scaleY, SHOE.scaleZ);
     ankle.add(shoe);
 
     return { hip, knee, ankle };
@@ -344,16 +425,3 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     materials,
   };
 }
-
-/** Total height of the rig in world units, used to size the collision capsule. */
-export const CHARACTER_HEIGHT = 1.82;
-
-/**
- * Height of the hip line, and the point the whole figure rotates about.
- *
- * The body group used to sit at the character's feet, so a somersault swung
- * the head a full body-length below the ground. Putting the group on the hip
- * line means the figure turns about its own middle, the way a person does.
- */
-export const HIP_HEIGHT = 0.92;
-export const CHARACTER_RADIUS = 0.34;

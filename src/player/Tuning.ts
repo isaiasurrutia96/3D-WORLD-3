@@ -30,6 +30,43 @@ export const TUNING = {
   /** Turn rate at full speed. Slower, so fast running arcs rather than snaps. */
   turnRateFast: 5.2,
 
+  // ---- Gait --------------------------------------------------------------
+  /**
+   * Fraction of a stride cycle each foot spends on the floor. Walking keeps
+   * both feet down for part of the time, so it is over a half; running has a
+   * moment with neither foot down, so it is well under.
+   */
+  gaitDutyWalk: 0.6,
+  gaitDutyRun: 0.22,
+  /**
+   * How far the hips sit below standing height while a leg is taking the
+   * weight. Crouching is what lets the leg sweep further, so a deeper stance
+   * means a longer stride and fewer steps per second.
+   */
+  gaitCrouchWalk: 0.05,
+  gaitCrouchRun: 0.072,
+  /** How far the hips fall and rise within each step. */
+  gaitBobWalk: 0.012,
+  gaitBobRun: 0.042,
+  /**
+   * How far ahead the foot reaches at the top of its swing, as a multiple of
+   * how far it sweeps while planted. The two are separate on purpose: the
+   * sweep is limited by the leg's reach, the swing is not, and it is the
+   * swing that makes a stride look long.
+   */
+  gaitSwingReach: 1.85,
+  /** How high the shoe lifts off the floor as the leg swings through. */
+  gaitLiftWalk: 0.055,
+  gaitLiftRun: 0.3,
+  /**
+   * How much a planted foot is allowed to slide, as a fraction of the
+   * character's speed. Zero pins the foot to the ground exactly, at the cost
+   * of a faster stride; a little slip buys a calmer one.
+   */
+  gaitFootSlip: 0.1,
+  /** Upper limit on stride cycles per second, as a safety rail. */
+  gaitMaxCadence: 4,
+
   // ---- Jumping and air ---------------------------------------------------
   gravity: 27,
   /** Gravity multiplier while falling, which tightens the top of the arc. */

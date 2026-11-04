@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — checkpoint 1 taken.
+Last updated: 4 November 2026 — the gait solver.
 
 ---
 
@@ -242,6 +242,40 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, second entry.** The walk and run now solve the legs from
+where the feet have to be rather than posing the joints and hoping. The old
+cycle drove the hips and knees from two sine waves, which had two
+consequences: a leg built that way is longest when it hangs straight down, so
+each foot reached the floor for a single instant and went a little way
+through it, and the cycle ran at its own rate, so at full speed the feet swept
+backwards at less than half the speed the ground went past. The new solver
+places each foot — on the floor and moving backwards at ground speed, then
+arcing forward through the air — and works the hip and knee angles out
+backwards from that. The cadence is no longer a setting: the leg can only
+sweep so far before the knee locks, so the length of a contact is fixed by
+the body, and the steps per second are whatever that and the speed require.
+
+Three decisions inside it are worth recording. How far the foot swings
+forward in the air is deliberately larger than how far it sweeps on the
+ground, because the sweep is limited by the leg's reach and the swing is not,
+and it is the swing that makes a stride look long. The body's lean is
+cancelled at the hip rather than inherited by the legs, because the hip joint
+only swings forward and back, so a torso that rolled three degrees used to
+drag the planted foot five centimetres sideways. And a planted foot is
+allowed to slide by a tenth of the character's speed at a full run, which is
+a deliberate trade: the character runs at 8.6 metres a second on legs under a
+metre long, and pinning the foot exactly would have meant either a deeper
+crouch or faster legs than the run should have. Walking slides by well under
+one per cent.
+
+Measured afterwards: the sole never goes below the floor at any speed, a
+planted foot slides at 0.01 m/s while walking and 0.86 m/s against 8.6 m/s of
+travel at a full run, and the stride runs at 2.8 steps a second walking and
+4.8 running. The idle, the skid and the landing crouch are still posed by
+hand and are now caught by a safety net that rests the lower shoe on the
+floor; the skid used to bury a foot ten centimetres under it.
+
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
