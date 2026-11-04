@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {createAvatar} from './avatar.js';
 import {createWorld} from './world.js';
 import './style.css';
-import {createLocomotion,tickLocomotion,TICK} from './locomotion.js';
+import {createLocomotion,tickLocomotion,TICK,CLIP_LENGTHS} from './locomotion.js';
 import {createLocomotionAnimator} from './animation/locomotion.js';
 
 const canvas=document.querySelector('canvas');
@@ -84,7 +84,7 @@ function movementInput(){
  const vertical=Number(keys.has('KeyE'))-Number(keys.has('KeyD'));
  const horizontal=Number(keys.has('KeyF'))-Number(keys.has('KeyS'));
  direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
- return {x:direction.x,z:direction.z,walk:keys.has('KeyE')&&!keys.has('KeyD')&&(keys.has('ShiftLeft')||keys.has('ShiftRight'))};
+ return {x:direction.x,z:direction.z,jump:keys.has('Space'),walk:keys.has('KeyE')&&!keys.has('KeyD')&&(keys.has('ShiftLeft')||keys.has('ShiftRight'))};
 }
 let previousTime,accumulator=0,previous={...player};
 document.addEventListener('visibilitychange',()=>{keys.clear();previousTime=undefined;accumulator=0;previous={...player};});
@@ -92,15 +92,16 @@ renderer.setAnimationLoop(time=>{
  const dt=previousTime===undefined?0:Math.min((time-previousTime)/1000,0.1);previousTime=time;accumulator+=dt;
  while(accumulator>=TICK){previous={...player};tickLocomotion(player,movementInput());accumulator-=TICK;}
  const alpha=accumulator/TICK;
- izzy.position.set(THREE.MathUtils.lerp(previous.x,player.x,alpha),0,THREE.MathUtils.lerp(previous.z,player.z,alpha));
+ izzy.position.set(THREE.MathUtils.lerp(previous.x,player.x,alpha),THREE.MathUtils.lerp(previous.y,player.y,alpha),THREE.MathUtils.lerp(previous.z,player.z,alpha));
  const yawDelta=Math.atan2(Math.sin(player.yaw-previous.yaw),Math.cos(player.yaw-previous.yaw));
  izzy.rotation.y=previous.yaw+yawDelta*alpha;
- const lengths={run:72,walk:77,idle:30,turn:1,brake:1},length=lengths[player.clip];
- const frame=previous.clip===player.clip ? (previous.frame+((player.frame-previous.frame+length)%length)*alpha)%length : player.frame;
+ const length=CLIP_LENGTHS[player.clip];
+ const frame=previous.clip===player.clip ? (['jump','fall','land'].includes(player.clip)?THREE.MathUtils.lerp(previous.frame,player.frame,alpha):(previous.frame+((player.frame-previous.frame+length)%length)*alpha)%length) : player.frame;
  animate(player,dt,frame);
  shadow.position.set(izzy.position.x,0.004,izzy.position.z);
- const target=new THREE.Vector3(izzy.position.x,1.3,izzy.position.z),offset=target.sub(controls.target);
+ shadow.material.opacity=0.22/(1+player.y*0.6);shadow.scale.set(1+player.y*0.12,(1+player.y*0.12)*0.7,1);
+ const target=new THREE.Vector3(izzy.position.x,1.3+izzy.position.y*0.55,izzy.position.z),offset=target.sub(controls.target);
  controls.target.add(offset);camera.position.add(offset);controls.update();renderer.render(scene,camera);
- canvas.dataset.action=player.action;canvas.dataset.clip=player.clip;canvas.dataset.speed=String(player.speed);
+ canvas.dataset.action=player.action;canvas.dataset.clip=player.clip;canvas.dataset.speed=String(player.speed);canvas.dataset.grounded=String(player.grounded);canvas.dataset.height=String(player.y);
  canvas.dataset.position=`${player.x.toFixed(4)},${player.z.toFixed(4)}`;
 });

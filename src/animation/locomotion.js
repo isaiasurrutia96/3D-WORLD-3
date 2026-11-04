@@ -9,8 +9,9 @@ function channel(clip,index,frame){
   return clip.values[start+Math.min(count-1,frame)];
 }
 export function sampleClip(name,frame,output=Array.from({length:20},()=>new THREE.Quaternion())){
-  const clip=clips[name],time=((frame%clip.frames)+clip.frames)%clip.frames;
-  const first=Math.floor(time),second=(first+1)%clip.frames,fraction=time-first;
+  const clip=clips[name],loop=!['jump','fall','land'].includes(name);
+  const time=loop?((frame%clip.frames)+clip.frames)%clip.frames:Math.max(0,Math.min(clip.frames-1,frame));
+  const first=Math.floor(time),second=loop?(first+1)%clip.frames:Math.min(clip.frames-1,first+1),fraction=time-first;
   for(let bone=0;bone<20;bone++){
     const angles=[0,1,2].map(axis=>{
       const index=3+(bone*3)+axis,a=channel(clip,index,first)*radians,b=channel(clip,index,second)*radians;
@@ -49,15 +50,39 @@ export function createLocomotionAnimator(avatar){
   const target=new THREE.Quaternion(),parentInverse=new THREE.Quaternion();
   const pelvis=avatar.getObjectByName('pelvis'),baseHeight=pelvis.position.y;
   const feet=['left_foot_mesh','right_foot_mesh'].map(name=>avatar.getObjectByName(name));
-  let weight=0;
+  const arms=['left','right'].map((side,index)=>({
+    side:index===0?-1:1,bone:index===0?9:5,
+    shoulder:avatar.getObjectByName(`${side}_shoulder`),elbow:avatar.getObjectByName(`${side}_elbow`),wrist:avatar.getObjectByName(`${side}_wrist`),swing:0,bend:0,
+  }));
+  const upperDirection=new THREE.Vector3(),lowerDirection=new THREE.Vector3();
+  const transitionPose=entries.map(entry=>entry.joint.quaternion.clone());
+  const blendedTarget=new THREE.Quaternion();
+  let weight=0,lastClip='idle',transitionAge=1;
   return function animate(state,dt,frame=state.frame){
     const pose=sampleClip(state.clip,frame,output);
-    weight=THREE.MathUtils.damp(weight,state.speed>0.1?1:0,20,dt);
+    weight=THREE.MathUtils.damp(weight,state.clip!=='idle'?1:0,20,dt);
+    if(state.clip!==lastClip){entries.forEach((entry,index)=>transitionPose[index].copy(entry.joint.quaternion));transitionAge=0;lastClip=state.clip;}
+    transitionAge+=dt;
+    const transition=THREE.MathUtils.smoothstep(transitionAge,0,['jump','fall'].includes(state.clip)?0.08:0.15);
+    let entryIndex=0;
     for(const entry of entries){
       const world=desired.get(entry.name).copy(pose.rotations[entry.bone]).multiply(entry.correction);
       if(entry.parent)target.copy(parentInverse.copy(desired.get(entry.parent)).invert()).multiply(world);
       else target.copy(world);
-      entry.joint.quaternion.copy(entry.rest).slerp(target,weight);
+      blendedTarget.copy(entry.rest).slerp(target,weight);
+      entry.joint.quaternion.copy(transitionPose[entryIndex++]).slerp(blendedTarget,transition);
+    }
+    // Izzy's raised shoulders and long arms need a restrained retarget. Keep
+    // source phase/timing, but project arm swing into a lower sagittal arc.
+    if(!['jump','fall','land'].includes(state.clip))for(const arm of arms){
+      upperDirection.set(1,0,0).applyQuaternion(pose.rotations[arm.bone]);
+      lowerDirection.set(1,0,0).applyQuaternion(pose.rotations[arm.bone+1]);
+      const swing=THREE.MathUtils.clamp(Math.atan2(-upperDirection.z,-upperDirection.y),-0.55,0.60)*weight;
+      const bend=-THREE.MathUtils.clamp(Math.acos(THREE.MathUtils.clamp(upperDirection.dot(lowerDirection),-1,1)),0.5,1.05)*weight;
+      arm.swing=THREE.MathUtils.damp(arm.swing,swing,18,dt);arm.bend=THREE.MathUtils.damp(arm.bend,bend,18,dt);
+      arm.shoulder.rotation.set(arm.swing,0,arm.side*0.16);arm.elbow.rotation.set(arm.bend,0,0);arm.wrist.rotation.set(0,0,0);
+    }else{
+      arms.forEach(arm=>{arm.swing=arm.shoulder.rotation.x;arm.bend=arm.elbow.rotation.x;});
     }
     pelvis.position.y=baseHeight+(pose.y-189)*(baseHeight/189)*weight;
     // Preserve the captured poses while preventing retargeted shoes from sinking
