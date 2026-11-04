@@ -56,11 +56,13 @@ export function bakeGaitClip(avatar, profile) {
     rotations.get(name).push(...quaternion.toArray());
   }
   const pelvis = bones.get('pelvis');
+  const wholeLean=profile.wholeLean??0;
+  const leanCos=Math.cos(wholeLean),leanSin=Math.sin(wholeLean);
   const legs = ['left', 'right'].map(side => {
     const hip=bones.get(`${side}_thigh`), knee=bones.get(`${side}_calf`), foot=bones.get(`${side}_foot`);
     return { side, upper:knee.position.length(), lower:foot.position.length(),
       upperRest:Math.atan2(knee.position.z,-knee.position.y),
-      lowerRest:Math.atan2(foot.position.z,-foot.position.y), hipHeight:pelvis.position.y+hip.position.y };
+      lowerRest:Math.atan2(foot.position.z,-foot.position.y), hipHeight:pelvis.position.y+hip.position.y,hipOffset:hip.position.clone() };
   });
   const authored = new Set(['pelvis','spine','chest','neck','head']);
   for (const side of ['left','right']) for (const part of ['thigh','calf','foot','upper_arm','forearm','hand']) authored.add(`${side}_${part}`);
@@ -68,21 +70,30 @@ export function bakeGaitClip(avatar, profile) {
     const phase=frame/120;
     const bob=curve(profile.compression,(phase % .5));
     times.push(phase*profile.duration); pelvisHeights.push(pelvis.position.y+bob);
-    rotation('pelvis'); rotation('spine',profile.lean);
+    rotation('pelvis',wholeLean); rotation('spine',profile.lean);
     const torsoTwist=.035*Math.cos(phase*Math.PI*2);
     rotation('chest',0,torsoTwist); rotation('neck',profile.neck); rotation('head');
     legs.forEach((leg,index) => {
       const p=wrap(phase+index*.5), pose=profile.footPose(p);
-      const down=ankleSupport(pose.pitch)+pose.lift-(leg.hipHeight+bob);
-      const distance=THREE.MathUtils.clamp(Math.hypot(down,pose.forward),.05,leg.upper+leg.lower-.001);
-      const heading=Math.atan2(pose.forward,-down);
+      let down=ankleSupport(pose.pitch)+pose.lift-(leg.hipHeight+bob);
+      let forward=pose.forward;
+      if(wholeLean){
+        // Lean the pelvis/chest together. Convert floor-space ankle targets
+        // back into pelvis space so the legs compensate without curling the waist.
+        const hipY=pelvis.position.y+bob+leg.hipOffset.y*leanCos-leg.hipOffset.z*leanSin;
+        const hipZ=leg.hipOffset.y*leanSin+leg.hipOffset.z*leanCos;
+        const dy=ankleSupport(pose.pitch)+pose.lift-hipY,dz=pose.forward-hipZ;
+        down=dy*leanCos+dz*leanSin;forward=dz*leanCos-dy*leanSin;
+      }
+      const distance=THREE.MathUtils.clamp(Math.hypot(down,forward),.05,leg.upper+leg.lower-.001);
+      const heading=Math.atan2(forward,-down);
       const thigh=heading+Math.acos(THREE.MathUtils.clamp((leg.upper**2+distance**2-leg.lower**2)/(2*leg.upper*distance),-1,1));
       const knee=Math.acos(THREE.MathUtils.clamp((distance**2-leg.upper**2-leg.lower**2)/(2*leg.upper*leg.lower),-1,1));
       const hipAngle=leg.upperRest-thigh, kneeAngle=leg.lowerRest-leg.upperRest+knee;
       rotation(`${leg.side}_thigh`,hipAngle);
       rotation(`${leg.side}_calf`,kneeAngle);
-      rotation(`${leg.side}_foot`,pose.pitch-hipAngle-kneeAngle);
-      rotation(`${leg.side}_upper_arm`,curve(profile.armSwing,p));
+      rotation(`${leg.side}_foot`,pose.pitch-wholeLean-hipAngle-kneeAngle);
+      rotation(`${leg.side}_upper_arm`,profile.armSwingAt?profile.armSwingAt(p):curve(profile.armSwing,p));
       rotation(`${leg.side}_forearm`,curve(profile.elbow,p));
       rotation(`${leg.side}_hand`,-.04);
     });

@@ -5,7 +5,7 @@ import { readMoveAxes,wantsSprint } from '../src/input.js';
 import { createAvatar } from '../src/avatar.js';
 import { createRunner, stepRunner, RUN_SPEED,SPRINT_SPEED } from '../src/running-controller.js';
 import { createRunningAnimator } from '../src/animation/running.js';
-import { createSprintClip,SPRINT_DURATION,SPRINT_STRIDE } from '../src/animation/sprint-clip.js';
+import { createSprintClip,SPRINT_DURATION,SPRINT_STRIDE,sprintArmSwing } from '../src/animation/sprint-clip.js';
 import { createRunClip, RUN_DURATION, RUN_STRIDE } from '../src/animation/run-clip.js';
 
 function advance(state,seconds,input,dt=1/120) {
@@ -94,7 +94,7 @@ test('start, reversal and stopping keep finite poses and restore exact stillness
   assert.deepEqual(pose(avatar),neutral);
 });
 
-test('sprint has higher recovery and longer stride with an upright back',()=>{
+test('sprint has higher recovery and longer stride without curling the back',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar),state=createRunner(),point=new THREE.Vector3();
   let maximumFoot=0,maximumKnee=0,maximumLean=0;
   for(let frame=0;frame<180;frame++){
@@ -125,7 +125,7 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
   assert.ok(Math.abs(straight.speed-diagonal.speed)<1e-10);
 });
 
-test('sprint coordinates head-height hand drive, high knees and nearly straight push-off legs',()=>{
+test('sprint balances opposite arm/knee drive with a straight leaning torso and extended push-off',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
   const bones=avatar.skeleton;
   for(const [side,phase] of [['left',.239],['right',.739]]){
@@ -136,9 +136,27 @@ test('sprint coordinates head-height hand drive, high knees and nearly straight 
     const bend=knee.clone().sub(hip).angleTo(ankle.clone().sub(knee));
     assert.ok(bend<.20 && bend>.04,`push-off bend ${bend}`);
     const opposite=side==='left'?'right':'left';
-    assert.ok(point(`${opposite}_calf`).y>point(`${opposite}_thigh`).y+.02);
+    assert.ok(point(`${opposite}_calf`).y>point(`${opposite}_thigh`).y+.08);
     const hand=bones.getBoneByName(`${side}_hand`).localToWorld(new THREE.Vector3(side==='left'?-.01:.01,-.095,.015));
     const head=bones.getBoneByName('head').localToWorld(new THREE.Vector3(0,.15,0));
-    assert.ok(Math.abs(hand.y-head.y)<.08,`hand/head difference ${hand.y-head.y}`);
+    assert.ok(hand.y<head.y-.15,'arm range stays below the old exaggerated head-height reach');
+    const pelvisAxis=point('spine').sub(point('pelvis')).normalize();
+    const chestAxis=point('neck').sub(point('spine')).normalize();
+    assert.ok(pelvisAxis.dot(chestAxis)>.9999,'pelvis and chest remain aligned');
+    assert.ok(pelvisAxis.z>.08 && pelvisAxis.z<.12,'small whole-torso lean');
+    assert.ok(Math.abs(bones.getBoneByName('spine').rotation.x)<.0001);
   }
+});
+
+test('sprint arms have one smooth forward/backward swing per leg cycle',()=>{
+  let minima=0,maxima=0;
+  for(let i=0;i<200;i++){
+    const phase=i/200,a=sprintArmSwing(phase-.005),b=sprintArmSwing(phase),c=sprintArmSwing(phase+.005);
+    if(b<a&&b<c)minima++;
+    if(b>a&&b>c)maxima++;
+    assert.ok(Math.abs(c-a)<.051,'no rushed arm angle jump');
+  }
+  assert.equal(minima,1);assert.equal(maxima,1);
+  assert.ok(Math.abs(sprintArmSwing(.24)+.95)<1e-10);
+  assert.ok(Math.abs(sprintArmSwing(.74)-.65)<1e-10);
 });
