@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — checkpoint 1 taken.
+Last updated: 4 November 2026 — footing.
 
 ---
 
@@ -242,6 +242,38 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, third entry.** A gait solver was built to make the feet
+hold the ground, measured well, and was then reverted. It placed every foot
+exactly and removed the sliding, but it decided the stride, the posture and
+the cadence itself, and the run it produced was not the run that had already
+been approved. Recorded here so the work is not repeated: solving the legs
+from the feet does fix the footing completely, and the cost is that the run
+becomes a sprinter's crouch with fast legs, because the character covers 8.6
+metres a second on legs under a metre long. It is available if the run speed
+ever comes down.
+
+**4 November 2026, second entry.** The walk and run keep their feet on the
+floor, with nothing else about them changed. Every joint angle is exactly as
+it was at checkpoint 1; the only addition is that the body is lifted by
+however much the lower shoe would otherwise be below the ground. The feet
+were sinking because the legs are driven by two sine waves, and a leg built
+that way is at its longest hanging straight down — which is also the moment
+the hips are at their lowest and the toe is tipped down a little. Measured:
+the walk was sinking up to 4.7 centimetres and the run up to 1.6, and neither
+now goes below the floor at all. The correction grows and shrinks over about
+fifteen frames, by at most 1.4 centimetres from one frame to the next, so it
+does not read as a twitch.
+
+Two places are deliberately left as they were. The skid still plants a foot
+eight centimetres into the floor: it is a hand-built pose that the walk cycle
+blends into and out of, and the skid itself switches on and off frame by
+frame as the character slows past the speed that triggers it, so correcting
+the floor through it made the body flicker by several centimetres. It wants
+its own pass. Standing still, the figure also hovers about a centimetre and a
+half clear of the ground, which is how the rig is built; lowering it would
+change the idle, which was not asked for.
+
 
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later

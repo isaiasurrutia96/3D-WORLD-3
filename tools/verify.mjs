@@ -248,6 +248,33 @@ if (flips.length === 2 && !(flips[1].peak > flips[0].peak + 0.3)) {
 
 await resetPlayer(page);
 
+// ---- Footing ------------------------------------------------------------
+// The legs are driven by two sine waves, and a leg built that way is at its
+// longest hanging straight down — the same moment the hips are lowest — so
+// each footfall used to sink a little way into the floor. The body is now
+// lifted by however much the lower shoe is under, which must leave no shoe
+// below the floor and must change smoothly: a correction that jumped from
+// one frame to the next would show as a twitch.
+const footing = await page.evaluate(() => window.__letsgo.debug.measureFooting(1 / 60));
+for (const [name, result] of Object.entries(footing)) {
+  // The skid is deliberately left alone, so it is reported but not failed.
+  if (name === 'skid') continue;
+  if (result.sole < -0.002) {
+    problems.push(
+      `${name}: a shoe goes ${(-result.sole * 100).toFixed(1)}cm through the floor`,
+    );
+  }
+  if (result.jolt > 0.025) {
+    problems.push(
+      `${name}: the floor correction jumps ${(result.jolt * 100).toFixed(1)}cm in one frame`,
+    );
+  }
+}
+if (!footing.skid?.states.includes('skid')) {
+  problems.push('reversing at speed no longer produces a skid');
+}
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -308,6 +335,15 @@ console.log(
 console.log('\n--- frame rate ---');
 for (const r of rateResults) {
   console.log(` ${String(r.fps).padStart(3)} fps: covered ${r.covered.toFixed(1)}m in 1.2s`);
+}
+
+console.log('\n--- footing ---');
+for (const [name, result] of Object.entries(footing)) {
+  console.log(
+    ` ${name.padEnd(8)} lowest sole ${result.sole.toFixed(3)}m  ` +
+      `lifted up to ${(result.lift * 100).toFixed(1)}cm  ` +
+      `smoothly (largest step ${(result.jolt * 100).toFixed(1)}cm)`,
+  );
 }
 
 console.log('\n--- report ---');

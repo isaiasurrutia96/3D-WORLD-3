@@ -10,6 +10,7 @@
 import {
   Color,
   Group,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -17,6 +18,7 @@ import {
   CylinderGeometry,
   LatheGeometry,
   Vector2,
+  Vector3,
   type BufferGeometry,
   type Material,
 } from 'three';
@@ -182,6 +184,19 @@ export interface RigOptions {
   plain?: boolean;
 }
 
+/**
+ * The shoe, as built. The same numbers make the mesh and tell the animation
+ * where the bottom of the shoe is, so the two cannot drift apart.
+ */
+const SHOE = {
+  radius: 0.172,
+  offsetY: 0.014,
+  offsetZ: 0.05,
+  scaleX: 0.82,
+  scaleY: 0.58,
+  scaleZ: 1.44,
+} as const;
+
 export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const materials: MeshStandardMaterial[] = [];
   const make = (color: string, roughness?: number, metalness?: number) => {
@@ -303,8 +318,12 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     // Narrowed across their width and set on wider hips, so the two shoes
     // stand with a visible gap between them rather than meeting at the
     // centre line, which made them look like one block.
-    const shoe = part(new SphereGeometry(0.172, 14, 12), shoeMaterial, [0, 0.014, 0.05]);
-    shoe.scale.set(0.82, 0.58, 1.44);
+    const shoe = part(
+      new SphereGeometry(SHOE.radius, 14, 12),
+      shoeMaterial,
+      [0, SHOE.offsetY, SHOE.offsetZ],
+    );
+    shoe.scale.set(SHOE.scaleX, SHOE.scaleY, SHOE.scaleZ);
     ankle.add(shoe);
 
     return { hip, knee, ankle };
@@ -357,3 +376,49 @@ export const CHARACTER_HEIGHT = 1.82;
  */
 export const HIP_HEIGHT = 0.92;
 export const CHARACTER_RADIUS = 0.34;
+
+/**
+ * How high the lower of the two soles is above the floor, in the rig's own
+ * space, with whatever pose it is currently holding.
+ *
+ * The shoe is a squashed sphere rather than a box, so its lowest point is not
+ * a fixed corner: tilt it and the point that touches the ground moves and
+ * drops. That makes it something to measure rather than look up. For an
+ * ellipsoid the distance from its centre down to its lowest point is the
+ * length of the middle row of its transform, once each axis has been scaled
+ * by its own radius, which is what the hypotenuse below is.
+ */
+export function lowestSole(rig: CharacterRig): number {
+  rig.body.updateMatrix();
+  rig.torso.updateMatrix();
+  return Math.min(
+    soleHeight(rig, rig.hipLeft, rig.kneeLeft, rig.ankleLeft),
+    soleHeight(rig, rig.hipRight, rig.kneeRight, rig.ankleRight),
+  );
+}
+
+const chain = new Matrix4();
+const shoeCentre = new Vector3();
+
+function soleHeight(rig: CharacterRig, hip: Group, knee: Group, ankle: Group): number {
+  hip.updateMatrix();
+  knee.updateMatrix();
+  ankle.updateMatrix();
+
+  chain
+    .copy(rig.body.matrix)
+    .multiply(rig.torso.matrix)
+    .multiply(hip.matrix)
+    .multiply(knee.matrix)
+    .multiply(ankle.matrix);
+
+  shoeCentre.set(0, SHOE.offsetY, SHOE.offsetZ).applyMatrix4(chain);
+
+  const e = chain.elements;
+  const halfHeight = Math.hypot(
+    e[1] * SHOE.radius * SHOE.scaleX,
+    e[5] * SHOE.radius * SHOE.scaleY,
+    e[9] * SHOE.radius * SHOE.scaleZ,
+  );
+  return shoeCentre.y - halfHeight;
+}
