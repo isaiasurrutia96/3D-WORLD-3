@@ -1,7 +1,7 @@
 import { bakeGaitClip, sampleCurve } from './run-clip.js';
 
 export const SPRINT_STRIDE=3.0;
-export const SPRINT_DURATION=.46;
+export const SPRINT_DURATION=.23;
 const CONTACT_END=.20,CONTACT_FORWARD=.195;
 const forward=[[CONTACT_END,CONTACT_FORWARD-SPRINT_STRIDE*CONTACT_END,-SPRINT_STRIDE],[.35,-.46,.4],[.55,-.18,2.6],[.72,.12,1.6],[.86,.20,.5],[.94,.23,0],[1,CONTACT_FORWARD,-SPRINT_STRIDE]];
 const lift=[[0,0,0],[CONTACT_END,0,0],[.40,.17,.9],[.54,.30,0],[.74,.28,-.3],[.84,.14,-1.3],[.92,.06,-.8],[1,0,0]];

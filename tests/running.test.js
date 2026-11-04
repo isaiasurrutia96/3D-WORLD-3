@@ -115,8 +115,8 @@ test('sprint has higher recovery and longer stride without curling the back',()=
   assert.equal(state.mode,'walk');
 });
 
-test('longer sprint extends the rear leg without increasing cadence or diagonal speed',()=>{
-  assert.equal(SPRINT_DURATION,.46);
+test('faster run extends the rear leg while keeping diagonal speed normalized',()=>{
+  assert.equal(SPRINT_DURATION,.23);
   assert.equal(SPRINT_SPEED,SPRINT_STRIDE/SPRINT_DURATION);
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
   animation.update({speed:SPRINT_SPEED,phase:.199,distance:0,sprinting:true,sprintStarts:1},1);
@@ -189,5 +189,5 @@ test('faster default run keeps the planted ankle fixed through the longer stride
     const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
     if(phase>.02&&phase<.199){if(previous)assert.ok(Math.abs(ankle.z-previous.z)<.001);previous=ankle;contacts++;}
   }
-  assert.ok(contacts>30);assert.ok(SPRINT_SPEED>6.5);assert.equal(SPRINT_DURATION,.46);
+  assert.ok(contacts>30);assert.ok(Math.abs(SPRINT_SPEED-2*(3/.46))<1e-10);assert.equal(SPRINT_DURATION,.23);
 });

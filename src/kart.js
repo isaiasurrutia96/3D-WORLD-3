@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-// Static, unpainted construction frame. Forward is +Z; wheel groups and the
+// Static, unpainted chassis and simple body shell. Forward is +Z; wheel groups and the
 // steering assembly are separate so a later driving rig can be built on them.
 export function createKartFrame(){
- const kart=new THREE.Group();kart.name='Bare go-kart frame';
+ const kart=new THREE.Group();kart.name='Go-kart prototype';
  kart.userData.drivable=false;
  const material=new THREE.MeshLambertMaterial({color:'#a1a6ac'});
  const up=new THREE.Vector3(0,1,0);
@@ -47,6 +47,34 @@ export function createKartFrame(){
  wheel.name='steering_wheel';wheel.position.fromArray(top);
  wheel.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...top).sub(new THREE.Vector3(...base)).normalize());steering.add(wheel);
  for(const side of [-1,1])tube(steering,[0,.31,.63],[side*.80,.38,1.03],.02,'steering link');
+ const body=new THREE.Group();body.name='body_panels';kart.add(body);
+ const panelMaterial=new THREE.MeshLambertMaterial({color:'#a1a6ac',side:THREE.DoubleSide});
+ function panel(name,sections,centerX=0){
+  const vertices=[],indices=[];
+  for(const [z,width,bottom,top] of sections){
+   const bevel=Math.min(.06,width*.3,(top-bottom)*.25);
+   for(const [x,y]of [[-width+bevel,bottom],[width-bevel,bottom],[width,bottom+bevel],[width,top-bevel],
+    [width-bevel,top],[-width+bevel,top],[-width,top-bevel],[-width,bottom+bevel]])vertices.push(x+centerX,y,z);
+  }
+  for(let ring=0;ring<sections.length-1;ring++)for(let i=0;i<8;i++){
+   const a=ring*8+i,b=ring*8+(i+1)%8;indices.push(a,b,a+8,b,b+8,a+8);
+  }
+  for(let i=1;i<7;i++){indices.push(0,i+1,i);const start=(sections.length-1)*8;indices.push(start,start+i,start+i+1);}
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+  const mesh=new THREE.Mesh(geometry,panelMaterial);mesh.name=name;mesh.castShadow=true;mesh.receiveShadow=true;body.add(mesh);
+ }
+ // Low, broad retro-kart bodywork, all the same unpainted gray as the frame.
+ panel('front_nose',[[.38,.36,.29,.49],[.74,.54,.27,.63],[1.30,.57,.27,.50],[1.49,.49,.30,.43]]);
+ for(const side of [-1,1])panel(side<0?'left_side_pod':'right_side_pod',
+  [[-.86,.13,.30,.46],[-.66,.23,.27,.60],[.43,.23,.27,.58],[.70,.12,.30,.43]],side*.65);
+ panel('rear_shell',[[-1.38,.57,.28,.46],[-1.22,.68,.27,.61],[-.86,.65,.28,.59]]);
+ panel('floor_pan',[[-1.13,.62,.265,.32],[.53,.62,.265,.32]]);
+ function seatPanel(name,size,position,angle=0){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),panelMaterial);mesh.name=name;mesh.position.set(...position);mesh.rotation.x=angle;mesh.castShadow=true;body.add(mesh);
+ }
+ seatPanel('seat_base',[.66,.065,.63],[0,.425,-.435]);
+ seatPanel('seat_back',[.66,.63,.065],[0,.72,-.845],-.30);
+ for(const side of [-1,1])seatPanel(side<0?'seat_left_side':'seat_right_side',[.055,.17,.62],[side*.34,.50,-.435]);
  return kart;
 }
 export const KART_POSITION={x:125.5,y:0,z:-146.5};
