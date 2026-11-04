@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — back at checkpoint 1.
+Last updated: 4 November 2026 — narrower torso, adaptive somersault.
 
 ---
 
@@ -242,6 +242,29 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, third entry.** Two changes, both asked for.
+
+**1. The upper body is 7 per cent narrower.** Applied to the torso's radii
+only, never to its heights, so the shoulder line, the base of the neck and
+the head are all exactly where they were. The arms and the buckles move in by
+the same amount so they stay on the surface. Scaling the whole profile by one
+figure keeps the shape it was given — belly, waist, chest — and takes out
+only the bulk.
+
+**2. The third jump's somersault starts turning sooner on a short jump.**
+The wait before the rotation begins used to be a fixed tenth of a second,
+which is barely noticeable on a jump held to full height and is a quarter of
+a tapped one, so the low somersault had to cram a whole turn into what was
+left. The wait is now a share of however much air there is beyond the bare
+minimum, re-read every frame: let go of the button early, the jump is cut
+short, the estimate drops with it and the rotation starts almost at once.
+Measured at sixty frames a second: the shortest tap now turns after 0.05
+seconds of a 0.43 second jump, where it used to wait 0.13; a jump held to
+full height still waits 0.13 of 0.88, exactly as before. Every hold length
+and frame rate tested comes all the way round before landing, and the heights
+and the clearance above the floor are unchanged.
+
 
 **4 November 2026, second entry.** Two attempts at making the feet hold the
 ground were built, measured and then reverted at the owner's request. The

@@ -50,8 +50,24 @@ export const TUNING = {
    * How long the character rises before the somersault begins. Starting it
    * the instant the feet leave the ground looks like a trip rather than a
    * jump.
+   *
+   * This is the longest that wait is ever allowed to be, reached on a jump
+   * held to full height. On a short one it is cut right down, because the
+   * pause is taken as a share of the whole time in the air rather than as a
+   * fixed number of seconds: a tenth of a second is nothing on a long jump
+   * and a fifth of a short one.
    */
   tripleJumpFlipDelay: 0.13,
+  /**
+   * The wait is this share of however much time in the air there is beyond
+   * the bare minimum below. A jump with barely any air to spare gets no
+   * wait worth having; one held to full height gets all of it.
+   */
+  tripleJumpFlipDelayShare: 0.3,
+  /** Air below this is all needed for turning, so none of it is spent rising. */
+  tripleJumpFlipMinAirtime: 0.45,
+  /** The shortest that wait can be, so the lowest flip is still not a trip. */
+  tripleJumpFlipDelayMin: 0.035,
   /**
    * The somersault finishes this long before landing, so the character comes
    * down on their feet rather than mid-rotation.

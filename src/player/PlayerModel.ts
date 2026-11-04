@@ -132,9 +132,21 @@ const TORSO_PROFILE: Array<[number, number]> = [
   [0.0, 0.46],
 ];
 
+/**
+ * How much narrower the upper body is than the profile above describes.
+ *
+ * It is applied to the radii only, never to the heights, so the shoulder
+ * line, the base of the neck and the head all stay exactly where they were.
+ * The arms and the buckles move in by the same amount so they stay on the
+ * surface rather than hovering off it. Narrowing the whole profile by one
+ * figure keeps the shape — belly, waist, chest — and only takes the bulk
+ * out.
+ */
+const UPPER_BODY_SCALE = 0.93;
+
 function torsoProfile(): LatheGeometry {
   return new LatheGeometry(
-    TORSO_PROFILE.map(([radius, height]) => new Vector2(radius, height)),
+    TORSO_PROFILE.map(([radius, height]) => new Vector2(radius * UPPER_BODY_SCALE, height)),
     20,
   );
 }
@@ -148,7 +160,7 @@ function trouserProfile(waistHeight: number): LatheGeometry {
   const points: Vector2[] = [];
   for (const [radius, height] of TORSO_PROFILE) {
     if (height > waistHeight) break;
-    points.push(new Vector2(radius * 1.035, height));
+    points.push(new Vector2(radius * UPPER_BODY_SCALE * 1.035, height));
   }
   // Close the top of the shape off at the waist.
   const last = points[points.length - 1];
@@ -223,7 +235,13 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     torso.add(part(trouserProfile(0.16), overallMaterial));
 
     for (const x of [-0.125, 0.125]) {
-      torso.add(part(new SphereGeometry(0.05, 10, 8), buckleMaterial, [x, 0.21, 0.27]));
+      torso.add(
+        part(new SphereGeometry(0.05, 10, 8), buckleMaterial, [
+          x * UPPER_BODY_SCALE,
+          0.21,
+          0.27 * UPPER_BODY_SCALE,
+        ]),
+      );
     }
   }
 
@@ -261,7 +279,7 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.282 * side, 0.345, 0);
+    shoulder.position.set(0.282 * UPPER_BODY_SCALE * side, 0.345, 0);
     torso.add(shoulder);
 
     shoulder.add(part(taperedLimb(0.1, 0.11, 0.14), shirtMaterial, [0, -0.16, 0]));

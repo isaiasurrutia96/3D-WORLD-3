@@ -64,6 +64,11 @@ export class Player {
   private comboWindow = 0;
   /** Time since a triple jump took off, or -1 when there is no somersault. */
   private flipTimer = -1;
+  /**
+   * How long this particular somersault waits before it starts turning,
+   * worked out from how long the jump is going to last.
+   */
+  private flipDelay: number = TUNING.tripleJumpFlipDelay;
   /** How far round the somersault is, 0 to 1. */
   private flipProgress = 0;
   private landingTimer = 0;
@@ -526,6 +531,7 @@ export class Player {
 
     // The third jump comes with a somersault.
     this.flipTimer = this.jumpStage === 3 ? 0 : -1;
+    this.flipDelay = TUNING.tripleJumpFlipDelay;
     this.flipProgress = 0;
 
     this.comboWindow = 0;
@@ -558,9 +564,24 @@ export class Player {
 
     // Rise first. Rotating from the instant the feet leave the ground reads
     // as a trip rather than a jump.
-    if (this.flipTimer < TUNING.tripleJumpFlipDelay) return;
+    //
+    // How long to rise for is a share of the whole jump rather than a fixed
+    // wait. A tenth of a second is barely noticeable on a jump held to full
+    // height, but it is a fifth of a tapped one, and spending it there left
+    // the low somersault too little air to finish turning in. The whole jump
+    // is the time already spent plus the time still to come, which is re-read
+    // every frame: let go of the button early and the jump is cut short, the
+    // estimate drops with it, and the rotation starts almost at once.
+    const toLand = this.predictTimeToLand();
+    const airborne = this.flipTimer + toLand;
+    this.flipDelay = MathUtils.clamp(
+      (airborne - TUNING.tripleJumpFlipMinAirtime) * TUNING.tripleJumpFlipDelayShare,
+      TUNING.tripleJumpFlipDelayMin,
+      TUNING.tripleJumpFlipDelay,
+    );
+    if (this.flipTimer < this.flipDelay) return;
 
-    const airtime = this.predictTimeToLand() - TUNING.tripleJumpLandMargin;
+    const airtime = toLand - TUNING.tripleJumpLandMargin;
     // Floored at one frame, not at some fixed fraction of a second. Floored
     // higher, the rotation only ever covers a fraction of what is left each
     // frame and approaches the end without reaching it, so the character
@@ -604,7 +625,7 @@ export class Player {
 
   /** True only while the somersault is actually turning. */
   private get flipping(): boolean {
-    return this.flipTimer >= TUNING.tripleJumpFlipDelay && this.flipProgress < 1;
+    return this.flipTimer >= this.flipDelay && this.flipProgress < 1;
   }
 
   /** How far round the somersault is, 0 to 1. Exposed for the tests. */

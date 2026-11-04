@@ -215,7 +215,7 @@ await resetPlayer(page);
 
 // ---- The third jump's somersault, tapped and held ------------------------
 const flips = [];
-for (const hold of [0.06, 0.45]) {
+for (const hold of [0.02, 0.06, 0.45]) {
   const result = await page.evaluate(
     (hold) => window.__letsgo.debug.simulateTripleJump(1 / 60, hold),
     hold,
@@ -236,13 +236,41 @@ for (const hold of [0.06, 0.45]) {
         `${result.lowestPart}m, below the floor`,
     );
   }
+  // He has to be the right way up when he lands, not still turning.
+  if (result.progressAtLanding < 0.99) {
+    problems.push(
+      `with the jump held for ${hold}s, he was only ` +
+        `${Math.round(result.progressAtLanding * 100)}% round when he landed`,
+    );
+  }
+  // The wait before the rotation starts has to leave most of the jump for
+  // turning in, however short the jump is. A fixed wait does not: a tenth of
+  // a second is nothing on a long jump and a quarter of a tapped one.
+  if (result.startedAfter > result.airtime * 0.25) {
+    problems.push(
+      `with the jump held for ${hold}s, the somersault does not start turning ` +
+        `until ${Math.round((result.startedAfter / result.airtime) * 100)}% of the way ` +
+        `through the jump`,
+    );
+  }
 }
 
+const tapped = flips[0];
+const held = flips[flips.length - 1];
+
 // A tap must still give a lower jump than a hold.
-if (flips.length === 2 && !(flips[1].peak > flips[0].peak + 0.3)) {
+if (!(held.peak > tapped.peak + 0.3)) {
   problems.push(
-    `holding the jump (${flips[1].peak}m) is not clearly higher than tapping it ` +
-      `(${flips[0].peak}m)`,
+    `holding the jump (${held.peak}m) is not clearly higher than tapping it ` +
+      `(${tapped.peak}m)`,
+  );
+}
+
+// And the low one must start turning sooner, since it has less time to do it.
+if (!(tapped.startedAfter < held.startedAfter)) {
+  problems.push(
+    `the tapped somersault starts turning after ${tapped.startedAfter}s, no sooner ` +
+      `than the held one at ${held.startedAfter}s, though it has far less air to do it in`,
   );
 }
 
@@ -295,7 +323,9 @@ console.log(`\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, jump peak ${peak.toF
 console.log(` jump combo heights: ${jumpPeaks.map((h) => `${h}m`).join(', ')}`);
 for (const f of flips) {
   console.log(
-    ` somersault held ${f.hold}s: peak ${f.peak}m, lowest part ${f.lowestPart}m, ` +
+    ` somersault held ${f.hold}s: peak ${f.peak}m, turns after ${f.startedAfter}s of ` +
+      `${f.airtime}s in the air, ${Math.round(f.progressAtLanding * 100)}% round on landing, ` +
+      `lowest part ${f.lowestPart}m, ` +
       `completed ${f.completedBeforeLanding}`,
   );
 }

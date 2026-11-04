@@ -282,6 +282,9 @@ class Game {
         let lowestAt = { y: 0, progress: 0, state: '', frame: 0 };
         let frame = 0;
         let completedBeforeLanding = false;
+        let startedAfter = -1;
+        let progressAtLanding = 0;
+        let airborneFrames = 0;
 
         holding = true;
         alreadyPressed = false;
@@ -290,6 +293,15 @@ class Game {
 
         const measure = () => {
           peak = Math.max(peak, this.player.position.y);
+          // Only while actually off the ground: landing clears the
+          // somersault, so reading it afterwards always says zero.
+          if (!grounded()) {
+            airborneFrames += 1;
+            if (startedAfter < 0 && this.player.somersaultProgress > 0) {
+              startedAfter = airborneFrames * dt;
+            }
+            progressAtLanding = this.player.somersaultProgress;
+          }
           this.player.object.updateMatrixWorld(true);
           bounds.setFromObject(this.player.object);
           frame += 1;
@@ -322,6 +334,11 @@ class Game {
           lowestPart: Math.round(lowestPart * 1000) / 1000,
           lowestAt,
           completedBeforeLanding,
+          // How long after leaving the ground the rotation began, how long
+          // the jump lasted, and how far round he was when he landed.
+          startedAfter: Math.round(startedAfter * 1000) / 1000,
+          airtime: Math.round(airborneFrames * dt * 1000) / 1000,
+          progressAtLanding: Math.round(progressAtLanding * 100) / 100,
         };
       },
 
