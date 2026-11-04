@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RUN_SPEED } from '../running-controller.js';
 import { createRunClip, RUN_DURATION, RUN_STRIDE } from './run-clip.js';
-import { createSprintClip,createSprintLaunchClip,SPRINT_DURATION } from './sprint-clip.js';
+import { createSprintClip,SPRINT_DURATION } from './sprint-clip.js';
 import { FOOT_PROFILE } from '../avatar.js';
 
 export function createRunningAnimator(avatar) {
@@ -9,13 +9,11 @@ export function createRunningAnimator(avatar) {
   const mixer=new THREE.AnimationMixer(avatar);
   const action=mixer.clipAction(createRunClip(avatar));
   const sprint=mixer.clipAction(createSprintClip(avatar));
-  const launch=mixer.clipAction(createSprintLaunchClip());
-  launch.setLoop(THREE.LoopOnce,1); launch.clampWhenFinished=true;
   const pelvis=avatar.skeleton.bones.find(bone=>bone.name==='pelvis');
   const feet=['left','right'].map(side=>avatar.skeleton.bones.find(bone=>bone.name===`${side}_foot`));
-  let weight=0,sprintBlend=0,lastSprintStart=0;
+  let weight=0,sprintBlend=0;
   function reset() {
-    action.stop(); sprint.stop(); launch.stop(); weight=0; sprintBlend=0;
+    action.stop(); sprint.stop(); weight=0; sprintBlend=0;
     for (const item of rest) {item.bone.position.copy(item.position);item.bone.quaternion.copy(item.quaternion);}
   }
   function update(state,dt) {
@@ -27,13 +25,7 @@ export function createRunningAnimator(avatar) {
     sprint.play(); sprint.setEffectiveWeight(weight*sprintBlend);
     action.time=(phase%1)*RUN_DURATION;
     sprint.time=(phase%1)*SPRINT_DURATION;
-    const sprintStart=state.sprintStarts??0;
-    if(sprintStart!==lastSprintStart){
-      lastSprintStart=sprintStart;
-      if(state.sprinting)launch.reset().play();
-    }
-    launch.setEffectiveWeight(weight*sprintBlend);
-    // Locomotion phases are distance-driven; only the one-shot launch uses time.
+    // Both locomotion clips follow travel; no additive back bend at launch.
     action.paused=true;sprint.paused=true;
     mixer.update(dt);
     avatar.updateMatrixWorld(true);

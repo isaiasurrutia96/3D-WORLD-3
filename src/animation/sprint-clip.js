@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { bakeGaitClip, sampleCurve } from './run-clip.js';
 
 export const SPRINT_STRIDE=2.7;
@@ -18,12 +17,5 @@ export function sprintFootPose(phase){
 }
 export function createSprintClip(avatar){
   return bakeGaitClip(avatar,{name:'Sprint',duration:SPRINT_DURATION,compression,
-    lean:.28,neck:-.08,footPose:sprintFootPose,armSwing,elbow});
-}
-// Additive launch drive sits over the first planted-foot/toe-off stride. It
-// fires once per Shift + movement entry, rather than repeating on every sprint cycle.
-export function createSprintLaunchClip(){
-  const times=[0,.06,.18,.32],values=[];
-  for(const angle of [0,.13,.07,0])values.push(...new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),angle).toArray());
-  return new THREE.AnimationClip('Sprint launch',.32,[new THREE.QuaternionKeyframeTrack('spine.quaternion',times,values)],THREE.AdditiveAnimationBlendMode);
+    lean:0,neck:0,footPose:sprintFootPose,armSwing,elbow});
 }

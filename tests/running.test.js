@@ -94,7 +94,7 @@ test('start, reversal and stopping keep finite poses and restore exact stillness
   assert.deepEqual(pose(avatar),neutral);
 });
 
-test('sprint has higher recovery, longer stride and a stronger initial ground drive',()=>{
+test('sprint has higher recovery and longer stride with an upright back',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar),state=createRunner(),point=new THREE.Vector3();
   let maximumFoot=0,maximumKnee=0,maximumLean=0;
   for(let frame=0;frame<180;frame++){
@@ -108,7 +108,7 @@ test('sprint has higher recovery, longer stride and a stronger initial ground dr
       avatar.getVertexPosition(i,point);assert.ok(point.y>-.00001,`sprint floor at ${frame}`);
     }
   }
-  assert.ok(maximumFoot>.45);assert.ok(maximumKnee>1.6);assert.ok(maximumLean>.30);
+  assert.ok(maximumFoot>.45);assert.ok(maximumKnee>1.6);assert.ok(maximumLean<.05);
   assert.equal(state.mode,'walk');
 });
 
