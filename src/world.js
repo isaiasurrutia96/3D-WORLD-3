@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {createKartFrame,KART_POSITION} from './kart.js';
 import {createTrack,trackSegments,railSegments,access,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
 export const FLOOR_WIDTH=260,FLOOR_LENGTH=460;
 export const SPAWN={x:120,y:0,z:-150,yaw:Math.PI/2};
@@ -54,5 +55,6 @@ export function createWorld(){
  const group=new THREE.Group();group.name='Floating slab and circuit';
  const floor=new THREE.Mesh(new THREE.BoxGeometry(FLOOR_WIDTH,.25,FLOOR_LENGTH),new THREE.MeshLambertMaterial({color:'#303238'}));
  floor.name='Charcoal floor slab';floor.receiveShadow=true;floor.position.y=-.125;
- group.add(floor,createTrack());return group;
+ const kart=createKartFrame();kart.position.set(KART_POSITION.x,KART_POSITION.y,KART_POSITION.z);kart.rotation.y=Math.PI/2;
+ group.add(floor,createTrack(),kart);return group;
 }

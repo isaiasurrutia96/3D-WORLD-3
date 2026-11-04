@@ -13,7 +13,7 @@ function advance(state,seconds,input,dt=1/120) {
 }
 const pose = avatar => avatar.skeleton.bones.map(bone=>[...bone.position.toArray(),...bone.quaternion.toArray()]);
 
-test('remembered E/D/S/F mapping requires Shift plus movement for sprint and keeps Space out of directional axes',()=>{
+test('remembered E/D/S/F mapping uses Shift for walking and keeps Space out of directional axes',()=>{
   for(const [code,expected] of [
     ['KeyE',{forward:1,right:0}],['KeyD',{forward:-1,right:0}],
     ['KeyS',{forward:0,right:-1}],['KeyF',{forward:0,right:1}],
@@ -31,10 +31,13 @@ test('fixed-step controller normalizes diagonals, brakes to rest and switches wa
   const low=createRunner(),high=createRunner();advance(low,1,{x:0,z:1},1/60);advance(high,1,{x:0,z:1},1/120);
   assert.ok(Math.abs(low.z-high.z)<.03);
 });
-test('Shift gates sprint in all four directions, with one launch per entry',()=>{
-  assert.equal(wantsSprint(new Set(['ShiftLeft','KeyE'])),true);
-  assert.equal(wantsSprint(new Set(['ShiftRight','KeyE'])),true);
-  for(const shift of ['ShiftLeft','ShiftRight'])for(const key of ['KeyE','KeyD','KeyS','KeyF'])assert.equal(wantsSprint(new Set([shift,key])),true);
+test('running is default in all four directions and either Shift key selects walking',()=>{
+  assert.equal(wantsSprint(new Set(['ShiftLeft','KeyE'])),false);
+  assert.equal(wantsSprint(new Set(['ShiftRight','KeyE'])),false);
+  for(const key of ['KeyE','KeyD','KeyS','KeyF']){
+    assert.equal(wantsSprint(new Set([key])),true);
+    for(const shift of ['ShiftLeft','ShiftRight'])assert.equal(wantsSprint(new Set([shift,key])),false);
+  }
   assert.equal(wantsSprint(new Set(['ShiftLeft'])),false);
   assert.equal(wantsSprint(new Set(['ShiftLeft','KeyS','KeyF'])),false);
   assert.equal(wantsSprint(new Set(['ShiftLeft','KeyE','KeyD'])),false);
@@ -116,7 +119,7 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
   assert.equal(SPRINT_DURATION,.46);
   assert.equal(SPRINT_SPEED,SPRINT_STRIDE/SPRINT_DURATION);
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
-  animation.update({speed:SPRINT_SPEED,phase:.214,distance:0,sprinting:true,sprintStarts:1},1);
+  animation.update({speed:SPRINT_SPEED,phase:.199,distance:0,sprinting:true,sprintStarts:1},1);
   avatar.updateMatrixWorld(true);
   const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
   assert.ok(ankle.z<-.35);assert.ok(avatar.skeleton.getBoneByName('left_calf').rotation.x<.6);
@@ -128,7 +131,7 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
 test('sprint balances opposite arm/knee drive with a straight leaning torso and extended push-off',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
   const bones=avatar.skeleton;
-  for(const [side,phase] of [['left',.214],['right',.714]]){
+  for(const [side,phase] of [['left',.199],['right',.699]]){
     animation.update({speed:SPRINT_SPEED,phase,distance:0,sprinting:true},1);
     avatar.updateMatrixWorld(true);
     const point=name=>bones.getBoneByName(name).getWorldPosition(new THREE.Vector3());
@@ -175,4 +178,16 @@ test('sprint reduces forward reach and recovery knee bend across the complete cy
     }
   }
   assert.ok(maximumReach<.26);assert.ok(maximumBend<2.3);
+});
+
+test('faster default run keeps the planted ankle fixed through the longer stride',()=>{
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar);let previous,contacts=0;
+  for(let frame=0;frame<240;frame++){
+    const phase=frame/240;avatar.position.z=phase*SPRINT_STRIDE;
+    animation.update({speed:SPRINT_SPEED,phase,distance:phase*SPRINT_STRIDE,sprinting:true},1);
+    avatar.updateMatrixWorld(true);
+    const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
+    if(phase>.02&&phase<.199){if(previous)assert.ok(Math.abs(ankle.z-previous.z)<.001);previous=ankle;contacts++;}
+  }
+  assert.ok(contacts>30);assert.ok(SPRINT_SPEED>6.5);assert.equal(SPRINT_DURATION,.46);
 });

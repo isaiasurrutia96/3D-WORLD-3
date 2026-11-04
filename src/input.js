@@ -10,5 +10,5 @@ export function readMoveAxes(keys) {
 
 export function wantsSprint(keys) {
   const axes=readMoveAxes(keys);
-  return (axes.forward!==0 || axes.right!==0) && (keys.has('ShiftLeft') || keys.has('ShiftRight'));
+  return (axes.forward!==0 || axes.right!==0) && !keys.has('ShiftLeft') && !keys.has('ShiftRight');
 }
