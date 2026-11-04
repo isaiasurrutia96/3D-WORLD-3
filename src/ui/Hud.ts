@@ -46,8 +46,8 @@ export class Hud {
     hints.innerHTML = `
       Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b> ·
       Walk <b>hold Shift</b> · Jump <b>Space</b><br />
-      Jump again on landing for a higher second and third jump · turn hard at
-      a run and jump for a <b>side flip</b><br />
+      Jump again on landing for a higher second and third jump · at a run,
+      <b>Space</b> then <b>A</b> for a <b>side flip</b><br />
       Crouch <b>Q</b> — crouch running then jump for a <b>long jump</b>, crouch
       still then jump for a <b>backflip</b><br />
       <b>Space twice</b> in the air to <b>ground pound</b> · jump at a wall to

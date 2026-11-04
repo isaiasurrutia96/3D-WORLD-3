@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — side flip, ground pound, ladder, pool, crate, circuit.
+Last updated: 4 November 2026 — side flip on a button, circuit parked.
 
 ---
 
@@ -168,6 +168,12 @@ can be judged.
 
 ## G) Deferred features
 
+**The ground pound on three presses, rather than two.** Asked for on 4
+November and deliberately left until the rest of the movement work is
+finished. The shape wanted: the first press of jump jumps, a second press in
+the air gives a small upward boost, and a third press in the air starts the
+pound. Until then it stays on the double tap it has now.
+
 **1. Further control customisation.** Movement is bound to E, D, S and F, with
 R and Q reserved for picking up and interacting. Remaining bindings are to be
 specified in a later milestone; until then the defaults in the README stand. The input layer already maps physical keys and gamepad buttons to
@@ -242,6 +248,36 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, ninth entry.** Three changes asked for after playing.
+
+**1. The circuit is out of the build.** It will come back once the movement
+work is done. `src/world/Track.ts` is left in place and simply not loaded, so
+putting it back is one line; nothing it contains ends up in the bundle while
+nothing imports it.
+
+**2. The side flip is asked for rather than caught.** It used to come out of
+a hard turn at a run, which is how the original does it and which turned out
+to be very hard to do on purpose: the turn has to be sharp enough to count as
+a skid, and the jump has to land inside it. It is now jump and a second
+button — **A**, which nothing in the game used — within a third of a second,
+**in either order**, and only from a run.
+
+It converts a jump already on its way up rather than being a jump of its own.
+That is what makes the window work in both directions, and it is why running
+is checked at the moment the feet left the ground rather than at the moment
+the button lands.
+
+One thing that had to change with it: setting a fixed upward speed meant
+pressing the button a tenth of a second later sent him half a metre higher,
+so the same move came out anywhere between three and five metres. The height
+is now the setting and the speed is worked out from where he is when the
+button lands, so it tops out at three metres however it was asked for —
+below the triple jump, which stays the highest thing he can do.
+
+**3. The ground pound's three-press version is deferred**, as asked, and is
+written down in section G. It stays on the double tap until then.
+
 
 **4 November 2026, eighth entry.** Checkpoint 4 taken as the branch
 `checkpoint-4-ledges`. Then the keys were changed and five things added.

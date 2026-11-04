@@ -136,9 +136,31 @@ export const TUNING = {
    * it exists because a hard reversal is already a distinct thing the
    * controller knows about.
    */
-  sideFlipVelocity: 13.2,
+  /**
+   * How high the side flip tops out above where the jump started.
+   *
+   * Written as a height rather than a speed because the flip converts a jump
+   * already in the air: setting a fixed speed meant pressing the button a
+   * tenth of a second later sent him half a metre higher, so the same move
+   * came out at anything between three and five metres. The speed needed is
+   * worked out from where he is when the button lands. It sits below the
+   * triple jump on purpose — that stays the highest thing he can do.
+   */
+  sideFlipApex: 3,
+  /** The least it can give, so a late press is still a boost. */
+  sideFlipLeastVelocity: 4.5,
   /** How fast it carries him in the new direction. */
   sideFlipSpeed: 5,
+  /**
+   * How far apart the jump and the flip button may be and still count as one
+   * move, in either order.
+   *
+   * It used to come out of a hard turn at a run, which is how the original
+   * does it and which turned out to be very hard to ask for on purpose: the
+   * turn has to be sharp enough to count as a skid and the jump has to land
+   * inside it. A button and a window are something you can aim at.
+   */
+  sideFlipWindow: 0.3,
 
   // ---- The ground pound ----------------------------------------------------
   /**

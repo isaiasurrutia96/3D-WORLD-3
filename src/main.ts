@@ -17,7 +17,6 @@ import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { buildSlab, type SlabWorld } from './world/Slab.ts';
-import { buildTrack, type TrackWorld } from './world/Track.ts';
 import { Hud } from './ui/Hud.ts';
 
 const container = document.getElementById('app');
@@ -35,7 +34,6 @@ class Game {
   private readonly effects: ParticleEffects;
 
   private readonly world: SlabWorld;
-  private readonly track: TrackWorld;
   private readonly player: Player;
   private readonly cameraRig: CameraRig;
 
@@ -47,12 +45,6 @@ class Game {
     this.effects = new ParticleEffects(this.engine.scene);
 
     this.world = buildSlab(this.engine.scene, this.collision);
-
-    // The circuit floats above the slab and is joined to it by a ramp, so it
-    // can be run on without anything else being built underneath it.
-    this.track = buildTrack();
-    this.engine.scene.add(this.track.root);
-    this.collision.addSolid(this.track.solid);
 
     this.player = new Player(
       this.collision,
@@ -154,7 +146,6 @@ class Game {
     return {
       engine: this.engine,
       player: this.player,
-      track: this.track,
       world: this.world,
       settings: this.settings,
       rig: this.player.rig,
@@ -803,6 +794,7 @@ class Game {
       /** The moves added last: side flip, ground pound, ladder, pool, crate. */
       simulateExtras: (dt = 1 / 60) => {
         const stick = { x: 0, y: 0 };
+        const stickRef = stick;
         const held = new Set<string>();
         const pressed = new Set<string>();
         const stub = {
@@ -845,31 +837,48 @@ class Game {
 
         const results: Record<string, unknown> = {};
 
-        // Side flip: run, turn hard, jump during the turn.
-        place(0, 0, 30, Math.PI);
-        stick.y = -1;
-        for (let i = 0; i < frames(1); i += 1) step();
-        stick.y = 1;
-        let sawSkid = false;
-        for (let i = 0; i < frames(0.4); i += 1) {
-          step();
-          if (player.stateName === 'skid') {
-            sawSkid = true;
-            break;
+        // Side flip: at a run, jump and the flip button inside the window.
+        // Tried four ways, because the window is meant to be forgiving: the
+        // two buttons in either order, and from a walk, which must not work.
+        const tryFlip = (gapSeconds: number, flipFirst: boolean, stick: number) => {
+          place(0, 0, 30, Math.PI);
+          stickRef.y = -stick;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          const runningAt = round(player.speed);
+
+          // Measured from the moment the first button goes down, and with
+          // jump held the way it would be, since letting go cuts the rise.
+          let peak = player.position.y;
+          let flipped = false;
+          const watchFrames = (count: number) => {
+            for (let i = 0; i < count; i += 1) {
+              step();
+              peak = Math.max(peak, player.position.y);
+              if (player.stateName === 'side-flip') flipped = true;
+            }
+          };
+
+          if (flipFirst) {
+            tap('sideFlip');
+            watchFrames(frames(gapSeconds));
+            held.delete('sideFlip');
+            tap('jump');
+          } else {
+            tap('jump');
+            watchFrames(frames(gapSeconds));
+            tap('sideFlip');
           }
-        }
-        tap('jump');
-        for (let i = 0; i < frames(0.3); i += 1) step();
-        held.delete('jump');
-        let peak = player.position.y;
-        const flipStates: string[] = [];
-        for (let i = 0; i < frames(2); i += 1) {
-          step();
-          peak = Math.max(peak, player.position.y);
-          const name = player.stateName;
-          if (flipStates[flipStates.length - 1] !== name) flipStates.push(name);
-        }
-        results.sideFlip = { sawSkid, states: flipStates, peak: round(peak) };
+          watchFrames(frames(0.4));
+          held.clear();
+          watchFrames(frames(2));
+          return { runningAt, flipped, peak: round(peak) };
+        };
+
+        results.sideFlipJumpThenFlip = tryFlip(0.12, false, 1);
+        results.sideFlipFlipThenJump = tryFlip(0.12, true, 1);
+        results.sideFlipLateButInside = tryFlip(0.26, false, 1);
+        results.sideFlipTooLate = tryFlip(0.55, false, 1);
+        results.sideFlipFromAWalk = tryFlip(0.12, false, 0.4);
 
         // Ground pound: jump, then two quick presses in the air.
         place(0, 0, 30, Math.PI);
@@ -928,30 +937,6 @@ class Game {
         results.crate = {
           inReach: target !== null,
           carrying: player.carried !== null,
-        };
-
-        // The ramp onto the circuit: run up it from the bottom.
-        const foot = this.track.rampFoot;
-        const top = this.track.rampTop;
-        const toTrack = new Vector3(top.x - foot.x, 0, top.z - foot.z).normalize();
-        place(foot.x - toTrack.x * 2, 0, foot.z - toTrack.z * 2, Math.atan2(toTrack.x, toTrack.z));
-        stick.x = toTrack.x;
-        stick.y = toTrack.z;
-        let highest = 0;
-        for (let i = 0; i < frames(6); i += 1) {
-          step();
-          highest = Math.max(highest, player.position.y);
-        }
-        results.ramp = {
-          foot: { x: round(foot.x), z: round(foot.z) },
-          trackHeight: round(top.y),
-          reached: round(highest),
-          stoppedAt: {
-            x: round(player.position.x),
-            y: round(player.position.y),
-            z: round(player.position.z),
-          },
-          state: player.stateName,
         };
 
         place(0, 0, 10, this.world.spawnFacing);

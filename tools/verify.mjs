@@ -446,14 +446,37 @@ await resetPlayer(page);
 // ---- The side flip, the ground pound, the ladder, the pool, the crate ---
 const extras = await page.evaluate(() => window.__letsgo.debug.simulateExtras(1 / 60));
 
-if (!extras.sideFlip.sawSkid) {
-  problems.push('turning hard at a run no longer produces a skid to flip out of');
+// The side flip takes jump and the flip button within a third of a second of
+// each other, in either order, and only from a run.
+const flipCases = [
+  ['jump then flip', extras.sideFlipJumpThenFlip, true],
+  ['flip then jump', extras.sideFlipFlipThenJump, true],
+  ['a quarter of a second apart', extras.sideFlipLateButInside, true],
+  ['too far apart', extras.sideFlipTooLate, false],
+  ['from a walk', extras.sideFlipFromAWalk, false],
+];
+for (const [name, result, shouldFlip] of flipCases) {
+  if (result.flipped !== shouldFlip) {
+    problems.push(
+      shouldFlip
+        ? `the side flip did not fire with ${name}`
+        : `the side flip fired with ${name}, which it should not`,
+    );
+  }
 }
-if (!extras.sideFlip.states.includes('side-flip')) {
-  problems.push(`jumping out of a skid gave ${extras.sideFlip.states.join(' > ')}`);
+// And it has to come out the same height however it was asked for, since it
+// converts a jump that is already on its way up.
+const flipPeaks = flipCases
+  .filter(([, , shouldFlip]) => shouldFlip)
+  .map(([, result]) => result.peak);
+if (Math.max(...flipPeaks) - Math.min(...flipPeaks) > 0.25) {
+  problems.push(`the side flip tops out anywhere from ${Math.min(...flipPeaks)}m to ${Math.max(...flipPeaks)}m`);
 }
-if (!(extras.sideFlip.peak > 2.2)) {
-  problems.push(`the side flip only reached ${extras.sideFlip.peak}m`);
+// It stays below the triple jump, which remains the highest thing he can do.
+if (flips.length && !(flips[flips.length - 1].peak > Math.max(...flipPeaks))) {
+  problems.push(
+    `the side flip reaches ${Math.max(...flipPeaks)}m, at or above the triple jump`,
+  );
 }
 
 for (const want of ['pound-hover', 'pound', 'pound-land']) {
@@ -486,14 +509,6 @@ if (!(extras.pool.depth < -0.3)) {
 
 if (!extras.crate.inReach) problems.push('the crate was never within reach');
 if (!extras.crate.carrying) problems.push('pressing grab did not pick the crate up');
-
-// The ramp has to lead all the way onto the circuit, not into the side of it.
-if (!(extras.ramp.reached >= extras.ramp.trackHeight - 0.1)) {
-  problems.push(
-    `running up the ramp reached ${extras.ramp.reached}m against a track at ` +
-      `${extras.ramp.trackHeight}m — it stops short of the road`,
-  );
-}
 
 await resetPlayer(page);
 
@@ -595,7 +610,12 @@ for (const [name, result] of Object.entries(ledges)) {
 }
 
 console.log('\n--- the newest moves ---');
-console.log(` side flip      ${extras.sideFlip.peak}m high  ${extras.sideFlip.states.join(' > ')}`);
+for (const [name, result, shouldFlip] of flipCases) {
+  console.log(
+    ` side flip      ${String(name).padEnd(28)} ${result.flipped ? 'fires' : 'does not'}` +
+      `${shouldFlip === result.flipped ? '' : '  <-- wrong'}  ${result.peak}m`,
+  );
+}
 console.log(` ground pound   ${extras.groundPound.states.join(' > ')}`);
 console.log(
   ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m  ` +
@@ -604,9 +624,6 @@ console.log(
 console.log(` pool           down to ${extras.pool.depth}m  ${extras.pool.states.join(' > ')}`);
 console.log(
   ` crate          in reach ${extras.crate.inReach}, carried ${extras.crate.carrying}`,
-);
-console.log(
-  ` ramp           up to ${extras.ramp.reached}m, circuit at ${extras.ramp.trackHeight}m`,
 );
 
 console.log('\n--- report ---');

@@ -117,6 +117,13 @@ export class Player {
   private flipAxis: 'pitch' | 'roll' = 'pitch';
   /** Seconds since the jump button was last pressed, for spotting a double tap. */
   private sinceJumpPress = 99;
+  /** Seconds since the feet left the ground, and whether they left it at a run. */
+  private sinceTakeOff = 99;
+  private tookOffRunning = false;
+  /** The height the current jump started from. */
+  private takeOffY = 0;
+  /** Seconds since the side flip button was last pressed. */
+  private sinceSideFlipPress = 99;
   /** The ground pound, which is a hover, a drop and a moment planted. */
   private poundPhase: PoundPhase = 'none';
   private poundTimer = 0;
@@ -264,6 +271,9 @@ export class Player {
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
     if (this.sinceJumpPress < 10) this.sinceJumpPress += delta;
+    if (this.sinceTakeOff < 10) this.sinceTakeOff += delta;
+    if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
+    if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
     if (this.poundPhase === 'landed') {
       this.poundTimer -= delta;
       if (this.poundTimer <= 0) this.poundPhase = 'none';
@@ -464,6 +474,14 @@ export class Player {
     // A ground pound in progress owns the character completely.
     if (this.poundPhase === 'hover' || this.poundPhase === 'slam') {
       this.updateGroundPound(delta);
+      return;
+    }
+
+    // A jump turned into a side flip, if the other button landed inside the
+    // window. Checked before anything else in the air, because it is a
+    // continuation of the take-off rather than a new decision.
+    if (this.canSideFlip()) {
+      this.performSideFlip();
       return;
     }
 
@@ -1094,14 +1112,6 @@ export class Player {
    * move rather than something to do on the spot.
    */
   private performJump(): void {
-    // Turning hard at a run and jumping during the turn is a side flip. It
-    // comes first because a skid is already the controller's own word for
-    // "he is changing his mind about which way he is going".
-    if (this.skidding) {
-      this.performSideFlip();
-      return;
-    }
-
     // A jump out of a crouch is a different move entirely, and which one it
     // is depends only on whether he is still travelling.
     if (this.crouching) {
@@ -1160,17 +1170,41 @@ export class Player {
   }
 
   /**
-   * Thrown sideways over his own shoulder, out of a hard turn.
+   * Thrown sideways over his own shoulder: jump at a run, then the flip
+   * button, or the other way round, within a third of a second.
+   *
+   * It is a jump already in the air being turned into something else rather
+   * than a jump of its own. That is what makes the window forgiving in both
+   * directions — press the two in either order and it still reads as one
+   * move — and it is why running is checked at the moment the feet left the
+   * ground rather than now.
    *
    * The rotation is about a different axis from the somersault and the
    * backflip: those go over head-first or heels-first, this one goes over
    * sideways, which is the whole reason it looks like a different move.
    */
+  private canSideFlip(): boolean {
+    if (this.state !== 'air') return false;
+    if (this.jumpKind !== 'normal') return false;
+    if (this.poundPhase !== 'none') return false;
+    if (!this.tookOffRunning) return false;
+    return (
+      this.sinceTakeOff <= TUNING.sideFlipWindow &&
+      this.sinceSideFlipPress <= TUNING.sideFlipWindow
+    );
+  }
+
   private performSideFlip(): void {
     const forward = this.forwardVector(this.scratchMove);
     this.velocity.x = forward.x * TUNING.sideFlipSpeed;
     this.velocity.z = forward.z * TUNING.sideFlipSpeed;
-    this.velocity.y = TUNING.sideFlipVelocity;
+
+    // However far up the jump already is, finish at the same height.
+    const remaining = this.takeOffY + TUNING.sideFlipApex - this.object.position.y;
+    this.velocity.y = Math.max(
+      TUNING.sideFlipLeastVelocity,
+      Math.sqrt(Math.max(0, 2 * TUNING.gravity * remaining)),
+    );
 
     this.jumpKind = 'side';
     this.jumpStage = 1;
@@ -1179,7 +1213,9 @@ export class Player {
     this.flipProgress = 0;
     this.flipDirection = 1;
     this.flipAxis = 'roll';
-    this.takeOff();
+    this.jumpHeld = true;
+    this.sinceSideFlipPress = 99;
+    this.sinceTakeOff = 99;
   }
 
   /** Crouch standing still, then jump: high, backwards, turning over. */
@@ -1226,6 +1262,9 @@ export class Player {
 
   /** What every jump does, whichever one it is. */
   private takeOff(): void {
+    this.sinceTakeOff = 0;
+    this.takeOffY = this.object.position.y;
+    this.tookOffRunning = this.speed > TUNING.walkSpeed + 0.6;
     this.poundPhase = 'none';
     this.comboWindow = 0;
     this.jumpHeld = true;

@@ -18,6 +18,7 @@ export type ActionName =
   | 'pause'
   | 'dive'
   | 'crouch'
+  | 'sideFlip'
   | 'togglePointerLock';
 
 const STICK_DEADZONE = 0.22;
@@ -345,11 +346,13 @@ const KEY_ACTIONS: Record<string, ActionName | undefined> = {
   ControlLeft: 'dive',
   KeyC: 'dive',
   KeyW: 'interact',
+  KeyA: 'sideFlip',
 };
 
 const GAMEPAD_ACTIONS: Record<number, ActionName> = {
   0: 'jump', // A / cross
   2: 'grab', // X / square
+  3: 'sideFlip', // Y / triangle
   1: 'dive', // B / circle
   6: 'crouch', // left trigger
   9: 'pause', // start
