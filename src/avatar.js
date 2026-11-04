@@ -13,7 +13,7 @@ function mesh(geometry, mat, parent, position, scale) {
 function ball(parent, mat, position, scale) { return mesh(new THREE.SphereGeometry(1, 10, 8), mat, parent, position, scale); }
 function joint(parent, name, position) { const group = new THREE.Group(); group.name = name; group.position.set(...position); parent.add(group); return group; }
 
-// Static articulated model. Movement and animation will be rebuilt separately.
+// Articulated model, animated separately by the locomotion retargeter.
 export function createAvatar(){
 const LIMB_LENGTH=1.65;
 const ARM_LENGTH=LIMB_LENGTH*1.08;
@@ -38,7 +38,8 @@ for (const side of [-1,1]) {
   const knee = joint(hip,`${side<0?'left':'right'}_knee`,[0,-0.29*LIMB_LENGTH,0]);
   segment(knee,[0,-0.125*LIMB_LENGTH,0],0.155,0.25*LIMB_LENGTH-0.17,chinos);
   const ankle = joint(knee,`${side<0?'left':'right'}_ankle`,[0,-0.25*LIMB_LENGTH,0]);
-  ball(ankle,sneakers,[0,-0.08,0.11],[0.23,0.13,0.36]);
+  const foot=ball(ankle,sneakers,[0,-0.08,0.11],[0.23,0.13,0.36]);
+  foot.name=`${side<0?'left':'right'}_foot_mesh`;
   const shoulder = joint(torso,`${side<0?'left':'right'}_shoulder`,[side*0.35,0.43,0]);
   shoulder.rotation.z = side*0.16;
   const upperArm=segment(shoulder,[side*0.025,-0.145*ARM_LENGTH,0],0.16,0.29*ARM_LENGTH-0.21);
