@@ -349,7 +349,7 @@ if (!(moves.brake.slideDistance > 1 && moves.brake.slideDistance < 4)) {
 const braking = await page.evaluate(() => window.__letsgo.debug.measureBraking(1 / 60));
 const brief = braking[0];
 const sustained = braking[braking.length - 1];
-if (!(brief.slide < sustained.slide * 0.35)) {
+if (!(brief.slide < sustained.slide * 0.55)) {
   problems.push(
     `running for ${brief.ran}s then stopping slides ${brief.slide}m, against ` +
       `${sustained.slide}m after ${sustained.ran}s — the slide does not build`,
@@ -375,6 +375,48 @@ for (const [name, result] of [
       `the ${name} pose reaches ${result.lowestPart}m, below the floor (${result.at})`,
     );
   }
+}
+
+await resetPlayer(page);
+
+// ---- Getting over a top edge --------------------------------------------
+// Reaching the top of a wall by kicking up it used to end in a bounce off
+// the last few inches and a drop all the way back down, because nothing knew
+// the difference between a wall and the top of one.
+const ledges = await page.evaluate(() => window.__letsgo.debug.simulateLedges(1 / 60));
+
+const WALL_TOP = 7.14;
+const PLATFORM_TOP = 2.71;
+const onTop = (result, height, what) => {
+  if (Math.abs(result.landedAt - height) > 0.05) {
+    problems.push(
+      `${what}: ended at ${result.landedAt}m rather than on top at ${height}m ` +
+        `(${result.states.join(' > ')})`,
+    );
+  }
+};
+
+onTop(ledges.wallTopFromHang, WALL_TOP, 'hanging at the top of a wall');
+onTop(ledges.platformFromHang, PLATFORM_TOP, 'hanging at the edge of a platform');
+onTop(ledges.platformJumped, PLATFORM_TOP, 'jumping at a platform');
+onTop(ledges.wallTopByKicking, WALL_TOP, 'kicking up a wall');
+
+// The two climbs are different moves and the right one has to be chosen:
+// over the top of a wall he swings, onto a roof he hauls.
+if (!ledges.wallTopFromHang.states.includes('ledge-swing')) {
+  problems.push(
+    `the top of a wall produced ${ledges.wallTopFromHang.states.join(' > ')} ` +
+      `rather than a swing over it`,
+  );
+}
+if (!ledges.platformFromHang.states.includes('mantle')) {
+  problems.push(
+    `the edge of a platform produced ${ledges.platformFromHang.states.join(' > ')} ` +
+      `rather than a haul onto it`,
+  );
+}
+if (!(ledges.wallTopByKicking.kicks >= 1)) {
+  problems.push('kicking up the gap between two walls never got off the first wall');
 }
 
 await resetPlayer(page);
@@ -470,6 +512,11 @@ console.log(
 console.log(
   ` floor          crouch ${moves.crouchFloor.lowestPart}m, skid ${moves.brakeSettled.lowestPart}m`,
 );
+
+console.log('\n--- over a top edge ---');
+for (const [name, result] of Object.entries(ledges)) {
+  console.log(` ${name.padEnd(18)} ends at ${result.landedAt}m  ${result.states.join(' > ')}`);
+}
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

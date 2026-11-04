@@ -628,6 +628,136 @@ class Game {
         });
       },
 
+      /**
+       * The two ways over a top edge.
+       *
+       * Each is tried twice: dropped beside the edge with his hands at it,
+       * which is the case the catch has to recognise, and approached the way
+       * it would be in play — jumped at for the platform, kicked up to for
+       * the wall.
+       */
+      simulateLedges: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const held = new Set<string>();
+        const pressed = new Set<string>();
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: (a: string) => held.has(a),
+          wasPressed: (a: string) => pressed.has(a),
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const player = this.player;
+        const step = () => {
+          player.update(dt, stub, 0);
+          pressed.clear();
+        };
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
+        const tap = (a: string) => {
+          held.add(a);
+          pressed.add(a);
+        };
+        const place = (x: number, y: number, z: number, facing: number) => {
+          held.clear();
+          pressed.clear();
+          stick.x = 0;
+          stick.y = 0;
+          player.teleport(new Vector3(x, y, z), facing);
+        };
+
+        // Watches until he is standing still on something, or time runs out.
+        const settle = (seconds: number) => {
+          const states: string[] = [];
+          for (let i = 0; i < frames(seconds); i += 1) {
+            step();
+            const name = player.stateName;
+            if (states[states.length - 1] !== name) states.push(name);
+          }
+          return { states, landedAt: round(player.position.y), state: player.stateName };
+        };
+
+        const results: Record<string, unknown> = {};
+
+        // Dropped beside the top of a wall, hands at the edge.
+        // The corridor's right-hand wall faces -x, its face at x = -12.75.
+        place(-12.7, 5.9, -6, Math.PI / 2);
+        results.wallTopFromHang = settle(2);
+
+        // Dropped beside the platform, which is 5.5 across at x 15, z 12, so
+        // its near face in z is at 9.25.
+        place(15, 1.5, 8.6, 0);
+        results.platformFromHang = settle(2.2);
+
+        // Jumped at the platform from the floor, which is how it would be met.
+        place(15, 0, 6.2, 0);
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        stick.y = 1;
+        for (let i = 0; i < frames(0.5); i += 1) step();
+        // Held, not tapped: letting go a frame later cuts the jump to a hop.
+        tap('jump');
+        for (let i = 0; i < frames(0.32); i += 1) step();
+        held.delete('jump');
+        const seen = new Set<string>();
+        for (let i = 0; i < frames(2.4); i += 1) {
+          step();
+          seen.add(player.ledgeDiagnostics.reason);
+          if (player.stateName === 'mantle' || player.stateName === 'ledge-swing') break;
+        }
+        stick.x = 0;
+        stick.y = 0;
+        const rest = settle(1.6);
+        results.platformJumped = { ...rest, saw: [...seen] };
+
+        // Kicked up the corridor to the top of a wall, alternating sides.
+        place(-14, 0, -6, Math.PI / 2);
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        stick.x = 1;
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        tap('jump');
+        for (let i = 0; i < frames(0.3); i += 1) step();
+        held.delete('jump');
+        const climbStates: string[] = [];
+        let kicks = 0;
+        let holdFor = 0;
+        for (let i = 0; i < frames(6); i += 1) {
+          step();
+          const name = player.stateName;
+          if (climbStates[climbStates.length - 1] !== name) climbStates.push(name);
+          if (holdFor > 0) {
+            holdFor -= 1;
+            if (holdFor === 0) held.delete('jump');
+          } else if (name === 'wall-slide') {
+            tap('jump');
+            holdFor = frames(0.3);
+            kicks += 1;
+            // Push toward the other wall for the next one.
+            stick.x = -stick.x;
+          }
+          if (name === 'ledge-swing' || name === 'mantle') break;
+        }
+        stick.x = 0;
+        stick.y = 0;
+        const after = settle(1.8);
+        results.wallTopByKicking = {
+          kicks,
+          states: [...climbStates, ...after.states],
+          landedAt: after.landedAt,
+          state: after.state,
+        };
+
+        place(0, 0, 10, this.world.spawnFacing);
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        return results;
+      },
+
+      /** Looks straight down from a point, for checking where surfaces are. */
+      probe: (x: number, y: number, z: number, drop = 8) => {
+        const hit = this.collision.groundProbe(new Vector3(x, y, z), drop);
+        return hit ? { y: Math.round(hit.y * 1000) / 1000, normalY: Math.round(hit.normal.y * 100) / 100 } : null;
+      },
+
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;
         const target = this.player.position;

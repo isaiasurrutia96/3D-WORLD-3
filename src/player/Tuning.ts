@@ -129,6 +129,36 @@ export const TUNING = {
   /** Downward speed while sliding against a wall, which slows the fall. */
   wallSlideSpeed: 3.4,
 
+  // ---- Getting over a ledge ------------------------------------------------
+  /**
+   * How far in front of him the search for a ledge reaches. A little over
+   * the width of his body, so the surface has to be within arm's length.
+   */
+  ledgeReach: 0.62,
+  /**
+   * The band, measured from his feet, in which a ledge can be caught. The
+   * low figure is about chest height and the high one is just over his head:
+   * below the first he would step up rather than climb, and above the second
+   * his hands would not reach.
+   */
+  ledgeGrabLow: 0.75,
+  ledgeGrabHigh: 1.95,
+  /** Rising faster than this, he is still going up and does not grab. */
+  ledgeGrabRise: 3,
+  /**
+   * How far past the edge the surface has to carry on before the climb is
+   * treated as getting onto a roof rather than over a wall.
+   */
+  ledgeWideDepth: 1.15,
+  /** Where he ends up, measured past the edge, for each of the two climbs. */
+  ledgeStandNarrow: 0.5,
+  ledgeStandWide: 0.95,
+  /** How long each climb takes. Hauling onto a roof is the slower of the two. */
+  ledgeSwingSeconds: 0.52,
+  ledgeMantleSeconds: 0.8,
+  /** How long after a climb before another one can start. */
+  ledgeCooldown: 0.25,
+
   // ---- Braking ------------------------------------------------------------
   /**
    * Above this speed, letting go of the stick is a skid rather than a
@@ -147,8 +177,8 @@ export const TUNING = {
    * deliberately small: a couple of steps and a stop should not look like a
    * skid on ice.
    */
-  brakeSlideShort: 0.35,
-  brakeSlideLong: 2,
+  brakeSlideShort: 0.762,
+  brakeSlideLong: 2.03,
   /**
    * How long he has to keep running before the full slide is earned.
    *
@@ -157,7 +187,7 @@ export const TUNING = {
    * end identically, which is what made the stop look like slipping rather
    * than braking.
    */
-  brakeMomentumBuild: 2.8,
+  brakeMomentumBuild: 2.83,
   /** How long it takes to lose that again once he is no longer running. */
   brakeMomentumFade: 1.2,
   /**
@@ -165,7 +195,7 @@ export const TUNING = {
    * of running adds little and the later ones add most, which is what makes
    * a brief burst stop short while a long run still slides as it did.
    */
-  brakeMomentumCurve: 1.4,
+  brakeMomentumCurve: 1.45,
 
   // ---- Slopes ------------------------------------------------------------
   /** Surfaces steeper than this are walls, not floors. */

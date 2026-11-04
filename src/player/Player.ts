@@ -25,7 +25,7 @@ import {
 } from './PlayerModel.ts';
 import { animateCharacter, type AnimationInputs } from './PlayerAnimation.ts';
 
-export type MovementState = 'ground' | 'air' | 'swim';
+export type MovementState = 'ground' | 'air' | 'swim' | 'ledge';
 
 /**
  * Which jump is in the air. The arc and the pose both follow from it, and it
@@ -114,6 +114,22 @@ export class Player {
   private againstWall = false;
   /** Kicks used since the feet last left the ground. */
   private wallKicks = 0;
+
+  /**
+   * The climb over a ledge, if one is in progress: how far through it is,
+   * where it started, where it ends, and which of the two climbs it is.
+   *
+   * While this runs the controller places him directly rather than letting
+   * physics do it. The move only exists because it has a known start and a
+   * known finish; letting gravity and collision argue about it in between
+   * would produce neither.
+   */
+  private ledgeTimer = -1;
+  private ledgeSeconds = 0;
+  private ledgeWide = false;
+  private ledgeCooldown = 0;
+  private readonly ledgeFrom = new Vector3();
+  private readonly ledgeTo = new Vector3();
   private strokeTimer = 0;
   private submerged = false;
   private atSurface = false;
@@ -130,6 +146,9 @@ export class Player {
     lastNormalY: 0,
     lastDepth: 0,
   };
+
+  /** Why the last search for a ledge did or did not find one. */
+  readonly ledgeDiagnostics = { reason: '', lip: 0, surface: 0 };
 
   private readonly scratchA = new Vector3();
   private readonly scratchB = new Vector3();
@@ -177,12 +196,16 @@ export class Player {
   }
 
   get stateName(): string {
+    if (this.state === 'ledge') return this.ledgeWide ? 'mantle' : 'ledge-swing';
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
     if (this.state === 'air') {
+      // Catching on a wall comes first: a kick that has already peaked and
+      // carried him onto the next wall is a slide now, not still a kick, and
+      // naming it otherwise hides the one moment another kick is possible.
+      if (this.againstWall && this.velocity.y < 0) return 'wall-slide';
       if (this.jumpKind === 'long') return 'long-jump';
       if (this.jumpKind === 'back') return 'backflip';
-      if (this.jumpKind === 'wall') return 'wall-kick';
-      if (this.againstWall && this.velocity.y < 0) return 'wall-slide';
+      if (this.jumpKind === 'wall' && this.velocity.y > 0) return 'wall-kick';
       if (this.velocity.y <= 0.5) return 'fall';
       return this.jumpStage === 3 ? 'triple' : this.jumpStage === 2 ? 'double' : 'jump';
     }
@@ -201,6 +224,7 @@ export class Player {
     if (this.comboWindow > 0) this.comboWindow -= delta;
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
+    if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
 
     // Movement intent, rotated from stick space into camera space. Pushing up
     // on the stick always means "away from the camera".
@@ -213,6 +237,18 @@ export class Player {
     }
 
     this.updateJumpTimers(delta, input);
+
+    // A climb over a ledge runs on its own: it places him from where he
+    // caught hold to where he ends up standing, and nothing else gets a say
+    // until it is finished.
+    if (this.state === 'ledge') {
+      this.updateLedge(delta);
+      this.updateCarry(delta, input);
+      this.updateRecovery(delta);
+      this.syncModel(delta, strength);
+      return;
+    }
+
     this.updateWaterState();
 
     switch (this.state) {
@@ -361,6 +397,11 @@ export class Player {
       this.jumpHeld = false;
     }
 
+    // A top edge within reach takes priority over everything else in the
+    // air: without it, kicking up to the top of a wall ends in a bounce off
+    // the last few inches and a drop all the way back down.
+    if (this.tryCatchLedge()) return;
+
     // Pressed against a wall and falling, he catches on it and slides rather
     // than dropping, which is what gives time to kick off it.
     if (this.againstWall && this.velocity.y < -TUNING.wallSlideSpeed) {
@@ -400,6 +441,126 @@ export class Player {
     // A jump buffered just before landing fires the moment the feet touch.
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) this.performJump();
 
+  }
+
+  /**
+   * Looks for a top edge within reach and catches hold of it.
+   *
+   * Reaching the top of a wall by kicking up it used to end with a bounce
+   * off the last few inches and a drop all the way back down, because
+   * nothing in the controller knew the difference between a wall and the top
+   * of a wall. This is that difference: a surface he can stand on, within
+   * arm's length in front, somewhere between his chest and just over his
+   * head.
+   *
+   * It also decides which of the two climbs it is. If the surface carries on
+   * well past the edge it is a roof, and he hauls himself onto it the way
+   * you get out of a swimming pool. If it stops almost at once it is the top
+   * of a wall, and he swings over it instead.
+   */
+  private tryCatchLedge(): boolean {
+    const why = (reason: string) => {
+      this.ledgeDiagnostics.reason = reason;
+      return false;
+    };
+    if (this.ledgeCooldown > 0) return why('cooldown');
+    if (this.velocity.y > TUNING.ledgeGrabRise) return why('rising');
+
+    // Toward the wall if he is against one, otherwise simply ahead.
+    const forward = this.againstWall
+      ? this.scratchA.copy(this.wallNormal).negate()
+      : this.forwardVector(this.scratchA);
+    if (forward.lengthSq() < 1e-6) return why('no direction');
+
+    const feet = this.object.position.y;
+    const top = this.ledgeSurfaceAt(forward, TUNING.ledgeReach, feet);
+    if (top === null) return why('nothing in front');
+
+    const lip = top - feet;
+    this.ledgeDiagnostics.lip = Math.round(lip * 100) / 100;
+    this.ledgeDiagnostics.surface = Math.round(top * 100) / 100;
+    if (lip < TUNING.ledgeGrabLow || lip > TUNING.ledgeGrabHigh) return why('out of reach');
+
+    // How far the surface carries on past the edge decides which climb it is.
+    const beyond = this.ledgeSurfaceAt(
+      forward,
+      TUNING.ledgeReach + TUNING.ledgeWideDepth,
+      feet,
+    );
+    this.ledgeWide = beyond !== null && Math.abs(beyond - top) < 0.25;
+
+    const stand = this.ledgeWide ? TUNING.ledgeStandWide : TUNING.ledgeStandNarrow;
+    this.ledgeFrom.copy(this.object.position);
+    this.ledgeTo.set(
+      this.object.position.x + forward.x * (TUNING.ledgeReach + stand),
+      top,
+      this.object.position.z + forward.z * (TUNING.ledgeReach + stand),
+    );
+
+    this.facing = Math.atan2(forward.x, forward.z);
+    this.velocity.set(0, 0, 0);
+    this.ledgeTimer = 0;
+    this.ledgeSeconds = this.ledgeWide
+      ? TUNING.ledgeMantleSeconds
+      : TUNING.ledgeSwingSeconds;
+    this.againstWall = false;
+    this.wallTimer = 99;
+    this.state = 'ledge';
+    this.ledgeDiagnostics.reason = 'caught';
+    return true;
+  }
+
+  /**
+   * The height of a surface he could stand on, `distance` in front of him.
+   * The ray starts above the highest catchable ledge and looks down, so it
+   * finds the top of a wall rather than its face.
+   */
+  private ledgeSurfaceAt(forward: Vector3, distance: number, feet: number): number | null {
+    const from = this.scratchB.set(
+      this.object.position.x + forward.x * distance,
+      feet + TUNING.ledgeGrabHigh + 0.4,
+      this.object.position.z + forward.z * distance,
+    );
+    const ground = this.world.groundProbe(from, TUNING.ledgeGrabHigh + 0.4);
+    if (!ground) return null;
+    if (ground.normal.y < MAX_WALKABLE_NORMAL_Y) return null;
+    return ground.y;
+  }
+
+  /**
+   * Runs the climb. He goes up first and across second, rather than along a
+   * straight line between the two points, because a straight line would take
+   * him through the very edge he is climbing over.
+   */
+  private updateLedge(delta: number): void {
+    this.ledgeTimer += delta;
+    const progress = MathUtils.clamp(this.ledgeTimer / this.ledgeSeconds, 0, 1);
+
+    // The rise is finished well before the move is, so the last part of it
+    // is him stepping forward onto the surface rather than still climbing.
+    const rise = MathUtils.clamp(progress / (this.ledgeWide ? 0.62 : 0.55), 0, 1);
+    const across = MathUtils.clamp((progress - 0.34) / 0.66, 0, 1);
+
+    const up = rise * rise * (3 - 2 * rise);
+    const over = across * across * (3 - 2 * across);
+
+    this.object.position.set(
+      MathUtils.lerp(this.ledgeFrom.x, this.ledgeTo.x, over),
+      MathUtils.lerp(this.ledgeFrom.y, this.ledgeTo.y, up),
+      MathUtils.lerp(this.ledgeFrom.z, this.ledgeTo.z, over),
+    );
+    this.object.rotation.y = this.facing;
+    this.syncCapsuleFromPosition();
+
+    if (progress >= 1) {
+      this.ledgeTimer = -1;
+      this.ledgeCooldown = TUNING.ledgeCooldown;
+      this.wallKicks = 0;
+      this.jumpKind = 'normal';
+      this.onGround = true;
+      this.coyoteTimer = TUNING.coyoteTime;
+      this.state = 'ground';
+    }
   }
 
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -1116,6 +1277,9 @@ export class Player {
       brakeStrength: this.braking ? this.brakeStrength : 0,
       jumpKind: this.jumpKind,
       againstWall: this.againstWall,
+      ledgeProgress:
+        this.ledgeTimer < 0 ? 0 : Math.min(1, this.ledgeTimer / this.ledgeSeconds),
+      ledgeWide: this.ledgeWide,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

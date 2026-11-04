@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — the braking skid builds with momentum.
+Last updated: 4 November 2026 — the slide, and getting over a top edge.
 
 ---
 
@@ -242,6 +242,51 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, sixth entry.** The slide's figures were set to the ones
+asked for, and getting over a top edge was added.
+
+**1. The slide, as asked.** Half a second of running now slides 0.76 metres,
+one second 0.91, two seconds 1.37, and three or more 1.95.
+
+**2. Why getting over an edge was needed.** Kicking up to the top of a wall
+ended in a bounce off the last few inches and a drop all the way back down,
+because nothing in the controller knew the difference between a wall and the
+top of a wall.
+
+**3. What was added.** A search, run every frame he is in the air, for a
+surface he could stand on within arm's length in front and somewhere between
+his chest and just over his head. When it finds one he catches hold, and the
+controller places him from where he caught to where he ends up standing. It
+is placed rather than pushed because the move only exists by having a known
+start and a known finish; letting gravity and collision argue about it in
+between would produce neither. He rises first and moves across second, since
+a straight line between the two points would pass through the very edge he
+is getting over.
+
+**4. Two climbs, chosen by what is beyond the edge.** If the surface carries
+on well past it, it is a roof, and he hauls himself onto it the way you get
+out of a swimming pool — slower, square on, both legs together. If it stops
+almost at once it is the top of a wall, and he tips over it and swings a leg
+across instead. This is a ledge transition only; there is still no climbing
+up a wall face, which was never wanted.
+
+**5. A platform added to the test ground.** The walls are 0.9 metres thick,
+which is only ever the swing. The haul needed something broad to haul onto,
+so there is now a block 5.5 metres across and 2.6 tall — high enough that the
+top is just within reach at the peak of an ordinary jump, which is the case
+the move is for.
+
+**6. A state-naming fault found on the way.** A wall kick kept the name
+"wall kick" for the whole flight, so when it carried him onto the next wall
+the slide down that one was still being called a kick. Catching on a wall now
+takes precedence, which is also the only moment another kick is possible.
+
+**Measured.** Dropped beside the top of a wall he swings over and stands at
+7.14 metres. Dropped beside the platform, and jumped at it from the floor, he
+hauls up and stands at 2.71. Kicking up the gap between the two walls takes
+two kicks and ends standing on top.
+
 
 **4 November 2026, fifth entry.** Checkpoint 3 taken as the branch
 `checkpoint-3-crouch-moves`. Then the braking skid was made to answer how

@@ -47,6 +47,8 @@ const WALL_TRIM = new Color('#646d7d');
 /** Half the gap between the two facing walls. Narrow enough to bounce up. */
 const KICK_GAP = 1.7;
 const WALL_HEIGHT = 7;
+const PLATFORM_SIZE = 5.5;
+const PLATFORM_HEIGHT = 2.6;
 const WALL_LENGTH = 11;
 const WALL_THICKNESS = 0.9;
 
@@ -72,6 +74,11 @@ export function buildSlab(scene: Scene, collision: CollisionWorld): SlabWorld {
 
   // And a single face, for one kick on its own.
   solid.add(createWall(15, -6));
+
+  // A broad, low platform. At this height the top is just within reach at
+  // the peak of an ordinary jump, which is the case the climb onto a roof is
+  // for: hands barely on the edge, then haul.
+  solid.add(createPlatform(15, 12));
 
   // The slab's underside is decoration only. Its triangles are eighty metres
   // across, and the collision octree stops descending as soon as it reaches a
@@ -142,6 +149,40 @@ function createWall(x: number, z: number): Mesh {
     new MeshStandardMaterial({ color: WALL_TRIM, roughness: 0.85 }),
   );
   cap.position.y = WALL_HEIGHT / 2 + 0.02;
+  cap.castShadow = true;
+  cap.receiveShadow = true;
+  mesh.add(cap);
+
+  return mesh;
+}
+
+/**
+ * A broad block to climb onto, as opposed to a wall to climb over. Low
+ * enough that the top is within reach at the peak of a normal jump, and deep
+ * enough that there is somewhere to haul onto once he is up.
+ */
+function createPlatform(x: number, z: number): Mesh {
+  const mesh = new Mesh(
+    new BoxGeometry(
+      PLATFORM_SIZE,
+      PLATFORM_HEIGHT,
+      PLATFORM_SIZE,
+      PLATFORM_SIZE,
+      PLATFORM_HEIGHT,
+      PLATFORM_SIZE,
+    ),
+    new MeshStandardMaterial({ color: WALL_COLOUR, roughness: 0.92 }),
+  );
+  mesh.position.set(x, PLATFORM_HEIGHT / 2, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = 'platform';
+
+  const cap = new Mesh(
+    new BoxGeometry(PLATFORM_SIZE + 0.1, 0.2, PLATFORM_SIZE + 0.1, PLATFORM_SIZE, 1, PLATFORM_SIZE),
+    new MeshStandardMaterial({ color: WALL_TRIM, roughness: 0.85 }),
+  );
+  cap.position.y = PLATFORM_HEIGHT / 2 + 0.01;
   cap.castShadow = true;
   cap.receiveShadow = true;
   mesh.add(cap);

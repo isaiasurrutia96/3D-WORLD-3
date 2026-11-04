@@ -32,6 +32,10 @@ export interface AnimationInputs {
   jumpKind: JumpKind;
   /** True while pressed against a wall in the air. */
   againstWall: boolean;
+  /** How far through a climb over a ledge he is, from 0 to 1. */
+  ledgeProgress: number;
+  /** True when the climb is onto a roof rather than over the top of a wall. */
+  ledgeWide: boolean;
   landing: boolean;
   carrying: boolean;
   submerged: boolean;
@@ -116,7 +120,10 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
 
   // Blending rate: fast enough that the character never feels laggy, slow
   // enough that a state change reads as a transition rather than a jump.
-  const rate = input.state === 'air' ? 16 : 13;
+  // A climb over a ledge is a short scripted move with a beginning, a middle
+  // and an end, so it is eased far less than the rest: at the ordinary rate
+  // the three of them smeared into one shrug.
+  const rate = input.state === 'ledge' ? 26 : input.state === 'air' ? 16 : 13;
   const blend = 1 - Math.exp(-rate * input.delta);
 
   if (!initialised) {
@@ -161,6 +168,9 @@ function buildTargetPose(input: AnimationInputs): void {
   reset(pose);
 
   switch (input.state) {
+    case 'ledge':
+      poseLedge(input);
+      break;
     case 'swim':
       poseSwim(input);
       break;
@@ -341,8 +351,74 @@ function poseGround(input: AnimationInputs): void {
   pose.headPitch = -normalised * 0.12;
 }
 
+/**
+ * Getting over the top of something, in three beats: catch hold, pull, then
+ * push up and stand.
+ *
+ * The two climbs share the beats and differ in the middle one. Onto a roof
+ * he hauls himself up square, the way you get out of a swimming pool. Over
+ * the top of a wall there is not enough surface to haul onto, so he tips
+ * over it instead and swings a leg across.
+ */
+function poseLedge(input: AnimationInputs): void {
+  const p = MathUtils.clamp(input.ledgeProgress, 0, 1);
+  const wide = input.ledgeWide;
+
+  // Which pair of beats is in play, and how far between them.
+  const second = p >= 0.45;
+  const raw = second ? (p - 0.45) / 0.55 : p / 0.45;
+  const t = raw * raw * (3 - 2 * raw);
+  const mix = (hang: number, pull: number, stand: number) =>
+    second ? MathUtils.lerp(pull, stand, t) : MathUtils.lerp(hang, pull, t);
+
+  // Hanging: arms overhead with the hands on the edge, legs long beneath.
+  // Pulling: elbows folded, knees up, chest coming level with the edge.
+  // Standing: arms down, legs under him, upright on top.
+  pose.bodyPitch = mix(0.14, wide ? 0.34 : 0.52, 0.05);
+  pose.bodyHeight = mix(-0.06, -0.02, 0);
+  pose.bodySquash = mix(1.02, 0.97, 1);
+  pose.headPitch = mix(-0.32, -0.16, 0);
+
+  pose.shoulderLeftPitch = mix(-2.88, -2.45, -0.34);
+  pose.shoulderRightPitch = mix(-2.88, -2.45, -0.34);
+  pose.shoulderLeftRoll = mix(0.2, 0.36, 0.24);
+  pose.shoulderRightRoll = mix(0.2, 0.36, 0.24);
+  pose.elbowLeft = mix(-0.14, -1.95, -0.3);
+  pose.elbowRight = mix(-0.14, -1.95, -0.3);
+
+  // Over a wall the legs are not symmetrical: one swings across the top
+  // first, which is what makes it read as going over rather than up.
+  pose.hipLeft = mix(-0.22, wide ? -1.4 : -1.75, -0.24);
+  pose.hipRight = mix(-0.22, wide ? -1.4 : -0.6, -0.24);
+  pose.kneeLeft = mix(0.42, wide ? 1.85 : 1.95, 0.34);
+  pose.kneeRight = mix(0.42, wide ? 1.85 : 0.9, 0.34);
+  pose.ankleLeft = mix(0.18, 0.24, 0);
+  pose.ankleRight = mix(0.18, 0.24, 0);
+  pose.bodyRoll = wide ? 0 : mix(0, 0.18, 0);
+}
+
 function poseAir(input: AnimationInputs): void {
   const rising = input.verticalSpeed > 0.5;
+
+  if (input.againstWall && !rising) {
+    // Caught on a wall and sliding down it, facing out, one leg braced
+    // against the surface.
+    pose.bodyPitch = -0.1;
+    pose.shoulderLeftPitch = -0.5;
+    pose.shoulderRightPitch = -0.5;
+    pose.shoulderLeftRoll = 1.0;
+    pose.shoulderRightRoll = 1.0;
+    pose.elbowLeft = -0.9;
+    pose.elbowRight = -0.9;
+    pose.hipLeft = -0.85;
+    pose.hipRight = -0.2;
+    pose.kneeLeft = 0.9;
+    pose.kneeRight = 0.3;
+    pose.ankleLeft = 0.1;
+    pose.ankleRight = 0.1;
+    pose.headPitch = -0.12;
+    return;
+  }
 
   if (input.jumpKind === 'long') {
     // Stretched out flat and reaching, legs trailing. The silhouette is the
@@ -387,7 +463,7 @@ function poseAir(input: AnimationInputs): void {
     return;
   }
 
-  if (input.jumpKind === 'wall') {
+  if (input.jumpKind === 'wall' && rising) {
     // Coming off the wall: one knee driven up, the other leg still extended
     // from the push, arms wide.
     pose.bodyPitch = 0.16;
@@ -407,25 +483,6 @@ function poseAir(input: AnimationInputs): void {
     return;
   }
 
-  if (input.againstWall && !rising) {
-    // Caught on a wall and sliding down it, facing out, one leg braced
-    // against the surface.
-    pose.bodyPitch = -0.1;
-    pose.shoulderLeftPitch = -0.5;
-    pose.shoulderRightPitch = -0.5;
-    pose.shoulderLeftRoll = 1.0;
-    pose.shoulderRightRoll = 1.0;
-    pose.elbowLeft = -0.9;
-    pose.elbowRight = -0.9;
-    pose.hipLeft = -0.85;
-    pose.hipRight = -0.2;
-    pose.kneeLeft = 0.9;
-    pose.kneeRight = 0.3;
-    pose.ankleLeft = 0.1;
-    pose.ankleRight = 0.1;
-    pose.headPitch = -0.12;
-    return;
-  }
 
   // The third jump of a combo is a somersault. The rotation itself is applied
   // to the rig separately; this is the tuck that goes with it.
