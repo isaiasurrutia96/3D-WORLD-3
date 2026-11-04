@@ -5,6 +5,8 @@ import {createWorld,worldPhysics,SPAWN} from './world.js';
 import './style.css';
 import {createRunner,stepRunner,STEP} from './running-controller.js';
 import {createRunningAnimator} from './animation/running.js';
+import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart} from './vehicle-controller.js';
+import {createVehicleView,createSeatedPose} from './vehicle-view.js';
 import {MOVEMENT_KEYS,readMoveAxes,wantsSprint} from './input.js';
 
 const canvas=document.querySelector('canvas');
@@ -20,6 +22,23 @@ scene.add(createWorld());
 const avatar=createAvatar();scene.add(avatar);
 const runner=Object.assign(createRunner(),SPAWN);
 const animation=createRunningAnimator(avatar);
+const kart=scene.getObjectByName('Go-kart prototype');
+kart.userData.drivable=true;
+const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
+let driving=false;
+const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
+ const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y);
+ const parked=resolveParkedKart(road.x,road.z,y,kartState);
+ return worldPhysics.resolveHorizontal(x,z,parked.x,parked.z,y);
+}};
+const walkingChart=document.querySelector('.movement-keys').innerHTML;
+const walkingLabel=canvas.getAttribute('aria-label');
+function setDrivingChart(){
+ document.querySelector('.movement-keys').innerHTML=driving
+  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S</kbd>Steer left</span><span><kbd>F</kbd>Steer right</span><span><kbd>SPACE</kbd>Brake</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
+  : walkingChart;
+ canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F. Space brakes; H exits when stopped.':walkingLabel);
+}
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
 Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-3,near:0.1,far:20});
@@ -28,7 +47,7 @@ const camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){controls.target.set(runner.x,runner.y+1.2,runner.z);camera.position.copy(controls.target).add(new THREE.Vector3(-6,2.5,0));controls.update();}
+function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(driving?new THREE.Vector3(-Math.sin(focus.yaw)*6,2.8,-Math.cos(focus.yaw)*6):new THREE.Vector3(-6,2.5,0));controls.update();}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
 function resize(){
@@ -72,19 +91,24 @@ document.addEventListener('mousemove', event => {
     controls.minPolarAngle,controls.maxPolarAngle);
   camera.position.copy(controls.target).add(mouseOffset.setFromSpherical(orbit));
   camera.lookAt(controls.target);
+  manualCameraUntil=performance.now()+1800;
   render();
 });
 
 const keys=new Set();
-let jumpQueued=false;
+let jumpQueued=false,interactionQueued=false;
+let orbiting=false,manualCameraUntil=0;
+controls.addEventListener('start',()=>{orbiting=true;});
+controls.addEventListener('end',()=>{orbiting=false;manualCameraUntil=performance.now()+1800;});
 const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
   if(event.target.closest('input,textarea,select'))return;
   if(directionKeys.has(event.code)){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
+  if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
 });
 window.addEventListener('keyup',event=>keys.delete(event.code));
-window.addEventListener('blur',()=>{keys.clear();jumpQueued=false;});
+window.addEventListener('blur',()=>{keys.clear();jumpQueued=false;interactionQueued=false;});
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
@@ -96,24 +120,57 @@ function input(){
 }
 function render(){renderer.render(scene,camera);}
 controls.enableDamping=false;
-let previousTime,accumulator=0,previous={...runner};
-document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;previousTime=undefined;accumulator=0;previous={...runner};});
+let previousTime,accumulator=0,previous={...runner},previousKart={...kartState};
+function toggleVehicle(){
+ const hint=document.querySelector('#kart-action');
+ if(!driving){
+  if(!canEnterVehicle(runner,kartState)){hint.textContent=runner.grounded?'Move closer to kart':'Land before entering';return;}
+  animation.reset();driving=true;kart.add(avatar);seatAvatar();previousKart={...kartState};
+ }else{
+  const exit=findExitPosition(kartState,worldPhysics);
+  if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return;}
+  driving=false;kartState.speed=0;previousKart={...kartState};scene.add(avatar);animation.reset();
+  Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
+ }
+ jumpQueued=false;manualCameraUntil=0;setDrivingChart();reset();
+}
+document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;interactionQueued=false;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
 renderer.setAnimationLoop(time=>{
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
   previousTime=time;accumulator+=dt;
-  while(accumulator>=STEP){previous={...runner};stepRunner(runner,input(),STEP,worldPhysics);accumulator-=STEP;}
-  if(runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
+  while(accumulator>=STEP){
+   if(interactionQueued){interactionQueued=false;toggleVehicle();}
+   if(driving){
+    previousKart={...kartState};jumpQueued=false;
+    const axes=readMoveAxes(keys);
+    stepVehicle(kartState,{throttle:axes.forward,steer:axes.right,brake:keys.has('Space')},STEP,worldPhysics);
+   }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
+   accumulator-=STEP;
+  }
+  if(driving&&kartState.y< -35){Object.assign(kartState,createVehicleState());previousKart={...kartState};reset();}
+  if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
-  avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
-  const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
-  avatar.rotation.y=previous.yaw+turn*alpha;
-  const distance=THREE.MathUtils.lerp(previous.distance,runner.distance,alpha);
-  const phase=THREE.MathUtils.lerp(previous.phase,runner.phase,alpha);
-  animation.update({...runner,distance,phase},dt);
-  const target=new THREE.Vector3(avatar.position.x,THREE.MathUtils.damp(controls.target.y,avatar.position.y+1.2,10,dt),avatar.position.z);
+  const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
+  const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
+  applyKart(kartPose);
+  if(!driving){
+   avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
+   const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
+   avatar.rotation.set(0,previous.yaw+turn*alpha,0);
+   const distance=THREE.MathUtils.lerp(previous.distance,runner.distance,alpha);
+   const phase=THREE.MathUtils.lerp(previous.phase,runner.phase,alpha);
+   animation.update({...runner,distance,phase},dt);
+  }
+  const focus=driving?kartPose:avatar.position;
+  const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
-  sun.position.copy(avatar.position).add(new THREE.Vector3(-3,8,5));sun.target.position.copy(avatar.position);sun.target.updateMatrixWorld();
+  if(driving&&!orbiting&&time>manualCameraUntil){
+   const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*6,2.8,-Math.cos(kartPose.yaw)*6));
+   camera.position.lerp(desired,1-Math.exp(-5*dt));
+  }
+  sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   controls.update();render();
-  canvas.dataset.height=String(runner.y);canvas.dataset.grounded=String(runner.grounded);
-  canvas.dataset.speed=String(runner.speed);canvas.dataset.position=`${runner.x},${runner.z}`;
+  const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
+  canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
+  canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;
 });

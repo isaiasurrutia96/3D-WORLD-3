@@ -40,13 +40,13 @@ export function supportHeight(x,z,maximum=Infinity){
  }
  return height;
 }
-export function resolveHorizontal(x,z,nextX,nextZ,feetY){
+export function resolveHorizontal(x,z,nextX,nextZ,feetY,radius=.48,height=2.3){
  for(let iteration=0;iteration<3;iteration++)for(const segment of nearbyRails(nextX,nextZ)){
   const p=projection(segment,nextX,nextZ);
-  if(feetY>=p.y+1.2||feetY+2.3<p.y||p.distance>=.48)continue;
+  if(feetY>=p.y+1.2||feetY+height<p.y||p.distance>=radius)continue;
   let dx=nextX-p.x,dz=nextZ-p.z,length=Math.hypot(dx,dz);
   if(length<.00001){dx=x-p.x;dz=z-p.z;length=Math.hypot(dx,dz)||1;}
-  nextX=p.x+dx/length*.48;nextZ=p.z+dz/length*.48;
+  nextX=p.x+dx/length*radius;nextZ=p.z+dz/length*radius;
  }
  return {x:nextX,z:nextZ};
 }

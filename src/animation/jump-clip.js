@@ -5,8 +5,8 @@ export function createJumpClip(avatar){
  const times=[0,.20,.48,.80,1],tracks=[];
  const poses={
   spine:[0,.05,.04,0,0],
-  left_thigh:[-.20,-.55,-.55,-.22,-.10],right_thigh:[-.10,-.40,-.40,-.15,-.10],
-  left_calf:[.25,.85,.80,.35,.20],right_calf:[.20,.70,.65,.30,.20],
+  left_thigh:[-.45,-.70,-.55,-.22,-.10],right_thigh:[-.03,-.20,-.30,-.15,-.10],
+  left_calf:[.55,1.0,.80,.35,.20],right_calf:[.10,.40,.55,.30,.20],
   left_upper_arm:[-.30,-.75,-.65,-.25,-.10],right_upper_arm:[-.30,-.75,-.65,-.25,-.10],
   left_forearm:[-.45,-.65,-.65,-.45,-.30],right_forearm:[-.45,-.65,-.65,-.45,-.30],
  };

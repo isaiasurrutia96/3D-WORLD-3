@@ -52,6 +52,7 @@ export function createKartFrame(){
  const wheel=new THREE.Mesh(new THREE.TorusGeometry(.24,.025,6,20),rubber);
  wheel.name='steering_wheel';wheel.position.fromArray(top);
  wheel.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...top).sub(new THREE.Vector3(...base)).normalize());steering.add(wheel);
+ for(let i=0;i<3;i++){const angle=i*Math.PI*2/3;tube(wheel,[0,0,0],[Math.cos(angle)*.21,Math.sin(angle)*.21,0],.016,'steering spoke');}
  for(const side of [-1,1])tube(steering,[0,.31,.63],[side*.80,.38,1.03],.02,'steering link');
  const body=new THREE.Group();body.name='body_panels';kart.add(body);
  const panelMaterial=new THREE.MeshLambertMaterial({color:'#df3438',side:THREE.DoubleSide});
