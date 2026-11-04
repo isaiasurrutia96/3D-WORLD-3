@@ -1,0 +1,70 @@
+# Builds the game and publishes it to GitHub Pages on every push.
+#
+# Once this has run, the game is a web page that can simply be reloaded —
+# no checkout, no install, no local server.
+#
+# This needs Pages switched on for the repository first:
+#   Settings → Pages → Build and deployment → Source: GitHub Actions
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/intelligent-clarke-occyfc
+  # Also allows publishing by hand from the Actions tab.
+  workflow_dispatch:
+
+# Read the repository, and mint the token Pages needs to publish.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A queued run waits rather than cancelling the
+# one in progress, so a half-finished deploy is never published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run typecheck
+
+      - name: Build
+        run: npx vite build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the built site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
