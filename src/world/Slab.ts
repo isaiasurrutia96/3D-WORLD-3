@@ -32,13 +32,25 @@ import { Water } from './Water.ts';
 import { STUDIO_SUN_DIRECTION } from '../core/Engine.ts';
 
 /** Side length of the slab, in metres. Large enough to get up to full speed. */
-export const SLAB_SIZE = 80;
+export const SLAB_SIZE = 140;
 /** Spacing of the floor markings. */
 export const GRID_SQUARE = 2;
 const SLAB_THICKNESS = 1;
 
 export const SPAWN_POSITION = new Vector3(0, 0, 10);
 export const SPAWN_FACING = Math.PI;
+
+/**
+ * A clear patch of floor, well away from anything built on the slab.
+ *
+ * The movement tests drive the character in a straight line for a second or
+ * two and measure where he ends up. Run from the course's own start they
+ * measure the course instead: the first run of this after the course went in
+ * reported that running covered 1.7 metres and that the braking skid did not
+ * exist, both of which meant "there is a wall in the way".
+ */
+export const TEST_GROUND = new Vector3(56, 0, 44);
+export const TEST_FACING = Math.PI;
 
 export interface SlabWorld {
   root: Group;
@@ -53,6 +65,13 @@ export interface SlabWorld {
   hasObstacles: boolean;
 }
 
+/** A rectangle to leave out of the floor, for a pool to sit in. */
+export interface FloorHole {
+  x: number;
+  z: number;
+  half: number;
+}
+
 export interface SlabOptions {
   /**
    * Whether to build the walls, the platform, the pool, the ladder and the
@@ -64,6 +83,8 @@ export interface SlabOptions {
    * they simply have nothing to act on until this is switched back on.
    */
   obstacles?: boolean;
+  /** Rectangles to cut out of the floor. */
+  holes?: FloorHole[];
 }
 
 /** The pool: a hole in the slab, with a basin under it. */
@@ -93,6 +114,7 @@ export function buildSlab(
   options: SlabOptions = {},
 ): SlabWorld {
   const obstacles = options.obstacles === true;
+  const holes = options.holes ?? (obstacles ? [POOL] : []);
   const root = new Group();
   root.name = 'slab-world';
   scene.add(root);
@@ -101,7 +123,7 @@ export function buildSlab(
   solid.name = 'solid';
   root.add(solid);
 
-  solid.add(createFloor(obstacles));
+  solid.add(createFloor(holes));
 
   if (obstacles) {
     // A narrow gap to climb by kicking from one side to the other, off to
@@ -391,7 +413,7 @@ function createPlatform(x: number, z: number): Mesh {
  * pool. Anything else — a second plane with a gap, or a pool standing proud
  * of the ground — either leaves a seam or stops it reading as a pool.
  */
-function cutPool(geometry: PlaneGeometry): void {
+function cutHole(geometry: PlaneGeometry, hole: FloorHole): void {
   const index = geometry.index;
   const position = geometry.attributes.position as BufferAttribute;
   if (!index) return;
@@ -408,19 +430,19 @@ function cutPool(geometry: PlaneGeometry): void {
     x /= 3;
     z /= 3;
     const inside =
-      Math.abs(x - POOL.x) < POOL.half - 0.01 && Math.abs(z - POOL.z) < POOL.half - 0.01;
+      Math.abs(x - hole.x) < hole.half - 0.01 && Math.abs(z - hole.z) < hole.half - 0.01;
     if (inside) continue;
     kept.push(index.getX(i), index.getX(i + 1), index.getX(i + 2));
   }
   geometry.setIndex(kept);
 }
 
-function createFloor(withPool: boolean): Mesh {
+function createFloor(holes: FloorHole[]): Mesh {
   const segments = SLAB_SIZE / GRID_SQUARE;
   const geometry = new PlaneGeometry(SLAB_SIZE, SLAB_SIZE, segments, segments);
   geometry.rotateX(-Math.PI / 2);
 
-  if (withPool) cutPool(geometry);
+  for (const hole of holes) cutHole(geometry, hole);
 
   const position = geometry.attributes.position as BufferAttribute;
   const colors = new Float32Array(position.count * 3);

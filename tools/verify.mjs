@@ -80,6 +80,10 @@ const hasObstacles = await page.evaluate(() => window.__letsgo.debug.world.hasOb
 const steps = [];
 await page.screenshot({ path: `${SHOTS}01-standing.png` });
 
+// On the clear patch, not at the course's start: this one drives real key
+// presses and measures how far he gets, which measures the course instead
+// if he is standing in it.
+await resetPlayer(page);
 const beforeRun = await playerPosition(page);
 await page.keyboard.down('KeyE');
 await page.waitForTimeout(1200);
@@ -103,9 +107,10 @@ const rateResults = [];
 for (const fps of [20, 30, 60, 90, 144, 240]) {
   const result = await page.evaluate((fps) => {
     const g = window.__letsgo.debug;
-    g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
+    // The clear patch of floor, not the course's start.
+    g.player.teleport(g.testGround.clone(), g.testFacing);
     const frames = Math.round(fps * 1.2);
-    const start = g.world.spawn.z;
+    const start = g.testGround.z;
     const samples = g.simulateMove(frames, 1 / fps, 0, -1);
     const last = samples[samples.length - 1];
     return { fps, covered: start - last.z, speed: last.speed, state: last.state };
@@ -545,6 +550,49 @@ if (!extras.crate.carrying) problems.push('pressing grab did not pick the crate 
 
 await resetPlayer(page);
 
+// ---- The course ----------------------------------------------------------
+// Each hard station driven with the inputs its own sign asks for. Two of
+// them were unreachable when first built — the long jump caught the edge of
+// a platform standing in its flight path, and the backflip clipped the
+// corner of the step it was meant to land on — and neither was visible by
+// eye.
+const course = await page.evaluate(() => window.__letsgo.debug.simulateCourse(1 / 60));
+
+if (!course.longJumpGap.cleared) {
+  problems.push(
+    `station 4: the long jump took off at z=${course.longJumpGap.tookOffAt} as ` +
+      `"${course.longJumpGap.launched}" and ended at z=${course.longJumpGap.z}, ` +
+      `y=${course.longJumpGap.y} (${course.longJumpGap.endedAs}) — the gap is not cleared`,
+  );
+}
+if (course.backflipStep.jumped !== 'backflip') {
+  problems.push(`station 5: crouching and jumping gave "${course.backflipStep.jumped}"`);
+}
+if (!course.backflipStep.landed) {
+  problems.push(
+    `station 5: the backflip ended at y=${course.backflipStep.y}, not on the step`,
+  );
+}
+if (!course.sideFlipLedge.landed) {
+  problems.push(`station 6: the side flip ended at y=${course.sideFlipLedge.y}, not on the ledge`);
+}
+if (!course.kickShaft.reached) {
+  problems.push(
+    `station 8: ${course.kickShaft.kicks} kicks reached only ${course.kickShaft.highest}m`,
+  );
+}
+if (!course.ladder.reached) {
+  problems.push(`station 10: the ladder reached ${course.ladder.top}m`);
+}
+if (!course.crate.carrying) problems.push('station 11: the crate would not be picked up');
+if (!(course.pool.deepest < -6)) {
+  problems.push(`station 12: diving only reached ${course.pool.deepest}m of an eight metre pool`);
+}
+if (!course.pool.surfaced) problems.push('station 12: he never came back to the surface');
+if (!course.pool.out) problems.push('station 12: there is no way out of the pool');
+
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -668,6 +716,21 @@ if (hasObstacles) {
   console.log(' ladder, pool, crate, wall kick: skipped, the floor is bare');
 }
 
+console.log('\n--- the course ---');
+console.log(
+  ` 4  long jump   off at z=${course.longJumpGap.tookOffAt}, down at z=${course.longJumpGap.z} ` +
+    `— cleared ${course.longJumpGap.cleared}`,
+);
+console.log(` 5  backflip    up to ${course.backflipStep.y}m — landed ${course.backflipStep.landed}`);
+console.log(` 6  side flip   up to ${course.sideFlipLedge.y}m — landed ${course.sideFlipLedge.landed}`);
+console.log(` 8  wall kicks  ${course.kickShaft.kicks} kicks, ${course.kickShaft.highest}m`);
+console.log(` 10 ladder      up to ${course.ladder.top}m  ${course.ladder.states.join(' > ')}`);
+console.log(` 11 crate       carried ${course.crate.carrying}`);
+console.log(
+  ` 12 pool        down to ${course.pool.deepest}m, surfaced ${course.pool.surfaced}, ` +
+    `out ${course.pool.out}`,
+);
+
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));
 
@@ -689,7 +752,8 @@ async function playerPosition(page) {
 async function resetPlayer(page) {
   await page.evaluate(() => {
     const g = window.__letsgo.debug;
-    g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
+    // The clear patch of floor, not the course's start.
+    g.player.teleport(g.testGround.clone(), g.testFacing);
   });
   await page.waitForTimeout(500);
 }

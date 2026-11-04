@@ -16,7 +16,8 @@ import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
 import { ParticleEffects } from './world/Effects.ts';
-import { buildSlab, type SlabWorld } from './world/Slab.ts';
+import { TEST_FACING, TEST_GROUND, buildSlab, type SlabWorld } from './world/Slab.ts';
+import { COURSE_POOL, COURSE_SPAWN, COURSE_FACING, buildCourse, type CourseWorld } from './world/Course.ts';
 import { Hud } from './ui/Hud.ts';
 
 const container = document.getElementById('app');
@@ -34,6 +35,7 @@ class Game {
   private readonly effects: ParticleEffects;
 
   private readonly world: SlabWorld;
+  private readonly course: CourseWorld;
   private readonly player: Player;
   private readonly cameraRig: CameraRig;
 
@@ -44,11 +46,14 @@ class Game {
     this.engine.setStudioMode(true);
     this.effects = new ParticleEffects(this.engine.scene);
 
-    this.world = buildSlab(this.engine.scene, this.collision);
+    this.world = buildSlab(this.engine.scene, this.collision, {
+      holes: [{ x: COURSE_POOL.x, z: COURSE_POOL.z, half: COURSE_POOL.half }],
+    });
+    this.course = buildCourse(this.engine.scene, this.collision);
 
     this.player = new Player(
       this.collision,
-      this.world.spawn,
+      COURSE_SPAWN,
       {
         onLand: (position, strength) => {
           if (strength > 0.25) this.effects.dust(position, strength);
@@ -57,8 +62,8 @@ class Game {
       // Still the plain clay figure: the form is settled, the movement is not.
       { plain: true },
     );
-    this.player.facing = this.world.spawnFacing;
-    this.player.carryables = this.world.carryables;
+    this.player.facing = COURSE_FACING;
+    this.player.carryables = this.course.carryables;
     this.engine.scene.add(this.player.object);
 
     this.cameraRig = new CameraRig(this.engine.camera, this.collision);
@@ -83,15 +88,44 @@ class Game {
     requestAnimationFrame(this.frame);
   }
 
+  /**
+   * The marked pad he has been closest to while on the ground, which is
+   * where a retry puts him. Tracked rather than nearest-right-now, because
+   * the nearest pad to somewhere he has fallen may be one he has not
+   * reached yet.
+   */
+  private reachedPad = 0;
+
+  private lastPad(): Vector3 {
+    return this.course.checkpoints[this.reachedPad] ?? COURSE_SPAWN;
+  }
+
+  private trackProgress(): void {
+    const pads = this.course.checkpoints;
+    for (let i = 0; i < pads.length; i += 1) {
+      if (i <= this.reachedPad) continue;
+      const pad = pads[i];
+      const reach =
+        Math.abs(this.player.position.y - pad.y) < 1.5 &&
+        Math.hypot(this.player.position.x - pad.x, this.player.position.z - pad.z) < 2.4;
+      if (reach) this.reachedPad = i;
+    }
+  }
+
   private onGlobalKey = (event: KeyboardEvent): void => {
     if (event.code === 'F3') {
       event.preventDefault();
       this.hud.toggleStats();
     }
     // R is reserved for picking things up, so resetting moved off it.
+    //
+    // Plain Backspace returns to the last marked pad passed, which is what
+    // makes a missed jump cost a few seconds rather than the whole run.
+    // Holding shift goes back to the very start instead.
     if (event.code === 'Backspace') {
       event.preventDefault();
-      this.player.teleport(this.world.spawn, this.world.spawnFacing);
+      const target = event.shiftKey ? COURSE_SPAWN : this.lastPad();
+      this.player.teleport(target, event.shiftKey ? COURSE_FACING : this.player.facing);
       this.cameraRig.reset(this.player);
     }
     if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3') {
@@ -116,9 +150,10 @@ class Game {
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.player.update(delta, this.input, this.cameraRig.movementYaw);
     this.cameraRig.update(delta, this.player);
+    this.trackProgress();
 
-    for (const carryable of this.world.carryables) carryable.update(delta, this.collision);
-    this.world.water?.update(this.engine.clock.elapsedTime);
+    for (const carryable of this.course.carryables) carryable.update(delta, this.collision);
+    this.course.water.update(this.engine.clock.elapsedTime);
     this.effects.update(delta);
     this.engine.focusShadowsOn(this.player.position);
     this.engine.render(delta);
@@ -146,6 +181,8 @@ class Game {
     return {
       engine: this.engine,
       player: this.player,
+      testGround: TEST_GROUND,
+      testFacing: TEST_FACING,
       world: this.world,
       settings: this.settings,
       rig: this.player.rig,
@@ -207,7 +244,7 @@ class Game {
         const grounded = () =>
           ['idle', 'walk', 'run', 'skid'].includes(this.player.stateName);
 
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
+        this.player.teleport(TEST_GROUND.clone(), TEST_FACING);
         for (let i = 0; i < frames(1); i += 1) step();
 
         const peaks: number[] = [];
@@ -260,7 +297,7 @@ class Game {
         const grounded = () =>
           ['idle', 'walk', 'run', 'skid'].includes(this.player.stateName);
 
-        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
+        this.player.teleport(TEST_GROUND.clone(), TEST_FACING);
         for (let i = 0; i < frames(1); i += 1) step();
 
         // The first two jumps of the combo, both held.
@@ -376,7 +413,7 @@ class Game {
           pressed.add(action);
         };
         const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
-        const reset = (x = 0, z = 10, facing = this.world.spawnFacing) => {
+        const reset = (x = TEST_GROUND.x, z = TEST_GROUND.z, facing = TEST_FACING) => {
           held.clear();
           pressed.clear();
           stick.x = 0;
@@ -607,7 +644,7 @@ class Game {
         return [0.5, 1, 2, 3, 5].map((seconds) => {
           stick.x = 0;
           stick.y = 0;
-          player.teleport(new Vector3(0, 0, 34), Math.PI);
+          player.teleport(new Vector3(TEST_GROUND.x, 0, TEST_GROUND.z - 8), TEST_FACING);
           for (let i = 0; i < frames(0.6); i += 1) step();
 
           stick.y = -1;
@@ -786,7 +823,7 @@ class Game {
         }
         results.wallTopByKicking = { kicks, reached, states: climbStates, ...topped };
 
-        place(0, 0, 10, this.world.spawnFacing);
+        place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
         for (let i = 0; i < frames(0.4); i += 1) step();
         return results;
       },
@@ -841,7 +878,7 @@ class Game {
         // Tried four ways, because the window is meant to be forgiving: the
         // two buttons in either order, and from a walk, which must not work.
         const tryFlip = (gapSeconds: number, flipFirst: boolean, stick: number) => {
-          place(0, 0, 30, Math.PI);
+          place(TEST_GROUND.x, 0, TEST_GROUND.z - 12, TEST_FACING);
           stickRef.y = -stick;
           for (let i = 0; i < frames(1.2); i += 1) step();
           const runningAt = round(player.speed);
@@ -884,7 +921,7 @@ class Game {
         // boost, one to come down. Each is held briefly, the way a person
         // presses a button, and the height after each is recorded so the
         // middle press can be seen to do something.
-        place(0, 0, 30, Math.PI);
+        place(TEST_GROUND.x, 0, TEST_GROUND.z - 12, TEST_FACING);
         tap('jump');
         for (let i = 0; i < frames(0.3); i += 1) step();
         held.delete('jump');
@@ -908,7 +945,7 @@ class Game {
         };
 
         // And a single press in the air must not pound by itself.
-        place(0, 0, 30, Math.PI);
+        place(TEST_GROUND.x, 0, TEST_GROUND.z - 12, TEST_FACING);
         tap('jump');
         for (let i = 0; i < frames(0.3); i += 1) step();
         held.delete('jump');
@@ -1010,7 +1047,209 @@ class Game {
           carrying: player.carried !== null,
         };
 
-        place(0, 0, 10, this.world.spawnFacing);
+        place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+        return results;
+      },
+
+      /**
+       * Walks the hard parts of the course, to find out whether they can be
+       * done rather than assuming the numbers were right. Each one is driven
+       * at a fixed time step with the inputs its sign asks for.
+       */
+      simulateCourse: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const held = new Set<string>();
+        const pressed = new Set<string>();
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: (a: string) => held.has(a),
+          wasPressed: (a: string) => pressed.has(a),
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const player = this.player;
+        const step = () => {
+          player.update(dt, stub, 0);
+          pressed.clear();
+        };
+        const frames = (s: number) => Math.max(1, Math.round(s / dt));
+        const round = (v: number, n = 2) => Math.round(v * 10 ** n) / 10 ** n;
+        const tap = (a: string) => {
+          held.add(a);
+          pressed.add(a);
+        };
+        const place = (x: number, y: number, z: number, facing: number) => {
+          held.clear();
+          pressed.clear();
+          stick.x = 0;
+          stick.y = 0;
+          player.teleport(new Vector3(x, y, z), facing);
+          for (let i = 0; i < frames(0.3); i += 1) step();
+        };
+        const where = () => ({
+          x: round(player.position.x),
+          y: round(player.position.y),
+          z: round(player.position.z),
+        });
+
+        const results: Record<string, unknown> = {};
+
+        // 4 — the long jump, over a gap too wide for a plain jump.
+        place(0, 0, 10, Math.PI);
+        stick.y = -1;
+        // Up the steps and all the way to the lip, which is where a long
+        // jump has to be taken from: it covers 10.8m and the gap is 7.5m.
+        for (let i = 0; i < frames(1.5); i += 1) step();
+        // Crouch as soon as the lip is close, and jump the moment he is
+        // still on it. Where he takes off from is the whole move.
+        held.add('crouch');
+        let tookOffAt = 99;
+        let tookOffState = '';
+        for (let i = 0; i < frames(1.2); i += 1) {
+          step();
+          if (player.position.z < -4.4 && player.stateName === 'crouch') {
+            tookOffAt = player.position.z;
+            tookOffState = player.stateName;
+            tap('jump');
+            break;
+          }
+        }
+        for (let i = 0; i < frames(0.35); i += 1) step();
+        const launched = player.stateName;
+        held.clear();
+        stick.y = 0;
+        for (let i = 0; i < frames(2.5); i += 1) step();
+        results.longJumpGap = {
+          ...where(),
+          tookOffAt: round(tookOffAt),
+          tookOffState,
+          launched,
+          endedAs: player.stateName,
+          cleared: player.position.z < -13.5 && player.position.y > 1,
+        };
+
+        // 5 — the backflip, up and behind onto the step.
+        place(12, 0, -18.5, Math.PI);
+        held.add('crouch');
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        const crouched = player.stateName;
+        tap('jump');
+        step();
+        const jumped = player.stateName;
+        for (let i = 0; i < frames(0.5); i += 1) step();
+        held.clear();
+        for (let i = 0; i < frames(2.5); i += 1) step();
+        results.backflipStep = {
+          ...where(),
+          crouched,
+          jumped,
+          landed: player.position.y > 2.4,
+        };
+
+        // 6 — the side flip, up onto the ledge beside the lane.
+        place(15, 2.6, -15, Math.PI / 2);
+        stick.x = 1;
+        for (let i = 0; i < frames(0.9); i += 1) step();
+        tap('jump');
+        for (let i = 0; i < frames(0.1); i += 1) step();
+        tap('sideFlip');
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        held.delete('jump');
+        held.delete('sideFlip');
+        stick.x = 0;
+        for (let i = 0; i < frames(2.5); i += 1) step();
+        results.sideFlipLedge = { ...where(), landed: player.position.y > 4.9 };
+
+        // 8 — kicking up the shaft.
+        place(31.4, 0, 2, Math.PI / 2);
+        stick.x = 1;
+        for (let i = 0; i < frames(0.35); i += 1) step();
+        tap('jump');
+        let holdFor = frames(0.3);
+        let kicks = 0;
+        let highest = 0;
+        for (let i = 0; i < frames(7); i += 1) {
+          step();
+          highest = Math.max(highest, player.position.y);
+          if (holdFor > 0) {
+            holdFor -= 1;
+            if (holdFor === 0) held.delete('jump');
+          } else if (player.stateName === 'wall-slide') {
+            tap('jump');
+            holdFor = frames(0.3);
+            kicks += 1;
+            stick.x = -stick.x;
+          }
+          if (player.stateName === 'hanging') break;
+        }
+        stick.x = 0;
+        results.kickShaft = { kicks, highest: round(highest), reached: highest > 7.5 };
+
+        // 12 — into the pool off the board, down to the bottom, and out.
+        place(-23.5, 5.9, 30, Math.PI * 0.5);
+        stick.x = -1;
+        for (let i = 0; i < frames(1.4); i += 1) step();
+        let deepest = 0;
+        held.add('dive');
+        for (let i = 0; i < frames(3); i += 1) {
+          step();
+          deepest = Math.min(deepest, player.position.y);
+        }
+        held.delete('dive');
+        stick.x = 0;
+        // Surface, then swim to the near wall and climb out.
+        for (let i = 0; i < frames(3); i += 1) step();
+        const surfaced = player.stateName === 'swim-surface';
+        stick.y = 1;
+        for (let i = 0; i < frames(3); i += 1) step();
+        let out = false;
+        for (let attempt = 0; attempt < 6 && !out; attempt += 1) {
+          tap('jump');
+          for (let i = 0; i < frames(0.4); i += 1) step();
+          held.delete('jump');
+          if (player.stateName === 'hanging') {
+            tap('jump');
+            for (let i = 0; i < frames(0.2); i += 1) step();
+            held.delete('jump');
+            for (let i = 0; i < frames(1.6); i += 1) step();
+            out = player.position.y > -0.1;
+          }
+        }
+        stick.x = 0;
+        stick.y = 0;
+        results.pool = { deepest: round(deepest), surfaced, out, ...where() };
+
+        // 10 — the ladder up the far tower.
+        place(23.5, 0.6, 43, Math.PI / 2);
+        stick.x = 1;
+        const ladderStates = [] as string[];
+        for (let i = 0; i < frames(9); i += 1) {
+          step();
+          const name = player.stateName;
+          if (ladderStates[ladderStates.length - 1] !== name) ladderStates.push(name);
+          if (name === 'hanging') break;
+        }
+        stick.x = 0;
+        results.ladder = {
+          states: ladderStates,
+          top: round(player.position.y),
+          reached: player.position.y > 8,
+        };
+
+        // 11 — the crate on the roof.
+        place(31.4, 11.6, 48.4, Math.PI);
+        stick.y = -0.35;
+        for (let i = 0; i < frames(0.8); i += 1) step();
+        stick.y = 0;
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        tap('grab');
+        step();
+        held.delete('grab');
+        for (let i = 0; i < frames(0.4); i += 1) step();
+        results.crate = { carrying: player.carried !== null };
+
+        place(0, 0, 54, Math.PI);
         return results;
       },
 

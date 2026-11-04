@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — bare floor again.
+Last updated: 4 November 2026 — the obstacle course.
 
 ---
 
@@ -242,6 +242,48 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, thirteenth entry.** The obstacle course.
+
+**1. The shape of it.** One connected route, laid out as a snake rather than
+a ring so there is never a question of which way to go: each station finishes
+facing the next. Thirteen stations, in the order the moves were built, which
+also runs easiest to hardest — running and stopping, then jumping, then the
+combo, the long jump, the backflip, the side flip, the ground pound, wall
+kicks, the three ways over an edge, the ladder, carrying, the pool, and a
+last one that asks for four of them in a row.
+
+**2. Signs.** Every station has a board giving the move and the keys. The
+words are drawn to a canvas and used as a texture: words in a scene are
+either a font loader and a mesh per letter, or a picture of the words, and
+for instruction boards the picture is the right answer.
+
+**3. Falling costs nothing.** Everything stands on the slab, so a missed jump
+lands on the floor and you walk back. Green pads mark each station, and
+Backspace returns to the last one passed — shift and Backspace goes back to
+the start.
+
+**4. The pool is thirty metres across and eight deep**, with a board to dive
+from, which is enough to swim about in, dive to the bottom, come up, and
+climb out at an edge.
+
+**5. Two stations were unreachable when first built, and neither was
+visible by eye.** The long jump caught the edge of the backflip platform,
+which had been placed on the block the long jump lands on — so it was
+standing in the flight path. And the backflip clipped the corner of the step
+it was meant to land on, because a step much over waist height is a wall to
+hit on the way up rather than a ledge to come down on: the move rises 3.2
+metres but only travels 2.1 backwards, and the first 0.9 of those are spent
+below knee height. Both were found by driving the course at a fixed time
+step and asking where he ended up.
+
+**6. The tests needed somewhere else to stand.** The movement checks drive
+the character in a straight line and measure how far he gets; run from the
+course's start they measure the course. The first run after the course went
+in reported that running covered 1.7 metres and that the braking skid did not
+exist, both of which meant "there is a wall in the way". There is now a
+clear patch of floor set aside for them, well away from anything built.
+
 
 **4 November 2026, twelfth entry.** The floor is bare again: no walls, no
 platform, no thin wall, no pool, no ladder and no crate. Just the slab and
