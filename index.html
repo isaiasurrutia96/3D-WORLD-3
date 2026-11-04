@@ -9,13 +9,17 @@
   <body>
     <div id="app">
       <canvas aria-label="Static Izzy model on an empty slab. Drag to rotate the view; scroll or pinch to zoom." tabindex="0"></canvas>
-      <header><a class="brand" href="./">letsgo<span>®</span></a><div class="chapter">MOVEMENT LAB <span>BACK TO THE FOUNDATION</span></div><span class="status"><i></i> STATIC MODEL</span></header>
-      <main class="intro"><div class="eyebrow">A CLEAN START</div><h1>Back to basics.</h1><p>Izzy, an empty floor, and space to get it right.<br>Movement will be rebuilt from here.</p></main>
-      <footer>
-        <div class="controls"><span class="orbit-icon">↔</span><div>Look around<span>Drag to rotate · Scroll or pinch to zoom</span></div></div>
-        <div class="view-buttons"><button id="overview" type="button">View whole slab</button><button id="reset" type="button">View Izzy</button></div>
-        <div class="footnote">STATIC MODEL<br><span>L LOCKS MOUSE · ESC RELEASES</span></div>
-      </footer>
+      <header><a class="brand" href="./">LetsGo<span>®</span></a></header>
+      <aside class="key-chart" aria-label="Control chart">
+        <div class="movement-keys">
+          <span><kbd>E</kbd>Forward</span>
+          <span><kbd>D</kbd>Backward</span>
+          <span><kbd>S</kbd>Left</span>
+          <span><kbd>F</kbd>Right</span>
+          <span><kbd>SPACE</kbd>Jump</span>
+        </div>
+        <div class="camera-keys"><span id="camera-hint">Drag to rotate · Scroll / pinch to zoom</span><span><kbd>L</kbd>Mouse lock <kbd>ESC</kbd>Release <kbd>R</kbd>Reset view</span></div>
+      </aside>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -18,8 +18,6 @@ Build with `npm run build`; serve that build with `npm run preview`.
 ## Viewing controls
 
 - Drag to orbit Izzy. Scroll or pinch to zoom.
-- **View whole slab** shows the retained floor and static perimeter track.
-- **View Izzy** resets the camera to the character.
 - **L** toggles mouse lock; **Esc** releases it. **R**, with the canvas focused, resets the camera.
 - Mouse and touch camera controls work on desktop and mobile.
 
@@ -30,3 +28,5 @@ Build with `npm run build`; serve that build with `npm run preview`.
 - `src/main.js`: scene lighting, camera, and rendering only.
 
 The model keeps its current proportions, white T-shirt, charcoal trousers, white shoes, and dark fitted LA-style cap.
+
+The only visible interface is the LetsGo logo and a bottom control chart: E forward, D backward, S left, F right, Space jump. These movement mappings are informational only; no movement has been implemented.

@@ -23,8 +23,6 @@ controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;cont
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
 function reset(){controls.target.set(0,1.3,0);camera.position.set(4,3.3,7);controls.update();}
 reset();
-document.querySelector('#reset').addEventListener('click',reset);
-document.querySelector('#overview').addEventListener('click',()=>{controls.target.set(0,0,0);camera.position.set(260,420,460);controls.update();});
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
 function resize(){
  const width=canvas.clientWidth,height=canvas.clientHeight,scale=Math.min(1,480/height);
@@ -34,7 +32,7 @@ function resize(){
 window.addEventListener('resize',resize);resize();
 const orbit = new THREE.Spherical();
 const mouseOffset = new THREE.Vector3();
-const controlHint = document.querySelector('.controls div>span');
+const controlHint = document.querySelector('#camera-hint');
 window.addEventListener('keydown', async event => {
   if (event.code !== 'KeyL' || event.repeat || event.target.closest('input,textarea,select')) return;
   event.preventDefault();
