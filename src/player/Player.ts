@@ -27,6 +27,12 @@ import { animateCharacter, type AnimationInputs } from './PlayerAnimation.ts';
 
 export type MovementState = 'ground' | 'air' | 'swim';
 
+/**
+ * Which jump is in the air. The arc and the pose both follow from it, and it
+ * lasts until the feet are back on the ground.
+ */
+export type JumpKind = 'normal' | 'long' | 'back' | 'wall';
+
 export interface PlayerEvents {
   onSplash?: (position: Vector3, strength: number) => void;
   onLand?: (position: Vector3, strength: number) => void;
@@ -73,6 +79,27 @@ export class Player {
   private flipProgress = 0;
   private landingTimer = 0;
   private skidding = false;
+  /** True while the crouch control is held and the character is on the ground. */
+  private crouching = false;
+  /**
+   * True while sliding to a stop after letting go at speed. This is the
+   * braking skid: heels dug in, going the way he already was. It is not the
+   * same move as `skidding`, which is the turn-on-the-spot a hard reversal
+   * produces.
+   */
+  private braking = false;
+  /** Which jump is in the air, which decides both the arc and the pose. */
+  private jumpKind: JumpKind = 'normal';
+  /** 1 turns the somersault forwards, -1 backwards for a backflip. */
+  private flipDirection: 1 | -1 = 1;
+  /** The last wall touched in the air, pointing away from it. */
+  private readonly wallNormal = new Vector3();
+  /** Seconds since that wall was touched. Large means "not near one". */
+  private wallTimer = 99;
+  /** True while actually in contact with a wall this frame. */
+  private againstWall = false;
+  /** Kicks used since the feet last left the ground. */
+  private wallKicks = 0;
   private strokeTimer = 0;
   private submerged = false;
   private atSurface = false;
@@ -138,9 +165,15 @@ export class Player {
   get stateName(): string {
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
     if (this.state === 'air') {
+      if (this.jumpKind === 'long') return 'long-jump';
+      if (this.jumpKind === 'back') return 'backflip';
+      if (this.jumpKind === 'wall') return 'wall-kick';
+      if (this.againstWall && this.velocity.y < 0) return 'wall-slide';
       if (this.velocity.y <= 0.5) return 'fall';
       return this.jumpStage === 3 ? 'triple' : this.jumpStage === 2 ? 'double' : 'jump';
     }
+    if (this.crouching) return 'crouch';
+    if (this.braking) return 'brake';
     if (this.skidding) return 'skid';
     if (this.speed > TUNING.walkSpeed + 0.6) return 'run';
     if (this.speed > 0.25) return 'walk';
@@ -153,6 +186,7 @@ export class Player {
     if (this.landingTimer > 0) this.landingTimer -= delta;
     if (this.comboWindow > 0) this.comboWindow -= delta;
     if (this.flipTimer >= 0) this.flipTimer += delta;
+    if (this.wallTimer < 10) this.wallTimer += delta;
 
     // Movement intent, rotated from stick space into camera space. Pushing up
     // on the stick always means "away from the camera".
@@ -172,7 +206,7 @@ export class Player {
         this.updateSwim(delta, input, wish, strength);
         break;
       case 'ground':
-        this.updateGround(delta, wish, strength);
+        this.updateGround(delta, input, wish, strength);
         break;
       default:
         this.updateAir(delta, input, wish, strength);
@@ -191,11 +225,33 @@ export class Player {
   // States
   // -------------------------------------------------------------------------
 
-  private updateGround(delta: number, wish: Vector3, strength: number): void {
+  private updateGround(delta: number, input: Input, wish: Vector3, strength: number): void {
     const horizontal = this.scratchB.set(this.velocity.x, 0, this.velocity.z);
     const speed = horizontal.length();
 
-    if (strength > 0.001) {
+    this.crouching = input.isDown('crouch');
+
+    if (this.crouching) {
+      // A crouch at speed is a slide, not a stop. It has to carry him far
+      // enough to be worth doing, because it is where the long jump comes
+      // from: crouch while running, then jump.
+      this.braking = false;
+      this.skidding = false;
+      if (strength > 0.001) this.turnToward(wish, delta, speed, TUNING.crouchTurnRate);
+
+      const target = strength > 0.001 ? TUNING.crouchSpeed : 0;
+      const newSpeed =
+        speed > target
+          ? Math.max(target, speed - TUNING.crouchDeceleration * delta)
+          : Math.min(target, speed + TUNING.acceleration * 0.35 * delta);
+
+      if (speed > 0.001) {
+        horizontal.multiplyScalar(newSpeed / speed);
+      } else if (newSpeed > 0) {
+        horizontal.copy(this.forwardVector(this.scratchMove)).multiplyScalar(newSpeed);
+      }
+    } else if (strength > 0.001) {
+      this.braking = false;
       const targetSpeed = this.targetSpeedFor(strength);
 
       // A hard reversal at speed is a skid rather than a turn: the character
@@ -229,7 +285,15 @@ export class Player {
       }
     } else {
       this.skidding = false;
-      const decel = TUNING.deceleration * delta;
+
+      // Letting go at a run is a skid, not a slowdown: he digs his heels in
+      // and slides to a stop, still going the way he was. Below the
+      // threshold it is an ordinary stop, so a walk does not end in a
+      // dramatic halt.
+      if (speed > TUNING.brakeMinSpeed) this.braking = true;
+      if (this.braking && speed < TUNING.brakeEndSpeed) this.braking = false;
+
+      const decel = (this.braking ? TUNING.brakeDeceleration : TUNING.deceleration) * delta;
       const newSpeed = Math.max(0, speed - decel);
       if (speed > 0.001) horizontal.multiplyScalar(newSpeed / speed);
     }
@@ -249,6 +313,8 @@ export class Player {
 
   private updateAir(delta: number, input: Input, wish: Vector3, strength: number): void {
     this.skidding = false;
+    this.braking = false;
+    this.crouching = false;
 
     const gravity =
       this.velocity.y > 0 ? TUNING.gravity : TUNING.gravity * TUNING.fallGravityMultiplier;
@@ -262,11 +328,31 @@ export class Player {
       this.jumpHeld = false;
     }
 
+    // Pressed against a wall and falling, he catches on it and slides rather
+    // than dropping, which is what gives time to kick off it.
+    if (this.againstWall && this.velocity.y < -TUNING.wallSlideSpeed) {
+      this.velocity.y = -TUNING.wallSlideSpeed;
+    }
+
+    // A kick off a wall touched a moment ago. The window matters: without it
+    // the button would have to be pressed on the one frame of contact.
+    if (
+      this.jumpBufferTimer > 0 &&
+      this.wallTimer < TUNING.wallKickWindow &&
+      this.wallKicks < TUNING.wallKickLimit
+    ) {
+      this.performWallKick();
+      return;
+    }
+
     if (strength > 0.001) {
-      this.turnToward(wish, delta, 0, TUNING.airTurnRate);
+      // A long jump keeps almost none of its steering, so it goes where it
+      // was aimed instead of being flown.
+      const control = this.jumpKind === 'long' ? TUNING.longJumpAirControl : 1;
+      this.turnToward(wish, delta, 0, TUNING.airTurnRate * control);
       const target = this.targetSpeedFor(strength);
       const horizontal = this.scratchB.set(this.velocity.x, 0, this.velocity.z);
-      horizontal.addScaledVector(wish, TUNING.airAcceleration * delta);
+      horizontal.addScaledVector(wish, TUNING.airAcceleration * control * delta);
       if (horizontal.length() > Math.max(target, this.speed)) {
         horizontal.setLength(Math.max(target, this.speed));
       }
@@ -340,6 +426,10 @@ export class Player {
   // -------------------------------------------------------------------------
 
   private integrate(delta: number): void {
+    // Wall contact is worked out fresh every frame by the resolution below,
+    // so whatever was touched last frame is cleared first.
+    this.againstWall = false;
+
     // Sub-step so fast movement cannot pass through thin geometry.
     const distance = this.velocity.length() * delta;
     const steps = Math.min(6, Math.max(1, Math.ceil(distance / (CHARACTER_RADIUS * 0.75))));
@@ -369,6 +459,11 @@ export class Player {
       if (!wasOnGround) {
         this.flipTimer = -1;
         this.flipProgress = 0;
+        this.flipDirection = 1;
+        this.jumpKind = 'normal';
+        this.wallKicks = 0;
+        this.againstWall = false;
+        this.wallTimer = 99;
         // A third jump ends the combo: the next one starts again from one.
         this.comboWindow = this.jumpStage < 3 ? TUNING.jumpComboWindow : 0;
         if (this.jumpStage >= 3) this.jumpStage = 1;
@@ -442,6 +537,18 @@ export class Player {
       this.diagnostics.lastNormalY = hit.normal.y;
       this.diagnostics.lastDepth = hit.depth;
       this.capsule.translate(push);
+
+      // Remember the wall so a kick off it has something to push against.
+      // The normal points away from the surface, which is the direction the
+      // kick sends him.
+      if (this.state === 'air') {
+        this.scratchA.set(hit.normal.x, 0, hit.normal.z);
+        if (this.scratchA.lengthSq() > 1e-6) {
+          this.wallNormal.copy(this.scratchA).normalize();
+          this.wallTimer = 0;
+          this.againstWall = true;
+        }
+      }
 
       // Remove only the velocity pushing into the wall, so the character
       // slides along it rather than sticking.
@@ -519,6 +626,20 @@ export class Player {
    * move rather than something to do on the spot.
    */
   private performJump(): void {
+    // A jump out of a crouch is a different move entirely, and which one it
+    // is depends only on whether he is still travelling.
+    if (this.crouching) {
+      if (this.speed >= TUNING.longJumpMinSpeed) {
+        this.performLongJump();
+        return;
+      }
+      if (this.speed <= TUNING.backflipMaxSpeed) {
+        this.performBackflip();
+        return;
+      }
+    }
+
+    this.jumpKind = 'normal';
     const continuing = this.comboWindow > 0 && this.speed >= TUNING.jumpComboMinSpeed;
     this.jumpStage = continuing ? (Math.min(3, this.jumpStage + 1) as 1 | 2 | 3) : 1;
 
@@ -534,11 +655,81 @@ export class Player {
     this.flipDelay = TUNING.tripleJumpFlipDelay;
     this.flipProgress = 0;
 
+    this.flipDirection = 1;
+    this.takeOff();
+  }
+
+  /**
+   * Crouch while running, then jump: low, fast and a long way forward.
+   *
+   * The distance is in the speed rather than the height. It leaves the ground
+   * at well over running pace and keeps almost none of its air control, so it
+   * commits to the arc it started with — which is what makes it a move you
+   * aim rather than one you steer.
+   */
+  private performLongJump(): void {
+    const forward = this.forwardVector(this.scratchMove);
+    this.velocity.x = forward.x * TUNING.longJumpSpeed;
+    this.velocity.z = forward.z * TUNING.longJumpSpeed;
+    this.velocity.y = TUNING.longJumpVelocity;
+
+    this.jumpKind = 'long';
+    this.jumpStage = 1;
+    this.flipTimer = -1;
+    this.flipProgress = 0;
+    this.flipDirection = 1;
+    this.takeOff();
+  }
+
+  /** Crouch standing still, then jump: high, backwards, turning over. */
+  private performBackflip(): void {
+    const forward = this.forwardVector(this.scratchMove);
+    this.velocity.x = -forward.x * TUNING.backflipSpeed;
+    this.velocity.z = -forward.z * TUNING.backflipSpeed;
+    this.velocity.y = TUNING.backflipVelocity;
+
+    this.jumpKind = 'back';
+    this.jumpStage = 1;
+    // The same rotation the triple jump uses, turned the other way: it paces
+    // itself to the time in the air and comes round before landing.
+    this.flipTimer = 0;
+    this.flipDelay = TUNING.tripleJumpFlipDelay;
+    this.flipProgress = 0;
+    this.flipDirection = -1;
+    this.takeOff();
+  }
+
+  /**
+   * Jump again while against a wall and he kicks off it, away from the wall
+   * and upward, turning to face the way he is now going.
+   */
+  private performWallKick(): void {
+    this.velocity.x = this.wallNormal.x * TUNING.wallKickSpeed;
+    this.velocity.z = this.wallNormal.z * TUNING.wallKickSpeed;
+    this.velocity.y = TUNING.wallKickVelocity;
+    this.facing = Math.atan2(this.wallNormal.x, this.wallNormal.z);
+
+    this.wallKicks += 1;
+    this.wallTimer = 99;
+    this.againstWall = false;
+
+    this.jumpKind = 'wall';
+    this.jumpStage = 1;
+    this.flipTimer = -1;
+    this.flipProgress = 0;
+    this.flipDirection = 1;
+    this.takeOff();
+  }
+
+  /** What every jump does, whichever one it is. */
+  private takeOff(): void {
     this.comboWindow = 0;
     this.jumpHeld = true;
     this.jumpBufferTimer = 0;
     this.coyoteTimer = 0;
     this.onGround = false;
+    this.crouching = false;
+    this.braking = false;
     this.state = 'air';
   }
 
@@ -884,8 +1075,13 @@ export class Player {
       submerged: this.submerged && !this.atSurface,
       diving: this.diving && this.state === 'swim',
       jumpStage: this.jumpStage,
-      flipAngle: this.flipTimer < 0 ? 0 : this.flipProgress * Math.PI * 2,
+      flipAngle:
+        this.flipTimer < 0 ? 0 : this.flipProgress * Math.PI * 2 * this.flipDirection,
       flipping: this.flipping,
+      crouching: this.crouching,
+      braking: this.braking,
+      jumpKind: this.jumpKind,
+      againstWall: this.againstWall,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

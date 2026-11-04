@@ -276,6 +276,83 @@ if (!(tapped.startedAfter < held.startedAfter)) {
 
 await resetPlayer(page);
 
+// ---- The crouch moves, the wall kick and the braking skid ---------------
+const moves = await page.evaluate(() => window.__letsgo.debug.simulateMoveSet(1 / 60));
+
+// A long jump has to be clearly longer, and clearly lower, than simply
+// jumping while running. If it is not, there is no reason to press for it.
+if (!(moves.longJump.distance > moves.runningJump.distance * 1.5)) {
+  problems.push(
+    `the long jump covers ${moves.longJump.distance}m against ${moves.runningJump.distance}m ` +
+      `for an ordinary running jump, which is not enough to be worth the crouch`,
+  );
+}
+if (!(moves.longJump.peak < moves.runningJump.peak)) {
+  problems.push(
+    `the long jump rises to ${moves.longJump.peak}m, no lower than an ordinary ` +
+      `jump at ${moves.runningJump.peak}m`,
+  );
+}
+if (moves.longJump.state !== 'long-jump') {
+  problems.push(`crouching at a run and jumping gave "${moves.longJump.state}"`);
+}
+
+// A backflip goes up, goes backwards, and comes all the way over.
+if (moves.backflip.state !== 'backflip') {
+  problems.push(`crouching still and jumping gave "${moves.backflip.state}"`);
+}
+if (!(moves.backflip.backwards > 1)) {
+  problems.push(`the backflip travelled ${moves.backflip.backwards}m backwards`);
+}
+if (moves.backflip.turned < 0.99) {
+  problems.push(
+    `the backflip only came ${Math.round(moves.backflip.turned * 100)}% of the way round`,
+  );
+}
+if (moves.backflip.lowestPart < -0.01) {
+  problems.push(`the backflip put part of the body at ${moves.backflip.lowestPart}m`);
+}
+// The triple jump should still be the highest thing he can do.
+if (flips.length && !(flips[flips.length - 1].peak > moves.backflip.peak)) {
+  problems.push(
+    `the backflip reaches ${moves.backflip.peak}m, at or above the triple jump's ` +
+      `${flips[flips.length - 1].peak}m`,
+  );
+}
+
+// A wall kick needs a wall to be found, caught on, and pushed off.
+if (!moves.wallKick.touchedWall) problems.push('the character never caught on a wall');
+if (!moves.wallKick.kicked) problems.push('the wall kick never fired');
+if (!(moves.wallKick.gained > 1)) {
+  problems.push(`the wall kick gained only ${moves.wallKick.gained}m of height`);
+}
+if (!(moves.wallKick.movedAway > 1)) {
+  problems.push(`the wall kick carried him only ${moves.wallKick.movedAway}m from the wall`);
+}
+
+// Letting go at a run is a skid, and it is the braking one: he keeps going
+// the way he was and slides to a stop.
+if (!moves.brake.states.includes('brake')) {
+  problems.push(`letting go at ${moves.brake.speedBefore}m/s gave ${moves.brake.states.join(' > ')}`);
+}
+if (!(moves.brake.slideDistance > 1 && moves.brake.slideDistance < 4)) {
+  problems.push(`the braking skid slid ${moves.brake.slideDistance}m, which is not a skid`);
+}
+
+// Neither of the two new standing poses may put a foot through the floor.
+for (const [name, result] of [
+  ['crouch', moves.crouchFloor],
+  ['braking skid', moves.brakeSettled],
+]) {
+  if (result.lowestPart < -0.01) {
+    problems.push(
+      `the ${name} pose reaches ${result.lowestPart}m, below the floor (${result.at})`,
+    );
+  }
+}
+
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -339,6 +416,30 @@ console.log('\n--- frame rate ---');
 for (const r of rateResults) {
   console.log(` ${String(r.fps).padStart(3)} fps: covered ${r.covered.toFixed(1)}m in 1.2s`);
 }
+
+console.log('\n--- the crouch moves, the wall kick and the skid ---');
+console.log(
+  ` running jump   ${moves.runningJump.distance}m long, ${moves.runningJump.peak}m high`,
+);
+console.log(
+  ` long jump      ${moves.longJump.distance}m long, ${moves.longJump.peak}m high ` +
+    `(${(moves.longJump.distance / moves.runningJump.distance).toFixed(1)}x the distance)`,
+);
+console.log(
+  ` backflip       ${moves.backflip.peak}m high, ${moves.backflip.backwards}m back, ` +
+    `${Math.round(moves.backflip.turned * 100)}% round`,
+);
+console.log(
+  ` wall kick      ${moves.wallKick.gained}m gained, ${moves.wallKick.movedAway}m off the wall ` +
+    `(${moves.wallKick.states.join(' > ')})`,
+);
+console.log(
+  ` braking skid   ${moves.brake.slideDistance}m in ${moves.brake.seconds}s from ` +
+    `${moves.brake.speedBefore}m/s`,
+);
+console.log(
+  ` floor          crouch ${moves.crouchFloor.lowestPart}m, skid ${moves.brakeSettled.lowestPart}m`,
+);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

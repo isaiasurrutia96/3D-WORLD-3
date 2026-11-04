@@ -8,7 +8,7 @@
  */
 
 import './styles.css';
-import { Box3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { Engine } from './core/Engine.ts';
 import { CameraRig } from './core/CameraRig.ts';
 import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
@@ -340,6 +340,245 @@ class Game {
           airtime: Math.round(airborneFrames * dt * 1000) / 1000,
           progressAtLanding: Math.round(progressAtLanding * 100) / 100,
         };
+      },
+
+      /**
+       * Drives each of the new moves at a fixed time step and reports what
+       * came of it. Real key presses would depend on how fast this machine
+       * renders, and these moves are decided inside a tenth of a second.
+       *
+       * Movement is given in world terms here (a camera yaw of zero), so the
+       * numbers do not move about with the camera.
+       */
+      simulateMoveSet: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const held = new Set<string>();
+        const pressed = new Set<string>();
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: (action: string) => held.has(action),
+          wasPressed: (action: string) => pressed.has(action),
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const player = this.player;
+        const step = () => {
+          player.update(dt, stub, 0);
+          pressed.clear();
+        };
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const tap = (action: string) => {
+          held.add(action);
+          pressed.add(action);
+        };
+        const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
+        const reset = (x = 0, z = 10, facing = this.world.spawnFacing) => {
+          held.clear();
+          pressed.clear();
+          stick.x = 0;
+          stick.y = 0;
+          player.teleport(new Vector3(x, 0, z), facing);
+          for (let i = 0; i < frames(0.4); i += 1) step();
+        };
+
+        const results: Record<string, unknown> = {};
+
+        // The lowest point of the whole figure, for the poses that hold
+        // still: a crouch or a skid that buries a foot is easy to miss by
+        // eye and obvious in a number.
+        const floorBounds = new Box3();
+        const lowestOver = (seconds: number, skip = 0) => {
+          let lowest = Infinity;
+          let at = '';
+          for (let i = 0; i < frames(seconds); i += 1) {
+            step();
+            if (i < frames(skip)) continue;
+            player.object.updateMatrixWorld(true);
+            floorBounds.setFromObject(player.object);
+            if (floorBounds.min.y < lowest) {
+              lowest = floorBounds.min.y;
+              at = `${player.stateName} ${round(i * dt, 2)}s`;
+            }
+          }
+          return { lowestPart: round(lowest, 3), at };
+        };
+
+        // Crouching, and the braking skid, held still against the floor.
+        reset();
+        held.add('crouch');
+        results.crouchFloor = lowestOver(0.8);
+
+        reset();
+        stick.y = -1;
+        for (let i = 0; i < frames(1.4); i += 1) step();
+        stick.y = 0;
+        results.brakeFloor = lowestOver(0.35);
+        stick.y = -1;
+        for (let i = 0; i < frames(1.4); i += 1) step();
+        stick.y = 0;
+        // Once the pose has finished easing in, rather than during it.
+        results.brakeSettled = lowestOver(0.35, 0.22);
+
+        // A plain running jump, as the measure the others are read against.
+        const runJump = () => {
+          reset();
+          stick.y = -1;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          const from = player.position.clone();
+          tap('jump');
+          step();
+          let peak = player.position.y;
+          for (let i = 0; i < frames(2.5); i += 1) {
+            step();
+            peak = Math.max(peak, player.position.y);
+            if (player.stateName !== 'jump' && player.position.y <= 0.01 && i > 4) break;
+          }
+          held.delete('jump');
+          return {
+            distance: round(Math.hypot(player.position.x - from.x, player.position.z - from.z)),
+            peak: round(peak),
+          };
+        };
+        results.runningJump = runJump();
+
+        // Long jump: crouch while running, then jump.
+        {
+          reset();
+          stick.y = -1;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          const speedBefore = round(player.speed);
+          held.add('crouch');
+          step();
+          const crouchState = player.stateName;
+          const from = player.position.clone();
+          tap('jump');
+          step();
+          const kind = player.stateName;
+          let peak = player.position.y;
+          for (let i = 0; i < frames(2.5); i += 1) {
+            step();
+            peak = Math.max(peak, player.position.y);
+            if (player.position.y <= 0.01 && i > 4) break;
+          }
+          results.longJump = {
+            crouchState,
+            state: kind,
+            speedBefore,
+            distance: round(Math.hypot(player.position.x - from.x, player.position.z - from.z)),
+            peak: round(peak),
+          };
+        }
+
+        // Backflip: crouch standing still, then jump.
+        {
+          reset();
+          held.add('crouch');
+          for (let i = 0; i < frames(0.4); i += 1) step();
+          const crouchState = player.stateName;
+          const from = player.position.clone();
+          const facing = player.facing;
+          tap('jump');
+          step();
+          const kind = player.stateName;
+          let peak = player.position.y;
+          let turned = 0;
+          let lowestPart = Infinity;
+          const bounds = new Box3();
+          for (let i = 0; i < frames(2.5); i += 1) {
+            step();
+            peak = Math.max(peak, player.position.y);
+            turned = Math.max(turned, player.somersaultProgress);
+            // Nothing should swing through the floor on the way over.
+            if (player.position.y > 0.05) {
+              player.object.updateMatrixWorld(true);
+              bounds.setFromObject(player.object);
+              lowestPart = Math.min(lowestPart, bounds.min.y);
+            }
+            if (player.position.y <= 0.01 && i > 4) break;
+          }
+          // Positive means he ended up behind where he started, in the
+          // direction he was facing.
+          const dx = player.position.x - from.x;
+          const dz = player.position.z - from.z;
+          const backwards = -(dx * Math.sin(facing) + dz * Math.cos(facing));
+          results.backflip = {
+            crouchState,
+            state: kind,
+            peak: round(peak),
+            backwards: round(backwards),
+            turned: round(turned),
+            lowestPart: round(lowestPart, 3),
+          };
+        }
+
+        // Wall kick: jump at a wall, then jump again off it.
+        {
+          reset(-14, -6, Math.PI / 2);
+          stick.x = 1;
+          for (let i = 0; i < frames(0.5); i += 1) step();
+          tap('jump');
+          step();
+          let slid = false;
+          let kickFrom = 0;
+          let kickX = 0;
+          let kicked = false;
+          let peak = 0;
+          const states: string[] = [];
+          for (let i = 0; i < frames(2.5); i += 1) {
+            step();
+            const name = player.stateName;
+            if (states[states.length - 1] !== name) states.push(name);
+            if (!kicked && name === 'wall-slide') {
+              slid = true;
+              kickFrom = player.position.y;
+              kickX = player.position.x;
+              tap('jump');
+              kicked = true;
+              peak = player.position.y;
+              continue;
+            }
+            if (kicked) peak = Math.max(peak, player.position.y);
+            if (kicked && player.position.y <= 0.01) break;
+          }
+          results.wallKick = {
+            touchedWall: slid,
+            kicked,
+            states,
+            gained: round(peak - kickFrom),
+            movedAway: round(Math.abs(player.position.x - kickX)),
+          };
+        }
+
+        // The braking skid: let go at a run.
+        {
+          reset();
+          stick.y = -1;
+          for (let i = 0; i < frames(1.4); i += 1) step();
+          const speedBefore = round(player.speed);
+          const from = player.position.clone();
+          stick.y = 0;
+          const states: string[] = [];
+          let stopped = 0;
+          for (let i = 0; i < frames(2); i += 1) {
+            step();
+            const name = player.stateName;
+            if (states[states.length - 1] !== name) states.push(name);
+            stopped = i * dt;
+            if (player.speed < 0.05) break;
+          }
+          results.brake = {
+            speedBefore,
+            states,
+            slideDistance: round(
+              Math.hypot(player.position.x - from.x, player.position.z - from.z),
+            ),
+            seconds: round(stopped),
+          };
+        }
+
+        reset();
+        return results;
       },
 
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {

@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — narrower torso, adaptive somersault.
+Last updated: 4 November 2026 — crouch, long jump, backflip, wall kick, braking skid.
 
 ---
 
@@ -242,6 +242,51 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, fourth entry.** Checkpoint 2 taken as the branch
+`checkpoint-2-body-and-jumps`: the slimmer body and the three jumps with the
+adaptive somersault. Then four moves added on top of it.
+
+**1. Crouch, on W.** Holding it on the ground drops him into a crouch. At
+speed it is a slide rather than a stop, which it has to be, because that is
+where the long jump comes from. The movement keys are E, D, S and F, so W was
+free.
+
+**2. The long jump.** Crouch while running, then jump. It covers 10.8 metres
+against 5.9 for an ordinary running jump, and rises to 1.4 metres against
+1.8, so it is both clearly longer and clearly lower. It keeps a quarter of
+its usual air control, so it commits to the arc it left with and is aimed
+rather than flown.
+
+**3. The backflip.** Crouch standing still, then jump. It reaches 3.2 metres
+and travels 2.1 backwards, turning over once on the way. It uses the same
+rotation the triple jump's somersault does, turned the other way, so it paces
+itself to the time in the air and comes round before landing. Its height is
+deliberately under the triple jump's 3.4 metres, so the triple jump remains
+the highest thing he can do.
+
+**4. The wall kick.** Pressed against a wall in the air he catches on it and
+slides instead of dropping, and jumping again kicks him off it, away from the
+wall and up, turning him to face the way he is now going. One kick gains 2.4
+metres of height and carries him 2 metres clear. Four kicks are allowed per
+trip through the air, so a wall is not a ladder.
+
+**5. Walls added to the test ground.** A wall kick cannot be tried without a
+wall. There are now two: a narrow gap to bounce up between, and a single face
+to kick off once. Both are well away from the middle, so the open floor is
+still open.
+
+**6. The braking skid.** Letting go of the stick above 5.4 metres a second is
+a skid rather than a slowdown: he digs his heels in and slides, still going
+the way he was, stopping in 2 metres and just under half a second from a full
+run. Below that threshold it is an ordinary stop, so a walk does not end
+dramatically.
+
+**7. What was not done.** The pivot skid — the turn-on-the-spot a hard
+reversal produces — already existed before this and has been left alone. It
+is a separate move from the braking skid and can be taken out if it is not
+wanted.
+
 
 **4 November 2026, third entry.** Two changes, both asked for.
 

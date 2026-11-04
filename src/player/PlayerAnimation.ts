@@ -9,7 +9,7 @@
 
 import { MathUtils } from 'three';
 import { HIP_HEIGHT, type CharacterRig } from './PlayerModel.ts';
-import type { MovementState } from './Player.ts';
+import type { JumpKind, MovementState } from './Player.ts';
 
 export interface AnimationInputs {
   time: number;
@@ -19,6 +19,14 @@ export interface AnimationInputs {
   maxSpeed: number;
   verticalSpeed: number;
   skidding: boolean;
+  /** True while the crouch control is held on the ground. */
+  crouching: boolean;
+  /** True while sliding to a stop after letting go at speed. */
+  braking: boolean;
+  /** Which jump is in the air: normal, long, backflip or wall kick. */
+  jumpKind: JumpKind;
+  /** True while pressed against a wall in the air. */
+  againstWall: boolean;
   landing: boolean;
   carrying: boolean;
   submerged: boolean;
@@ -201,6 +209,52 @@ function reset(target: Pose): void {
 function poseGround(input: AnimationInputs): void {
   const normalised = MathUtils.clamp(input.speed / input.maxSpeed, 0, 1);
 
+  if (input.crouching) {
+    // Down on his haunches, weight over his heels, hands out in front for
+    // balance. Low enough to read as a crouch from any camera angle, and the
+    // pose a long jump or a backflip is about to spring out of.
+    pose.bodyPitch = 0.3;
+    pose.bodyHeight = -0.2;
+    pose.hipLeft = -1.15;
+    pose.hipRight = -1.15;
+    pose.kneeLeft = 1.95;
+    pose.kneeRight = 1.95;
+    pose.ankleLeft = -0.95;
+    pose.ankleRight = -0.95;
+    pose.shoulderLeftPitch = -0.75;
+    pose.shoulderRightPitch = -0.75;
+    pose.shoulderLeftRoll = 0.42;
+    pose.shoulderRightRoll = 0.42;
+    pose.elbowLeft = -0.7;
+    pose.elbowRight = -0.7;
+    pose.headPitch = -0.26;
+    pose.bodySquash = 0.94;
+    return;
+  }
+
+  if (input.braking) {
+    // The braking skid: still going the way he was, heels dug in, weight
+    // thrown back and arms out. One foot forward as the brake, the other
+    // trailing.
+    pose.bodyPitch = -0.34;
+    pose.bodyHeight = -0.025;
+    pose.bodyRoll = 0.07;
+    pose.shoulderLeftPitch = -1.15;
+    pose.shoulderRightPitch = -0.55;
+    pose.shoulderLeftRoll = 0.95;
+    pose.shoulderRightRoll = 0.8;
+    pose.elbowLeft = -0.35;
+    pose.elbowRight = -0.25;
+    pose.hipLeft = -0.72;
+    pose.hipRight = 0.22;
+    pose.kneeLeft = 0.62;
+    pose.kneeRight = 1.15;
+    pose.ankleLeft = 0.0;
+    pose.ankleRight = -0.35;
+    pose.headPitch = -0.12;
+    return;
+  }
+
   if (input.skidding) {
     // Heels dug in, weight thrown backwards, arms flung out for balance.
     pose.bodyPitch = -0.3;
@@ -279,6 +333,89 @@ function poseGround(input: AnimationInputs): void {
 
 function poseAir(input: AnimationInputs): void {
   const rising = input.verticalSpeed > 0.5;
+
+  if (input.jumpKind === 'long') {
+    // Stretched out flat and reaching, legs trailing. The silhouette is the
+    // whole point of a long jump: it should be unmistakable from a distance
+    // that this is the fast low one and not an ordinary hop.
+    pose.bodyPitch = 0.92;
+    pose.bodyHeight = -0.06;
+    pose.shoulderLeftPitch = -2.5;
+    pose.shoulderRightPitch = -2.5;
+    pose.shoulderLeftRoll = 0.16;
+    pose.shoulderRightRoll = 0.16;
+    pose.elbowLeft = -0.12;
+    pose.elbowRight = -0.12;
+    pose.hipLeft = 0.55;
+    pose.hipRight = 0.42;
+    pose.kneeLeft = 0.5;
+    pose.kneeRight = 0.68;
+    pose.ankleLeft = 0.42;
+    pose.ankleRight = 0.42;
+    pose.headPitch = -0.55;
+    pose.bodySquash = 1.03;
+    return;
+  }
+
+  if (input.jumpKind === 'back') {
+    // Tucked for the backflip, but arms thrown up rather than wrapped round
+    // the knees, so it reads as going over backwards rather than curling up.
+    pose.shoulderLeftPitch = 1.9;
+    pose.shoulderRightPitch = 1.9;
+    pose.shoulderLeftRoll = 0.3;
+    pose.shoulderRightRoll = 0.3;
+    pose.elbowLeft = -0.5;
+    pose.elbowRight = -0.5;
+    pose.hipLeft = -1.5;
+    pose.hipRight = -1.5;
+    pose.kneeLeft = 1.75;
+    pose.kneeRight = 1.75;
+    pose.ankleLeft = 0.3;
+    pose.ankleRight = 0.3;
+    pose.headPitch = 0.2;
+    pose.bodySquash = 1.05;
+    return;
+  }
+
+  if (input.jumpKind === 'wall') {
+    // Coming off the wall: one knee driven up, the other leg still extended
+    // from the push, arms wide.
+    pose.bodyPitch = 0.16;
+    pose.shoulderLeftPitch = -1.9;
+    pose.shoulderRightPitch = -0.9;
+    pose.shoulderLeftRoll = 0.6;
+    pose.shoulderRightRoll = 0.75;
+    pose.elbowLeft = -0.5;
+    pose.elbowRight = -0.3;
+    pose.hipLeft = -1.3;
+    pose.hipRight = 0.45;
+    pose.kneeLeft = 1.35;
+    pose.kneeRight = 0.25;
+    pose.ankleLeft = 0.2;
+    pose.ankleRight = 0.4;
+    pose.headPitch = -0.1;
+    return;
+  }
+
+  if (input.againstWall && !rising) {
+    // Caught on a wall and sliding down it, facing out, one leg braced
+    // against the surface.
+    pose.bodyPitch = -0.1;
+    pose.shoulderLeftPitch = -0.5;
+    pose.shoulderRightPitch = -0.5;
+    pose.shoulderLeftRoll = 1.0;
+    pose.shoulderRightRoll = 1.0;
+    pose.elbowLeft = -0.9;
+    pose.elbowRight = -0.9;
+    pose.hipLeft = -0.85;
+    pose.hipRight = -0.2;
+    pose.kneeLeft = 0.9;
+    pose.kneeRight = 0.3;
+    pose.ankleLeft = 0.1;
+    pose.ankleRight = 0.1;
+    pose.headPitch = -0.12;
+    return;
+  }
 
   // The third jump of a combo is a somersault. The rotation itself is applied
   // to the rig separately; this is the tuck that goes with it.

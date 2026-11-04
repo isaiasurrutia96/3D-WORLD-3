@@ -87,6 +87,59 @@ export const TUNING = {
   /** A jump pressed this long before landing is remembered and fires on landing. */
   jumpBufferTime: 0.14,
 
+  // ---- Crouching, and the jumps that come out of it -----------------------
+  /**
+   * How hard a crouch sheds speed. Crouching while running is a slide, not a
+   * stop: it has to last long enough to turn into a long jump.
+   */
+  crouchDeceleration: 11,
+  /** Top speed while crouched, so a crouch cannot be used to run around in. */
+  crouchSpeed: 1.6,
+  /** Turn rate while crouched, in radians per second. */
+  crouchTurnRate: 3.4,
+
+  /** Above this speed, a jump from a crouch is a long jump. */
+  longJumpMinSpeed: 4.2,
+  /** Forward speed a long jump leaves the ground with. */
+  longJumpSpeed: 17.5,
+  /** Upward speed of a long jump. Low: the distance comes from the speed. */
+  longJumpVelocity: 8.6,
+  /** Air control is cut during a long jump, so it commits to its arc. */
+  longJumpAirControl: 0.25,
+
+  /** At or below this speed, a jump from a crouch is a backflip. */
+  backflipMaxSpeed: 3,
+  /** Upward speed of a backflip. */
+  backflipVelocity: 13,
+  /** How fast a backflip travels backwards. */
+  backflipSpeed: 5.4,
+
+  // ---- Wall kicks ---------------------------------------------------------
+  /**
+   * How long after touching a wall a kick off it still works. Without a
+   * window, the kick would have to be pressed on the exact frame of contact.
+   */
+  wallKickWindow: 0.18,
+  /** Upward speed a wall kick leaves with. */
+  wallKickVelocity: 11.2,
+  /** Speed away from the wall. */
+  wallKickSpeed: 8.4,
+  /** How many kicks one trip through the air allows, so walls are not ladders. */
+  wallKickLimit: 4,
+  /** Downward speed while sliding against a wall, which slows the fall. */
+  wallSlideSpeed: 3.4,
+
+  // ---- Braking ------------------------------------------------------------
+  /**
+   * Above this speed, letting go of the stick is a skid rather than a
+   * slowdown: he digs his heels in and slides to a stop.
+   */
+  brakeMinSpeed: 5.4,
+  /** How hard that skid sheds speed. */
+  brakeDeceleration: 18,
+  /** Below this speed the skid is over and he is simply standing. */
+  brakeEndSpeed: 1.2,
+
   // ---- Slopes ------------------------------------------------------------
   /** Surfaces steeper than this are walls, not floors. */
   maxWalkableSlopeDegrees: 52,

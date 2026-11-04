@@ -44,11 +44,15 @@ export class Hud {
     const hints = document.createElement('div');
     hints.className = 'hud__hints';
     hints.innerHTML = `
-      Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b><br />
-      Walk <b>hold Shift</b> · Jump <b>Space</b> · Arrow keys also work<br />
+      Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b> ·
+      Walk <b>hold Shift</b> · Jump <b>Space</b><br />
       Jump again right after landing, while moving, for a higher second and
       third jump<br />
-      Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b><br />
+      Crouch <b>W</b> — crouch while running then jump for a <b>long jump</b>,
+      crouch standing still then jump for a <b>backflip</b><br />
+      Jump again against a wall to <b>kick off it</b> · let go at a run to
+      <b>skid to a stop</b><br />
+      Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
       Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high
     `;
     hud.appendChild(hints);
