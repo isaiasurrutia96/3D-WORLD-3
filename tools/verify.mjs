@@ -506,6 +506,23 @@ if (!extras.pool.swam) {
 if (!(extras.pool.depth < -0.3)) {
   problems.push(`the pool left him at ${extras.pool.depth}m, which is not in it`);
 }
+// And there has to be a way out of it. A pool with vertical sides and no
+// way to climb out is a trap: a stroke pushes him into the wall and the
+// float line pulls him straight back down.
+if (!extras.pool.gotOut) {
+  problems.push(
+    `pressing jump against the side of the pool gave ` +
+      `${extras.pool.outStates.join(' > ')} and left him at ${extras.pool.endedAt}m`,
+  );
+}
+
+// The top of a ladder hands over to the climb with no drop. It used to stop
+// higher than the hang and then settle down onto it, half a metre at a time.
+if (extras.ladder.dropAtTop > 0.02) {
+  problems.push(
+    `the top of the ladder drops him ${extras.ladder.dropAtTop}m before he takes hold`,
+  );
+}
 
 if (!extras.crate.inReach) problems.push('the crate was never within reach');
 if (!extras.crate.carrying) problems.push('pressing grab did not pick the crate up');
@@ -618,10 +635,11 @@ for (const [name, result, shouldFlip] of flipCases) {
 }
 console.log(` ground pound   ${extras.groundPound.states.join(' > ')}`);
 console.log(
-  ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m  ` +
-    `${extras.ladder.states.join(' > ')}`,
+  ` ladder         ${extras.ladder.from}m to ${extras.ladder.to}m, drop at the top ` +
+    `${extras.ladder.dropAtTop}m  ${extras.ladder.states.join(' > ')}`,
 );
-console.log(` pool           down to ${extras.pool.depth}m  ${extras.pool.states.join(' > ')}`);
+console.log(` pool           down to ${extras.pool.depth}m, out again ${extras.pool.gotOut}`);
+console.log(`                ${extras.pool.outStates.join(' > ')}`);
 console.log(
   ` crate          in reach ${extras.crate.inReach}, carried ${extras.crate.carrying}`,
 );

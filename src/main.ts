@@ -924,7 +924,23 @@ class Game {
         const ladderStates = watch(0.8, (n) => n === 'climb');
         const caught = player.stateName === 'climb';
         const bottom = round(player.position.y);
-        const climbed = watch(3, () => false);
+        // The height just before the hand-over, and just after, so a drop at
+        // the top of the ladder shows up as a number.
+        let beforeHandOver = player.position.y;
+        const climbed: string[] = [];
+        let drop = 0;
+        for (let i = 0; i < frames(3); i += 1) {
+          const was = player.position.y;
+          const wasClimbing = player.stateName === 'climb';
+          step();
+          const name = player.stateName;
+          if (climbed[climbed.length - 1] !== name) climbed.push(name);
+          if (wasClimbing && name !== 'climb') {
+            beforeHandOver = was;
+            drop = Math.max(drop, was - player.position.y);
+          }
+        }
+        void beforeHandOver;
         results.ladder = {
           caught,
           from: bottom,
@@ -932,17 +948,49 @@ class Game {
           states: [...ladderStates, ...climbed],
           why: player.ledgeDiagnostics.reason,
           lip: player.ledgeDiagnostics.lip,
+          dropAtTop: round(drop, 3),
         };
 
-        // The pool: walk in from the side.
+        // The pool: walk in from the side, then climb back out.
         place(-22, 0, 36, Math.PI);
         stick.x = 0;
         stick.y = -1;
         const swimStates = watch(2.5, (n) => n.startsWith('swim'));
+        const swamAt = round(player.position.y);
+        // Swim up against the near wall, which is the case that matters:
+        // pressed against the side, pressing jump to get out.
+        stick.x = 0;
+        stick.y = 1;
+        for (let i = 0; i < frames(2.2); i += 1) step();
+        const outStates: string[] = [];
+        let gotOut = false;
+        for (let attempt = 0; attempt < 6 && !gotOut; attempt += 1) {
+          tap('jump');
+          for (let i = 0; i < frames(0.4); i += 1) {
+            step();
+            const name = player.stateName;
+            if (outStates[outStates.length - 1] !== name) outStates.push(name);
+          }
+          held.delete('jump');
+          if (player.stateName === 'hanging') {
+            tap('jump');
+            for (let i = 0; i < frames(0.2); i += 1) step();
+            held.delete('jump');
+            for (let i = 0; i < frames(1.4); i += 1) {
+              step();
+              const name = player.stateName;
+              if (outStates[outStates.length - 1] !== name) outStates.push(name);
+            }
+            gotOut = player.position.y > -0.1;
+          }
+        }
         results.pool = {
-          swam: player.stateName.startsWith('swim'),
+          swam: swimStates.some((n) => n.startsWith('swim')),
           states: swimStates,
-          depth: round(player.position.y),
+          depth: swamAt,
+          gotOut,
+          outStates,
+          endedAt: round(player.position.y),
         };
 
         // The crate: walk to it and pick it up.

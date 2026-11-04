@@ -820,11 +820,14 @@ export class Player {
     const push = strength > 0.001 ? wish.x * into.x + wish.z * into.z : 0;
     this.velocity.set(0, push * TUNING.ladderSpeed, 0);
 
-    // He climbs to just below the top rung and no further. Going right to
-    // the top would leave the edge barely above his feet, which is too close
-    // to reach for — the move that gets him over it needs the edge somewhere
-    // between his chest and over his head.
-    const highest = ladder.topY - TUNING.ladderTopGap;
+    // He climbs to exactly the height he would hang at, and no further.
+    //
+    // It used to stop a little higher than that, and the move that takes
+    // hold of the edge then settled him down onto the hang — a visible drop
+    // of half a metre at the top of every ladder. Stopping at the hang
+    // height means there is nothing left to settle: the two heights are the
+    // same number, so the hand-over moves him not at all.
+    const highest = ladder.topY - TUNING.ledgeHangLift;
     this.object.position.y = MathUtils.clamp(
       this.object.position.y + this.velocity.y * delta,
       ladder.bounds.min.y - 0.2,
@@ -887,11 +890,21 @@ export class Player {
       this.velocity.y += Math.max(-TUNING.swimGravity, toFloatLine * 5) * delta;
     }
 
+    // At the surface, jump first looks for an edge to climb out by. Without
+    // this there is no way out of a pool with vertical sides: a stroke
+    // pushes him forward into the wall, and the float line then pulls him
+    // straight back down, which reads as diving rather than climbing.
+    if (input.wasPressed('jump') && this.atSurface && this.tryCatchLedge()) {
+      this.submerged = false;
+      this.diving = false;
+      return;
+    }
+
     // Strokes give the swimming its rhythm: a press is a push, not a hold.
     if (input.wasPressed('jump') && this.strokeTimer <= 0) {
       this.strokeTimer = TUNING.strokeCooldown;
       const forward = this.forwardVector(this.scratchMove);
-      const lift = this.atSurface ? 0.25 : 0.55;
+      const lift = this.atSurface ? 0.55 : 0.55;
       this.velocity.addScaledVector(forward, TUNING.strokeImpulse);
       this.velocity.y += TUNING.strokeImpulse * lift;
     }

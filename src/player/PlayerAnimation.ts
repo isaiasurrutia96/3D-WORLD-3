@@ -469,7 +469,31 @@ function reachForTheEdge(input: AnimationInputs): void {
     if (released >= 1) return;
   }
 
-  const distance = MathUtils.clamp(span, 0.1, reach - 0.012);
+  const solved = solveArm(up, ahead);
+  pose.shoulderLeftPitch = solved.shoulder;
+  pose.shoulderRightPitch = solved.shoulder;
+  pose.elbowLeft = solved.elbow;
+  pose.elbowRight = solved.elbow;
+  // Hands a little wider than the shoulders, as they would be on an edge.
+  pose.shoulderLeftRoll = 0.14;
+  pose.shoulderRightRoll = 0.14;
+}
+
+const solvedArm = { shoulder: 0, elbow: 0 };
+
+/**
+ * The shoulder and elbow that put the hand `up` above the shoulder and
+ * `ahead` in front of it.
+ *
+ * Posing an arm by angle and hoping the hand lands somewhere useful is what
+ * made the ladder look like semaphore: the arms were put at a fixed angle
+ * and the rungs were simply wherever they were. Decide where the hand goes
+ * and the angles follow from it.
+ */
+function solveArm(up: number, ahead: number): typeof solvedArm {
+  const reach = ARM.upper + ARM.lower;
+  const distance = MathUtils.clamp(Math.hypot(up, ahead), 0.1, reach - 0.012);
+
   // Direction from the shoulder to the hand, in the measure the joints use:
   // zero hangs straight down, and a negative angle swings the arm forward.
   const direction = Math.atan2(-ahead, -up);
@@ -493,16 +517,9 @@ function reachForTheEdge(input: AnimationInputs): void {
 
   // The elbow bends the opposite way to a knee, so the triangle is closed
   // from the other side.
-  const shoulderPitch = direction + atShoulder;
-  const elbowBend = -(Math.PI - atElbow);
-
-  pose.shoulderLeftPitch = shoulderPitch;
-  pose.shoulderRightPitch = shoulderPitch;
-  pose.elbowLeft = elbowBend;
-  pose.elbowRight = elbowBend;
-  // Hands a little wider than the shoulders, as they would be on an edge.
-  pose.shoulderLeftRoll = 0.14;
-  pose.shoulderRightRoll = 0.14;
+  solvedArm.shoulder = direction + atShoulder;
+  solvedArm.elbow = -(Math.PI - atElbow);
+  return solvedArm;
 }
 
 /**
@@ -515,25 +532,39 @@ function poseClimb(input: AnimationInputs): void {
   climbPhase += input.climbSpeed * input.delta * 2.6;
   const reach = Math.sin(climbPhase);
 
-  pose.bodyPitch = 0.06;
-  pose.headPitch = -0.2;
-  pose.bodyRoll = reach * 0.04;
+  pose.bodyPitch = 0.08;
+  pose.headPitch = -0.22;
+  pose.bodyRoll = reach * 0.05;
 
-  // Arms overhead on the rungs, one higher than the other.
-  pose.shoulderLeftPitch = -2.55 + reach * 0.3;
-  pose.shoulderRightPitch = -2.55 - reach * 0.3;
-  pose.shoulderLeftRoll = 0.3;
-  pose.shoulderRightRoll = 0.3;
-  pose.elbowLeft = -0.55 - Math.max(0, reach) * 0.5;
-  pose.elbowRight = -0.55 - Math.max(0, -reach) * 0.5;
+  // The hands are put on rungs rather than the arms put at angles. One is
+  // always higher than the other, both at the distance the ladder sits in
+  // front of him, and the shoulder and elbow follow from there. Posed by
+  // angle instead, the arms pointed off into open air beside the ladder.
+  const ahead = TUNING.ladderStandOff;
+  const swap = (reach + 1) * 0.5;
+  const left = solveArm(
+    MathUtils.lerp(TUNING.ladderHandLow, TUNING.ladderHandHigh, swap),
+    ahead,
+  );
+  pose.shoulderLeftPitch = left.shoulder;
+  pose.elbowLeft = left.elbow;
+  const right = solveArm(
+    MathUtils.lerp(TUNING.ladderHandHigh, TUNING.ladderHandLow, swap),
+    ahead,
+  );
+  pose.shoulderRightPitch = right.shoulder;
+  pose.elbowRight = right.elbow;
+  // Hands out on the rails rather than together in the middle.
+  pose.shoulderLeftRoll = 0.26;
+  pose.shoulderRightRoll = 0.26;
 
-  // Legs opposite to the hands.
-  pose.hipLeft = -0.45 - Math.max(0, -reach) * 0.65;
-  pose.hipRight = -0.45 - Math.max(0, reach) * 0.65;
-  pose.kneeLeft = 0.55 + Math.max(0, -reach) * 0.75;
-  pose.kneeRight = 0.55 + Math.max(0, reach) * 0.75;
-  pose.ankleLeft = 0.2;
-  pose.ankleRight = 0.2;
+  // Feet on the rungs, opposite to the hands.
+  pose.hipLeft = -0.5 - Math.max(0, -reach) * 0.7;
+  pose.hipRight = -0.5 - Math.max(0, reach) * 0.7;
+  pose.kneeLeft = 0.7 + Math.max(0, -reach) * 0.85;
+  pose.kneeRight = 0.7 + Math.max(0, reach) * 0.85;
+  pose.ankleLeft = 0.25;
+  pose.ankleRight = 0.25;
 }
 
 function poseAir(input: AnimationInputs): void {
@@ -780,13 +811,18 @@ function poseSwim(input: AnimationInputs): void {
     pose.bodyPitch = 0.16;
     pose.bodyHeight = 0.05;
 
+    // Sculling, not waving. The arms used to be held out level with the
+    // shoulders and splayed wide, which from any angle is a figure waving
+    // with both hands. Treading water is the opposite shape: the upper arms
+    // hang down and a little out, and it is the forearms that sweep, just
+    // under the surface.
     const scull = Math.sin(input.time * 3.2);
-    pose.shoulderLeftPitch = -1.3 + scull * 0.4;
-    pose.shoulderRightPitch = -1.3 - scull * 0.4;
-    pose.shoulderLeftRoll = 0.9;
-    pose.shoulderRightRoll = 0.9;
-    pose.elbowLeft = -0.9 - Math.max(0, scull) * 0.3;
-    pose.elbowRight = -0.9 - Math.max(0, -scull) * 0.3;
+    pose.shoulderLeftPitch = -0.32 + scull * 0.16;
+    pose.shoulderRightPitch = -0.32 - scull * 0.16;
+    pose.shoulderLeftRoll = 0.52 + scull * 0.2;
+    pose.shoulderRightRoll = 0.52 - scull * 0.2;
+    pose.elbowLeft = -1.3 - Math.max(0, scull) * 0.28;
+    pose.elbowRight = -1.3 - Math.max(0, -scull) * 0.28;
 
     // A slow scissor kick underneath.
     const kick = Math.sin(input.time * 2.6);

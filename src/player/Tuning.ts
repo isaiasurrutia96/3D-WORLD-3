@@ -183,13 +183,14 @@ export const TUNING = {
   ladderSpeed: 2.8,
   /** How far he stands off the face of the ladder while on it. */
   ladderStandOff: 0.42,
+  /**
+   * How far above his shoulders the two hands reach for rungs. One high and
+   * one low, swapping as he climbs.
+   */
+  ladderHandHigh: 0.46,
+  ladderHandLow: 0.1,
   /** Push away from the ladder when he jumps off backwards. */
   ladderJumpOff: 4.5,
-  /**
-   * How far below the top of a ladder he stops climbing, so the edge above
-   * is within the band the climb over it can reach.
-   */
-  ladderTopGap: 1.2,
 
   // ---- Getting over a ledge ------------------------------------------------
   /**

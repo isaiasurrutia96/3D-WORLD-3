@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — three-press ground pound, build stamp.
+Last updated: 4 November 2026 — out of the pool, swimming and ladder poses.
 
 ---
 
@@ -242,6 +242,36 @@ it stands.
 ---
 
 ## K) Change log
+
+**4 November 2026, eleventh entry.** Four faults around the water and the
+ladder, each a different kind of mistake.
+
+**1. No way out of the pool.** The pool has vertical sides, so a stroke
+pushed him forward into the wall and the float line then pulled him straight
+back down to it — which reads as diving, not climbing. Pressing jump at the
+surface now looks for an edge within reach first and takes hold of it, so
+getting out of a pool is the same move as getting onto anything else: take
+hold, then jump again to pull up. The upward part of a stroke at the surface
+was also doubled, so pressing jump pushes him up rather than only along.
+
+**2. Treading water looked like waving.** The arms were held out level with
+the shoulders and splayed wide, which from any angle is a figure waving with
+both hands. Treading water is close to the opposite shape: the upper arms
+hang down and a little out, and it is the forearms that sweep.
+
+**3. The ladder looked like semaphore.** The arms were posed at a fixed
+angle, so the hands went wherever that angle put them, which was off into
+the air beside the ladder. The hands are now the thing that is decided — on
+a rung, one higher than the other, at the distance the ladder sits in front
+of him — and the shoulder and elbow are solved backwards from that. It is
+the same solver the climb over a ledge uses, which is now shared between
+them.
+
+**4. A drop at the top of every ladder.** He climbed to a little below the
+top, and the move that takes hold of the edge then settled him down onto the
+hang: half a metre, every time. He now climbs to exactly the hang height, so
+the two numbers are the same and the hand-over moves him not at all.
+
 
 **4 November 2026, tenth entry.** The ground pound moved to three presses,
 and the build was given a stamp.
