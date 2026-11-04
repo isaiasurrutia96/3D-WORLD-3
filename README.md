@@ -75,3 +75,7 @@ While driving, press either Shift key once to use the held item. Holding Shift d
 `src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
 
 Camera views: press **V** or tap the camera button in the bottom control chart to switch between the wider third-person view and a fixed-angle orthographic isometric view. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart rail contacts reflect velocity away from the wall while preserving motion along it.
+
+### Backflip animation review (separate page)
+
+Open [`backflip.html`](./backflip.html) for synchronized front/side previews using the existing avatar, normal and quarter-speed playback, pause/restart, a timeline scrubber and inspectable pose buttons. A source-data skeleton and reference/limitation notes appear below. This clip is **not imported by gameplay**: running, jumping, controls, cameras, avatar geometry and the world are unchanged. See `public/references/backflip-study.md` for the pinned SM64 sources and adaptation decisions. Review the visual result before connecting it to movement.
