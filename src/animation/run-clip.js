@@ -46,7 +46,7 @@ function ankleSupport(angle) {
 
 // Bake two-bone leg authoring into ordinary quaternion keyframe tracks. The
 // runtime plays a clip through AnimationMixer; it does not solve a new gait.
-export function createRunClip(avatar) {
+export function bakeGaitClip(avatar, profile) {
   const bones = new Map(avatar.skeleton.bones.map(bone => [bone.name, bone]));
   const times = [], rotations = new Map(avatar.skeleton.bones.map(b => [b.name, []]));
   const pelvisHeights = [];
@@ -66,13 +66,13 @@ export function createRunClip(avatar) {
   for (const side of ['left','right']) for (const part of ['thigh','calf','foot','upper_arm','forearm','hand']) authored.add(`${side}_${part}`);
   for (let frame=0; frame<=120; frame++) {
     const phase=frame/120;
-    const bob=curve(compression,(phase % .5));
-    times.push(phase*RUN_DURATION); pelvisHeights.push(pelvis.position.y+bob);
-    rotation('pelvis'); rotation('spine',.045);
+    const bob=curve(profile.compression,(phase % .5));
+    times.push(phase*profile.duration); pelvisHeights.push(pelvis.position.y+bob);
+    rotation('pelvis'); rotation('spine',profile.lean);
     const torsoTwist=.035*Math.cos(phase*Math.PI*2);
-    rotation('chest',0,torsoTwist); rotation('neck',-.02); rotation('head');
+    rotation('chest',0,torsoTwist); rotation('neck',profile.neck); rotation('head');
     legs.forEach((leg,index) => {
-      const p=wrap(phase+index*.5), pose=footPose(p);
+      const p=wrap(phase+index*.5), pose=profile.footPose(p);
       const down=ankleSupport(pose.pitch)+pose.lift-(leg.hipHeight+bob);
       const distance=THREE.MathUtils.clamp(Math.hypot(down,pose.forward),.05,leg.upper+leg.lower-.001);
       const heading=Math.atan2(pose.forward,-down);
@@ -82,13 +82,20 @@ export function createRunClip(avatar) {
       rotation(`${leg.side}_thigh`,hipAngle);
       rotation(`${leg.side}_calf`,kneeAngle);
       rotation(`${leg.side}_foot`,pose.pitch-hipAngle-kneeAngle);
-      rotation(`${leg.side}_upper_arm`,curve(armSwing,p));
-      rotation(`${leg.side}_forearm`,curve(elbow,p));
+      rotation(`${leg.side}_upper_arm`,curve(profile.armSwing,p));
+      rotation(`${leg.side}_forearm`,curve(profile.elbow,p));
       rotation(`${leg.side}_hand`,-.04);
     });
     for (const bone of avatar.skeleton.bones) if (!authored.has(bone.name)) rotation(bone.name);
   }
   const tracks=[new THREE.NumberKeyframeTrack('pelvis.position[y]',times,pelvisHeights)];
   for (const [name,values] of rotations) tracks.push(new THREE.QuaternionKeyframeTrack(`${name}.quaternion`,times,values));
-  return new THREE.AnimationClip('Natural run',RUN_DURATION,tracks);
+  return new THREE.AnimationClip(profile.name,profile.duration,tracks);
 }
+
+// The accepted gait is now walking. Its keyframes are unchanged.
+export function createRunClip(avatar) {
+  return bakeGaitClip(avatar, {name:'Walk',duration:RUN_DURATION,compression,
+    lean:.045,neck:-.02,footPose,armSwing,elbow});
+}
+export { curve as sampleCurve };

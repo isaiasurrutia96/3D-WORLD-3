@@ -5,7 +5,7 @@ import {createWorld} from './world.js';
 import './style.css';
 import {createRunner,stepRunner,STEP} from './running-controller.js';
 import {createRunningAnimator} from './animation/running.js';
-import {MOVEMENT_KEYS,readMoveAxes} from './input.js';
+import {MOVEMENT_KEYS,readMoveAxes,wantsSprint} from './input.js';
 
 const canvas=document.querySelector('canvas');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,logarithmicDepthBuffer:true});
@@ -90,7 +90,7 @@ function input(){
   right.crossVectors(forward,camera.up).normalize();
   const {forward:vertical,right:horizontal}=readMoveAxes(keys);
   direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
-  return {x:direction.x,z:direction.z};
+  return {x:direction.x,z:direction.z,sprint:wantsSprint(keys)};
 }
 function render(){renderer.render(scene,camera);}
 controls.enableDamping=false;
@@ -105,7 +105,8 @@ renderer.setAnimationLoop(time=>{
   const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
   avatar.rotation.y=previous.yaw+turn*alpha;
   const distance=THREE.MathUtils.lerp(previous.distance,runner.distance,alpha);
-  animation.update({...runner,distance},dt);
+  const phase=THREE.MathUtils.lerp(previous.phase,runner.phase,alpha);
+  animation.update({...runner,distance,phase},dt);
   const target=new THREE.Vector3(avatar.position.x,1.2,avatar.position.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
   sun.position.copy(avatar.position).add(new THREE.Vector3(-3,8,5));sun.target.position.copy(avatar.position);sun.target.updateMatrixWorld();
