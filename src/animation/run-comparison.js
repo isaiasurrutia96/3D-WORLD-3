@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { createAvatar, FOOT_PROFILE } from '../avatar.js';
-import { createRunningAnimator } from './running.js';
+import { createRunningAnimator } from './legacy-running.js';
 import { RUN_SPEED, STRIDE_LENGTH } from '../running-controller.js';
-import { sampleReference, createReferenceRetarget, referenceData, CYCLE_SECONDS } from './reference-run.js';
+import { referenceData, CYCLE_SECONDS } from './reference-run.js';
+
+import { createAdaptedRun, measureRunClearance } from './adapted-run.js';
 
 export const LEG_LENGTH = Math.hypot(.35, .015) + Math.hypot(.36, .015);
 export const REFERENCE_SCALE = LEG_LENGTH / 156;
@@ -69,7 +71,7 @@ export function measureAvatar(model) {
 }
 export function createComparison() {
   const old = createAvatar(), rebuilt = createAvatar();
-  const oldAnimator = createRunningAnimator(old), applyRebuilt = createReferenceRetarget(rebuilt);
+  const oldAnimator = createRunningAnimator(old), applyRebuilt = createAdaptedRun(rebuilt);
   const oldFrames = [];
   // Bake the previous moving run with its real world-space foot anchors, then
   // remove root travel. Two warm-up cycles eliminate startup blending.
@@ -80,19 +82,7 @@ export function createComparison() {
     if (f >= 0) oldFrames.push(old.skeleton.bones.map(b => ({ p: b.position.clone(), q: b.quaternion.clone() })));
   }
   old.position.set(0, 0, 0);
-  // A constant clearance preserves the shape of all source motion curves.
-  // Half-frame samples bound the interpolated review cycle as well as keys.
-  const vertex = new THREE.Vector3();
-  let minimum = Infinity;
-  for (let f = 0; f < 72; f += .5) {
-    applyRebuilt(f);
-    for (let i = 0; i < rebuilt.geometry.attributes.position.count; i++) {
-      vertex.fromBufferAttribute(rebuilt.geometry.attributes.position, i);
-      rebuilt.applyBoneTransform(i, vertex);
-      minimum = Math.min(minimum, vertex.y);
-    }
-  }
-  const clearance = Math.max(0, -minimum) + .002;
+  const clearance = measureRunClearance(rebuilt, applyRebuilt);
   rebuilt.position.y = clearance;
   function apply(frame) {
     const sample = applyRebuilt(frame);

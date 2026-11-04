@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createAvatar } from '../src/avatar.js';
 import { createRunner, stepRunner, RUN_SPEED, STRIDE_LENGTH } from '../src/running-controller.js';
-import { createRunningAnimator, sampleRun } from '../src/animation/running.js';
+import { createRunningAnimator } from '../src/animation/running.js';
+import { sampleRun } from '../src/animation/legacy-running.js';
 
 function advance(state, seconds, input, dt = 1 / 120) {
   for (let i = 0; i < Math.round(seconds / dt); i++) stepRunner(state, input, dt);
@@ -28,32 +29,34 @@ test('source study loops and keeps opposite left/right contact timing', () => {
   const a = createRunner(), b = createRunner();advance(a, 1, { x: 0, z: 1 }, 1 / 60);advance(b, 1, { x: 0, z: 1 });
   assert.ok(Math.abs(a.z - b.z) < 0.03);
 });
-test('run bends the knees, restrains arms and keeps vertices above the floor', () => {
+test('adapted running tucks elbows near ribs, softens shoes, and stays level when turning', () => {
   const avatar = createAvatar(), runner = createRunner(), animation = createRunningAnimator(avatar);
   const bones = new Map(avatar.skeleton.bones.map(bone => [bone.name, bone]));
-  const point = new THREE.Vector3();let maximumKnee = 0, contacts = 0;
-  const previous = [null, null];
-  for (let frame = 0; frame < 120; frame++) {
-    stepRunner(runner, { x: 0, z: 1 }, 1 / 60);avatar.position.set(runner.x, 0, runner.z);
-    animation.update(runner, 1 / 60);avatar.updateMatrixWorld(true);avatar.skeleton.update();
+  const point = new THREE.Vector3();
+  let maximumKnee = 0;
+  for (let frame = 0; frame < 180; frame++) {
+    stepRunner(runner, { x: frame < 90 ? 0 : 1, z: 1 }, 1 / 60);
+    avatar.position.set(runner.x, 0, runner.z); avatar.rotation.y = runner.yaw;
+    animation.update(runner, 1 / 60);
+    avatar.updateMatrixWorld(true); avatar.skeleton.update();
     for (let index = 0; index < avatar.geometry.attributes.position.count; index++) {
-      avatar.getVertexPosition(index, point);assert.ok(point.y > -1e-5);
+      avatar.getVertexPosition(index, point); assert.ok(point.y > -1e-5, `floor at frame ${frame}: ${point.y}`);
     }
-    for (const [index, side] of ['left', 'right'].entries()) {
-      const arm = bones.get(`${side}_upper_arm`), knee = bones.get(`${side}_calf`), foot = bones.get(`${side}_foot`);
-      assert.ok(Math.abs(arm.rotation.x) < 0.53);maximumKnee = Math.max(maximumKnee, knee.rotation.x);
-      const contactFrame = index === 0 ? 45 : 9;
-      const phase = ((9 / 72 + runner.distance / STRIDE_LENGTH - contactFrame / 72) % 1 + 1) % 1;
-      const position = foot.getWorldPosition(new THREE.Vector3());
-      const planted = frame > 30 && phase > 0.02 && phase < 0.26;
-      if (planted && previous[index]?.planted) {
-        assert.ok(Math.abs(position.z - previous[index].z) < 0.01);
-        assert.ok(Math.abs(position.y - 0.15) < 0.015);contacts++;
-      }
-      previous[index] = { z: position.z, planted };
+    const inverseChest = bones.get('chest').getWorldQuaternion(new THREE.Quaternion()).invert();
+    const inverseRoot = avatar.getWorldQuaternion(new THREE.Quaternion()).invert();
+    for (const side of ['left', 'right']) {
+      const shoulder = bones.get(`${side}_upper_arm`).getWorldPosition(new THREE.Vector3());
+      const elbow = bones.get(`${side}_forearm`).getWorldPosition(new THREE.Vector3());
+      const arm = elbow.sub(shoulder).normalize().applyQuaternion(inverseChest);
+      assert.ok(Math.abs(arm.x) < .26); assert.ok(arm.y < -.65);
+      const foot = bones.get(`${side}_foot`);
+      const toe = new THREE.Vector3(0, 0, 1).applyQuaternion(foot.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(inverseRoot);
+      assert.ok(Math.abs(toe.x) < (frame > 30 ? .01 : .15)); assert.ok(toe.z > .6);
+      maximumKnee = Math.max(maximumKnee, Math.abs(bones.get(`${side}_calf`).rotation.x));
     }
+    assert.equal(avatar.position.y, 0);
   }
-  assert.ok(maximumKnee > 0.7);assert.ok(contacts > 10);
+  assert.ok(maximumKnee > 1);
 });
 test('after stopping the exact neutral pose is restored and stays unchanged', () => {
   const avatar = createAvatar(), runner = createRunner(), animation = createRunningAnimator(avatar);
