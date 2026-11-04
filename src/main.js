@@ -1,4 +1,3 @@
-import {stepMansion,constrainMansionCamera,isInsideMansion} from './mansion.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {createAvatar} from './avatar.js';
@@ -22,7 +21,6 @@ scene.fog=new THREE.Fog('#080e25',700,2500);
 scene.add(new THREE.HemisphereLight('#ffffff','#8e96ac',1.8));
 const sun=new THREE.DirectionalLight('#ffffff',1.7);sun.position.set(-3,8,5);scene.add(sun);
 scene.add(createWorld());
-const mansion=scene.getObjectByName('Mansion');
 const avatar=createAvatar();scene.add(avatar);
 const runner=Object.assign(createRunner(),SPAWN);
 const animation=createRunningAnimator(avatar);
@@ -31,7 +29,7 @@ kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
 const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,kart);
 let driving=false;
-const pedestrianWorld={ceilingHeight:worldPhysics.ceilingHeight,supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
+const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y);
  const parked=resolveParkedKart(road.x,road.z,y,kartState);
  return worldPhysics.resolveHorizontal(x,z,parked.x,parked.z,y);
@@ -52,7 +50,7 @@ const camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(driving?new THREE.Vector3(-Math.sin(focus.yaw)*6,2.8,-Math.cos(focus.yaw)*6):new THREE.Vector3(-Math.sin(focus.yaw)*8,1.8,-Math.cos(focus.yaw)*8));controls.update();}
+function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(driving?new THREE.Vector3(-Math.sin(focus.yaw)*6,2.8,-Math.cos(focus.yaw)*6):new THREE.Vector3(-6,2.5,0));controls.update();}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
 function resize(){
@@ -124,7 +122,7 @@ function input(){
   const jump=jumpQueued||keys.has('Space');jumpQueued=false;
   return {x:direction.x,z:direction.z,sprint:wantsSprint(keys),jump};
 }
-function render(){camera.position.copy(constrainMansionCamera(controls.target,camera.position));camera.lookAt(controls.target);renderer.render(scene,camera);}
+function render(){renderer.render(scene,camera);}
 controls.enableDamping=false;
 let previousTime,accumulator=0,previous={...runner},previousKart={...kartState};
 function toggleVehicle(){
@@ -145,7 +143,6 @@ renderer.setAnimationLoop(time=>{
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
   previousTime=time;accumulator+=dt;
   while(accumulator>=STEP){
-   stepMansion(driving?kartState:runner,STEP);
    if(interactionQueued){interactionQueued=false;toggleVehicle();}
    if(driving){
     previousKart={...kartState};jumpQueued=false;
@@ -161,7 +158,7 @@ renderer.setAnimationLoop(time=>{
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);applyItems(kartPose,driving);mansion.userData.update();
+  applyKart(kartPose);applyItems(kartPose,driving);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -180,7 +177,6 @@ renderer.setAnimationLoop(time=>{
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
   if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
-  controls.minDistance=isInsideMansion(focus.x,focus.z)?1.2:4;
   controls.update();render();
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);canvas.dataset.shells=String(itemSystem.shells.length);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
