@@ -32,3 +32,18 @@ Keys feed a fixed 120 Hz running controller. Travel distance drives the run phas
 The reference study examined SM64's run-state logic, animation playback and 72-frame run clip (0x72), including contact frames 9 and 45. Motion is adapted to this avatar's different proportions and bone axes; this is not an exact reproduction of Mario's skeleton, controller or animation. See `third_party/sm64/README.md` for provenance and regeneration.
 
 The user-requested separate “animation input assembly” document was not present in the project or available skills at this stage. The input/controller/pose/mesh pipeline above is explicit so it can be reviewed independently.
+
+## Running review preview (not connected to movement)
+
+Open `run-review.html` for synchronized front/side views of the native reference skeleton, previous run and rebuilt run. It starts paused at frame 9. Play, quarter speed, frame stepping and a 0–71 scrubber review one stationary cycle. Optional bone lines and full-cycle sole-height charts expose transfer and contact differences. E/D/S/F, Shift and Space have no movement action on this page.
+
+The rebuild uses the full native clip channels plus the steady straight-running torso-tilt node, with explicit bone-axis conversion. It does not use the old procedural swing/IK path. The existing game entry point continues using its previous animation until visual review is complete. Avatar construction and the world have not changed.
+
+See [the diagnosis and matching-frame comparison](docs/running-comparison.md). All 72 frames of measurements are downloadable from the preview. Direction/angle agreement verifies retargeting, not visual fidelity to the rendered game. Different body and shoe proportions leave contact-height and silhouette differences; the preview discloses a fixed clearance offset.
+
+Regenerate the reference and report:
+
+```sh
+node tools/import-run-reference.mjs /path/to/sm64/assets/anims/anim_72_73.inc.c /path/to/sm64/actors/mario/model.inc.c
+node tools/report-run-comparison.mjs
+```
