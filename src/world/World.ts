@@ -126,17 +126,6 @@ export function buildWorld(
   solid.add(trees.trunks);
   root.add(trees.foliage);
 
-  for (const tree of treePlacements) {
-    // The climbable section stops short of the canopy so the character lets
-    // go at the top rather than disappearing into the leaves.
-    collision.addClimbablePost(
-      tree.position.clone(),
-      tree.trunkRadius,
-      tree.trunkHeight + 1.1,
-      0.62,
-    );
-  }
-
   // ---- Scenery -------------------------------------------------------------
   const { rocks, flowers, grass } = planGroundDetail(options.foliageDensity);
   root.add(createGroundDetail(rocks, flowers));

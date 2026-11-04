@@ -174,11 +174,11 @@ specified in a later milestone; until then the defaults in the README stand. The
 named actions, so remapping is a matter of editing that one table rather
 than touching the character controller.
 
-**2. Ladder climbing.** Recorded as a deferred feature on 3 November 2026.
-Climbing already exists as its own movement state, attached to climbable
-surfaces registered with the collision world. A ladder would be another
-registered surface with a flat facing rather than a round post, so the state
-machine does not need restructuring to support it.
+**2. Climbing.** Removed entirely on 4 November 2026, having been built and
+then found unwanted for now. Nothing of it remains in the code. If it returns
+it will be rebuilt as its own movement state, the way it was before: the
+controller is a small state machine and adding one more state is not a
+restructuring job.
 
 **3. Still deferred from the original plan.** Connected outside services, the
 floor plan editor, the full tournament system, extensive clothing, saving and
@@ -223,6 +223,14 @@ that something works; it cannot tell that something looks or feels wrong.
 **3 November 2026.** Milestone 1 scope set as in section B: menu, six moves,
 castle grounds, good graphics. Driving and minigames moved to later
 milestones; multiplayer taken out of scope for now. Reason: the time was asked to go into movement and world feel first.
+
+**4 November 2026.** Climbing removed completely. The test ground reduced to
+a bare floor slab, enlarged to eighty metres, with every other object taken
+out so the character is the only thing to judge. The walk cycle's phase is
+now accumulated rather than recomputed from elapsed time, which stops the
+legs scrabbling at the moment movement starts. Body proportions revised: a
+chest that is wider than the belly, a shoulder shelf for the arms to hang
+from, a visible neck, longer legs and flatter hands.
 
 **3 November 2026, fifth entry.** Super Mario 64 visual style confirmed for
 the world, as in section F. Character proportions moved toward a chunkier,

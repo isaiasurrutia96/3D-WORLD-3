@@ -12,7 +12,7 @@
 
 import { Group, MathUtils, Object3D, Vector3 } from 'three';
 import { Capsule } from 'three/addons/math/Capsule.js';
-import type { CollisionWorld, ClimbSurface } from '../physics/CollisionWorld.ts';
+import type { CollisionWorld } from '../physics/CollisionWorld.ts';
 import type { Input } from '../input/Input.ts';
 import type { Carryable } from '../world/Carryable.ts';
 import { MAX_WALKABLE_NORMAL_Y, TUNING } from './Tuning.ts';
@@ -25,7 +25,7 @@ import {
 } from './PlayerModel.ts';
 import { animateCharacter, type AnimationInputs } from './PlayerAnimation.ts';
 
-export type MovementState = 'ground' | 'air' | 'swim' | 'climb';
+export type MovementState = 'ground' | 'air' | 'swim';
 
 export interface PlayerEvents {
   onSplash?: (position: Vector3, strength: number) => void;
@@ -61,11 +61,6 @@ export class Player {
   private landingTimer = 0;
   private skidding = false;
   private strokeTimer = 0;
-  private climbSurface: ClimbSurface | null = null;
-  private climbAngle = 0;
-  /** Position across a ladder, measured from its centre line. */
-  private climbLateral = 0;
-  private climbRegrabTimer = 0;
   private submerged = false;
   private atSurface = false;
   private diving = false;
@@ -129,7 +124,6 @@ export class Player {
 
   get stateName(): string {
     if (this.state === 'swim') return this.atSurface ? 'swim-surface' : 'swim-under';
-    if (this.state === 'climb') return this.climbSurface?.kind === 'ladder' ? 'ladder' : 'climb';
     if (this.state === 'air') return this.velocity.y > 0.5 ? 'jump' : 'fall';
     if (this.skidding) return 'skid';
     if (this.speed > TUNING.walkSpeed + 0.6) return 'run';
@@ -139,7 +133,6 @@ export class Player {
 
   update(delta: number, input: Input, cameraYaw: number): void {
     this.animationTime += delta;
-    if (this.climbRegrabTimer > 0) this.climbRegrabTimer -= delta;
     if (this.strokeTimer > 0) this.strokeTimer -= delta;
     if (this.landingTimer > 0) this.landingTimer -= delta;
 
@@ -157,9 +150,6 @@ export class Player {
     this.updateWaterState();
 
     switch (this.state) {
-      case 'climb':
-        this.updateClimb(delta, input, wish, strength);
-        break;
       case 'swim':
         this.updateSwim(delta, input, wish, strength);
         break;
@@ -171,7 +161,7 @@ export class Player {
         break;
     }
 
-    if (this.state !== 'climb') this.integrate(delta);
+    this.integrate(delta);
 
     this.updateCarry(delta, input);
     this.updateRecovery(delta);
@@ -236,9 +226,6 @@ export class Player {
       return;
     }
 
-    // Walking into a tree trunk grabs it, which is how the move is found
-    // without being told about it.
-    this.tryGrabClimbable(wish, strength);
   }
 
   private updateAir(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -275,7 +262,6 @@ export class Player {
     // A jump buffered just before landing fires the moment the feet touch.
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) this.performJump();
 
-    this.tryGrabClimbable(wish, strength);
   }
 
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -328,105 +314,6 @@ export class Player {
       this.velocity.z *= scale;
     }
 
-    this.tryGrabClimbable(wish, strength);
-  }
-
-  private updateClimb(delta: number, input: Input, wish: Vector3, strength: number): void {
-    const surface = this.climbSurface;
-    if (!surface) {
-      this.state = 'air';
-      return;
-    }
-
-    this.velocity.set(0, 0, 0);
-
-    // Up and down on the stick climbs. Left and right move across: around a
-    // post, or sideways along a ladder.
-    const climbAmount = -input.move.y;
-    const sideAmount = input.move.x;
-
-    this.object.position.y += climbAmount * TUNING.climbSpeed * delta;
-    const minY = surface.base.y - 0.1;
-    const maxY = surface.base.y + surface.height - CHARACTER_HEIGHT * 0.55;
-    this.object.position.y = MathUtils.clamp(this.object.position.y, minY, maxY);
-
-    // `outward` is the direction that leads off the surface: away from a
-    // post's axis, or straight out from a ladder's wall. Topping out goes the
-    // other way, and jumping off goes along it.
-    const outward = this.scratchB;
-
-    if (surface.kind === 'post') {
-      this.climbAngle += sideAmount * TUNING.climbRotateSpeed * delta;
-      const holdRadius = surface.radius + CHARACTER_RADIUS * 1.05;
-      this.object.position.x = surface.base.x + Math.sin(this.climbAngle) * holdRadius;
-      this.object.position.z = surface.base.z + Math.cos(this.climbAngle) * holdRadius;
-      this.facing = this.climbAngle + Math.PI;
-      outward.set(Math.sin(this.climbAngle), 0, Math.cos(this.climbAngle));
-    } else {
-      this.climbLateral = MathUtils.clamp(
-        this.climbLateral + sideAmount * TUNING.climbSideSpeed * delta,
-        -surface.halfWidth,
-        surface.halfWidth,
-      );
-      const hold = CHARACTER_RADIUS * 1.05;
-      this.object.position.x =
-        surface.base.x + surface.right.x * this.climbLateral + surface.normal.x * hold;
-      this.object.position.z =
-        surface.base.z + surface.right.z * this.climbLateral + surface.normal.z * hold;
-      // Facing the wall means facing against the ladder's outward normal.
-      this.facing = Math.atan2(-surface.normal.x, -surface.normal.z);
-      outward.copy(surface.normal);
-    }
-
-    this.syncCapsuleFromPosition();
-
-    // Reaching the top steps the character over the edge rather than leaving
-    // them stuck at the last rung.
-    //
-    // This places them on the ledge directly rather than throwing them at it.
-    // An impulse used to carry them into the side of the box at climbing
-    // height, and a capsule fully inside a box touches none of its triangles,
-    // so collision found nothing and they dropped through the inside of it.
-    if (this.object.position.y >= maxY - 0.01 && climbAmount > 0.4) {
-      const step = CHARACTER_RADIUS + 0.55;
-      const landingX = this.object.position.x - outward.x * step;
-      const landingZ = this.object.position.z - outward.z * step;
-      const probe = this.scratchSide.set(
-        landingX,
-        surface.base.y + surface.height + 1.2,
-        landingZ,
-      );
-      const ledgeY = this.world.groundHeightBelow(probe, 3.2);
-
-      this.releaseClimb();
-
-      if (Number.isFinite(ledgeY)) {
-        this.object.position.set(landingX, ledgeY + 0.06, landingZ);
-        this.syncCapsuleFromPosition();
-        this.velocity.set(0, 0, 0);
-        this.state = 'ground';
-        this.onGround = true;
-        this.coyoteTimer = TUNING.coyoteTime;
-      } else {
-        // Nothing to step onto up there, so push off instead of climbing into
-        // thin air.
-        this.velocity.copy(outward).multiplyScalar(-TUNING.climbTopOutPush);
-        this.velocity.y = TUNING.climbDismountLift;
-      }
-      return;
-    }
-
-    if (input.wasPressed('jump')) {
-      this.releaseClimb();
-      const away = outward.clone().multiplyScalar(TUNING.climbDismountPush);
-      this.velocity.set(away.x, TUNING.climbDismountLift, away.z);
-      this.facing = Math.atan2(away.x, away.z);
-      this.jumpHeld = true;
-      return;
-    }
-
-    // Pushing directly away from the surface lets go.
-    if (strength > 0.4 && wish.dot(outward) > 0.82) this.releaseClimb();
   }
 
   // -------------------------------------------------------------------------
@@ -607,8 +494,6 @@ export class Player {
   }
 
   private updateWaterState(): void {
-    if (this.state === 'climb') return;
-
     const wasSwimming = this.state === 'swim';
 
     // Entering takes the midpoint going under; leaving takes the feet coming
@@ -645,53 +530,6 @@ export class Player {
     }
   }
 
-  private tryGrabClimbable(wish: Vector3, strength: number): void {
-    if (this.climbRegrabTimer > 0 || strength < 0.3) return;
-
-    const surface = this.world.climbableAt(this.object.position, CHARACTER_HEIGHT);
-    if (!surface) return;
-
-    // Only grab when actually pushing toward the surface.
-    const toward = this.scratchB;
-    if (surface.kind === 'post') {
-      toward.set(surface.base.x - this.object.position.x, 0, surface.base.z - this.object.position.z);
-      if (toward.lengthSq() < 0.0001) return;
-      toward.normalize();
-    } else {
-      // Toward a ladder means against the direction it faces.
-      toward.copy(surface.normal).multiplyScalar(-1);
-    }
-    if (wish.dot(toward) < 0.45) return;
-
-    this.climbSurface = surface;
-    if (surface.kind === 'post') {
-      this.climbAngle = Math.atan2(
-        this.object.position.x - surface.base.x,
-        this.object.position.z - surface.base.z,
-      );
-    } else {
-      const offsetX = this.object.position.x - surface.base.x;
-      const offsetZ = this.object.position.z - surface.base.z;
-      this.climbLateral = MathUtils.clamp(
-        offsetX * surface.right.x + offsetZ * surface.right.z,
-        -surface.halfWidth,
-        surface.halfWidth,
-      );
-      // Start no lower than the foot of the ladder.
-      this.object.position.y = Math.max(this.object.position.y, surface.base.y);
-    }
-
-    this.state = 'climb';
-    this.velocity.set(0, 0, 0);
-    this.skidding = false;
-  }
-
-  private releaseClimb(): void {
-    this.climbSurface = null;
-    this.climbRegrabTimer = TUNING.climbRegrabDelay;
-    this.state = 'air';
-  }
-
   // -------------------------------------------------------------------------
   // Carrying
   // -------------------------------------------------------------------------
@@ -706,7 +544,7 @@ export class Player {
    * can never offer something that the button will then refuse to lift.
    */
   findCarryTarget(): Carryable | null {
-    if (this.state === 'climb' || this.carried) return null;
+    if (this.carried) return null;
 
     let best: Carryable | null = null;
     let bestScore = Infinity;
@@ -805,7 +643,6 @@ export class Player {
     this.object.position.y += 0.2;
     this.velocity.set(0, 0, 0);
     this.state = 'air';
-    this.climbSurface = null;
     this.syncCapsuleFromPosition();
     this.events.onRespawn?.();
   }
@@ -820,7 +657,6 @@ export class Player {
     this.facing = facing;
     this.velocity.set(0, 0, 0);
     this.state = 'air';
-    this.climbSurface = null;
     this.lastSafePosition.copy(position);
     this.syncCapsuleFromPosition();
   }
@@ -907,7 +743,6 @@ export class Player {
       carrying: this.carried !== null,
       submerged: this.submerged && !this.atSurface,
       diving: this.diving && this.state === 'swim',
-      climbKind: this.climbSurface?.kind ?? 'post',
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

@@ -1,9 +1,9 @@
 /**
  * Headless verification for milestone 1: the character's body.
  *
- * Builds the page, loads it in a real browser, drives running, walking,
- * jumping and climbing the ladder onto the box, fails on any console error,
- * and writes screenshots to tools/shots/.
+ * Builds the page, loads it in a real browser, drives running, walking and
+ * jumping, checks that movement does not depend on the frame rate, fails on
+ * any console error, and writes a turnaround of the figure to tools/shots/.
  *
  * This runs on a cloud machine with software rendering, so the frame rate it
  * reports says nothing about real hardware. It answers "does it load, respond
@@ -100,14 +100,15 @@ for (const fps of [20, 30, 60, 90, 144, 240]) {
     const g = window.__letsgo.debug;
     g.player.teleport(g.world.spawn.clone(), g.world.spawnFacing);
     const frames = Math.round(fps * 1.2);
+    const start = g.world.spawn.z;
     const samples = g.simulateMove(frames, 1 / fps, 0, -1);
     const last = samples[samples.length - 1];
-    return { fps, z: last.z, speed: last.speed, state: last.state };
+    return { fps, covered: start - last.z, speed: last.speed, state: last.state };
   }, fps);
   rateResults.push(result);
 
-  // 1.2 seconds of running from a standstill covers roughly eight metres.
-  const covered = 5 - result.z;
+  // 1.2 seconds of running from a standstill covers roughly nine metres.
+  const covered = result.covered;
   if (covered < 6) {
     problems.push(
       `at ${fps} frames a second, 1.2s of running covered only ${covered.toFixed(1)}m`,
@@ -194,52 +195,27 @@ await waitForState(page, (state) => state === 'idle');
 steps.push(await snapshot(page, 'landed'));
 if (peak < 1.0) problems.push(`a held jump only reached ${peak.toFixed(2)}m`);
 
-// ---- Climbing the ladder and topping out ---------------------------------
+// ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
-await page.keyboard.down('KeyE');
-await waitForState(page, (state) => state === 'ladder', 30000);
-steps.push(await snapshot(page, 'grabbed'));
-await page.screenshot({ path: `${SHOTS}05-ladder.png` });
-
-// Keep holding forward until the character leaves the ladder, then stop, or they
-// simply carry on running across the top of the box and off the far side.
-const boxTopY = await page.evaluate(() => window.__letsgo.debug.world.boxTopY);
+await page.waitForTimeout(400);
+await page.evaluate(() => window.__letsgo.debug.freeze());
+await page.waitForTimeout(200);
 await page.evaluate(() => {
-  window.__climbPeak = 0;
-  window.__climbTimer = window.setInterval(() => {
-    window.__climbPeak = Math.max(window.__climbPeak, window.__letsgo.debug.player.position.y);
-  }, 16);
+  document.querySelector('.hud__stats')?.setAttribute('hidden', '');
+  document.querySelector('.hud__hints')?.setAttribute('hidden', '');
 });
 
-let toppedOut = false;
-try {
-  await page.waitForFunction(() => window.__letsgo.debug.player.stateName !== 'ladder', null, {
-    timeout: 40000,
-    polling: 60,
-  });
-  toppedOut = true;
-} catch {
-  problems.push('the character never left the ladder');
-}
-await page.keyboard.up('KeyE');
-await page.waitForTimeout(1200);
-
-const climbPeak = await page.evaluate(() => {
-  window.clearInterval(window.__climbTimer);
-  return window.__climbPeak;
-});
-
-steps.push(await snapshot(page, toppedOut ? 'on-box' : 'stuck'));
-await page.screenshot({ path: `${SHOTS}06-on-box.png` });
-
-const standing = await playerPosition(page);
-if (climbPeak < boxTopY - 0.4) {
-  problems.push(`climbing only reached ${climbPeak.toFixed(2)}m, below the box top ${boxTopY}`);
-}
-if (Math.abs(standing.y - boxTopY) > 0.5) {
-  problems.push(
-    `came to rest at y=${standing.y.toFixed(2)} rather than on the box top ${boxTopY}`,
+for (const [name, dx, dy, dz, lookHeight] of [
+  ['front', 0, 1.0, -2.1, 0.92],
+  ['three-quarter', -1.45, 1.05, -1.55, 0.92],
+  ['side', 2.1, 1.0, 0, 0.92],
+  ['back', 0, 1.0, 2.1, 0.92],
+]) {
+  await page.evaluate(
+    ([dx, dy, dz, lookHeight]) => window.__letsgo.debug.renderFrom(dx, dy, dz, lookHeight),
+    [dx, dy, dz, lookHeight],
   );
+  await page.screenshot({ path: `${SHOTS}body-${name}.png` });
 }
 
 const report = await page.evaluate(() => {
@@ -262,10 +238,7 @@ for (const step of steps) {
       `speed=${step.speed} pos=(${step.position.x}, ${step.position.y}, ${step.position.z})`,
   );
 }
-console.log(
-  `\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, ` +
-    `jump peak ${peak.toFixed(2)}m, climb peak ${climbPeak.toFixed(2)}m`,
-);
+console.log(`\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, jump peak ${peak.toFixed(2)}m`);
 console.log(` distance covered holding E: ${travelled.toFixed(1)}m`);
 console.log(
   ` holding back: ${backTravel.toFixed(1)}m travelled, ` +
@@ -274,7 +247,7 @@ console.log(
 
 console.log('\n--- frame rate ---');
 for (const r of rateResults) {
-  console.log(` ${String(r.fps).padStart(3)} fps: covered ${(5 - r.z).toFixed(1)}m in 1.2s`);
+  console.log(` ${String(r.fps).padStart(3)} fps: covered ${r.covered.toFixed(1)}m in 1.2s`);
 }
 
 console.log('\n--- report ---');

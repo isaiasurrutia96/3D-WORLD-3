@@ -46,7 +46,6 @@ export class Hud {
     hints.innerHTML = `
       Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b><br />
       Walk <b>hold Shift</b> · Jump <b>Space</b> · Arrow keys also work<br />
-      Climb: walk into the ladder, then <b>E</b> up, <b>D</b> down, <b>S F</b> across<br />
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b><br />
       Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high
     `;

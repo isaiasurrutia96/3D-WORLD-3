@@ -53,7 +53,6 @@ const CONTROLS: Array<[string, string]> = [
   ['Pick up, throw', 'E  /  X'],
   ['Dive, swim down', 'Ctrl  /  B'],
   ['Swim stroke', 'Space  /  A'],
-  ['Climb', 'Walk into a tree trunk'],
   ['Pause', 'Esc  /  Start'],
 ];
 

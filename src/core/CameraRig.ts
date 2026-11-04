@@ -132,7 +132,6 @@ export class CameraRig {
    */
   private autoFollow(delta: number, player: Player): void {
     if (this.manualTimer > 0) return;
-    if (player.state === 'climb') return;
     if (player.speed < 2.2) return;
 
     // Only swing round when the character is running *away* from the camera.

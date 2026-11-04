@@ -116,20 +116,20 @@ function taperedLimb(topRadius: number, bottomRadius: number, length: number): L
  */
 const TORSO_PROFILE: Array<[number, number]> = [
   [0.0, -0.2],
-  [0.115, -0.194],
-  [0.2, -0.164],
-  [0.252, -0.1],
-  [0.275, -0.02],
-  [0.285, 0.072], // belly, the widest point
-  [0.279, 0.152],
-  [0.268, 0.2], // waist, only slightly drawn in
-  [0.274, 0.256],
-  [0.278, 0.304], // chest
-  [0.264, 0.36],
-  [0.218, 0.4],
-  [0.148, 0.42], // shoulder line, tapering to the neck
-  [0.1, 0.432],
-  [0.0, 0.44],
+  [0.108, -0.195],
+  [0.186, -0.168],
+  [0.238, -0.108],
+  [0.26, -0.03],
+  [0.268, 0.056], // belly: present, but no longer the widest point
+  [0.264, 0.136],
+  [0.256, 0.192], // waist
+  [0.272, 0.248],
+  [0.286, 0.3], // chest, the widest point
+  [0.29, 0.345], // the shoulder shelf the arms hang from
+  [0.272, 0.388],
+  [0.206, 0.424], // shoulders turning in toward the neck
+  [0.124, 0.448],
+  [0.0, 0.46],
 ];
 
 function torsoProfile(): LatheGeometry {
@@ -164,9 +164,9 @@ function trouserProfile(waistHeight: number): LatheGeometry {
  * Heights are laid out deliberately rather than by eye. Reading upward from
  * the feet:
  *
- *   0.00  soles        0.48  knees        0.88  hips
- *   1.22  shoulders    1.32  base of neck 1.61  centre of head
- *   1.82  crown
+ *   0.00  soles        0.50  knees        0.92  hips
+ *   1.27  shoulders    1.38  base of neck 1.61  centre of head
+ *   1.83  crown
  *
  * The torso used to hang down to 0.50, which left barely a third of the
  * figure's height as visible leg and read as a bowling pin. Its lower edge
@@ -206,7 +206,7 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
 
   // The torso's origin sits on the hip line, so leg offsets read directly.
   const torso = new Group();
-  torso.position.y = 0.88;
+  torso.position.y = 0.92;
   body.add(torso);
 
   // ---- Torso ---------------------------------------------------------------
@@ -225,20 +225,20 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   }
 
   // ---- Neck ----------------------------------------------------------------
-  torso.add(part(taperedLimb(0.098, 0.122, 0.11), skinMaterial, [0, 0.47, 0.005]));
+  torso.add(part(taperedLimb(0.094, 0.118, 0.15), skinMaterial, [0, 0.5, 0.004]));
 
   // ---- Head ----------------------------------------------------------------
   const head = new Group();
-  head.position.set(0, 0.715, 0);
+  head.position.set(0, 0.685, 0);
   torso.add(head);
 
-  head.add(part(new SphereGeometry(0.228, 20, 18), skinMaterial));
+  head.add(part(new SphereGeometry(0.22, 20, 18), skinMaterial));
 
   if (!plain) {
     // Cap: a dome with a brim.
     head.add(
       part(
-        new SphereGeometry(0.222, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
+        new SphereGeometry(0.228, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
         shirtMaterial,
         [0, 0.07, 0],
       ),
@@ -258,7 +258,7 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   // ---- Arms ----------------------------------------------------------------
   const buildArm = (side: -1 | 1) => {
     const shoulder = new Group();
-    shoulder.position.set(0.3 * side, 0.33, 0);
+    shoulder.position.set(0.282 * side, 0.345, 0);
     torso.add(shoulder);
 
     shoulder.add(part(taperedLimb(0.1, 0.11, 0.14), shirtMaterial, [0, -0.16, 0]));
@@ -269,8 +269,9 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     elbow.add(part(taperedLimb(0.096, 0.104, 0.17), shirtMaterial, [0, -0.17, 0]));
 
     // Big round gloves: one of the most recognisable things about him.
-    const glove = part(new SphereGeometry(0.158, 14, 12), gloveMaterial, [0, -0.34, 0]);
-    glove.scale.set(1, 0.95, 1.05);
+    const glove = part(new SphereGeometry(0.142, 14, 12), gloveMaterial, [0, -0.34, 0]);
+    // Flattened front to back, so it reads as a hand rather than a ball.
+    glove.scale.set(1.08, 1.0, 0.82);
     elbow.add(glove);
 
     return { shoulder, elbow };
@@ -287,20 +288,20 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
     hip.add(part(taperedLimb(0.128, 0.148, 0.2), overallMaterial, [0, -0.2, 0]));
 
     const knee = new Group();
-    knee.position.y = -0.4;
+    knee.position.y = -0.42;
     hip.add(knee);
     knee.add(part(taperedLimb(0.115, 0.128, 0.18), overallMaterial, [0, -0.17, 0]));
 
     const ankle = new Group();
-    ankle.position.y = -0.36;
+    ankle.position.y = -0.38;
     knee.add(ankle);
 
     // Big shoes, for the same reason as the gloves.
     // Narrowed across their width and set on wider hips, so the two shoes
     // stand with a visible gap between them rather than meeting at the
     // centre line, which made them look like one block.
-    const shoe = part(new SphereGeometry(0.176, 14, 12), shoeMaterial, [0, 0.012, 0.055]);
-    shoe.scale.set(0.84, 0.6, 1.55);
+    const shoe = part(new SphereGeometry(0.172, 14, 12), shoeMaterial, [0, 0.014, 0.05]);
+    shoe.scale.set(0.82, 0.58, 1.44);
     ankle.add(shoe);
 
     return { hip, knee, ankle };

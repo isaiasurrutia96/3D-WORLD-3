@@ -29,38 +29,9 @@ export interface WaterVolume {
   test?: (x: number, z: number) => boolean;
 }
 
-/** A round post, such as a tree trunk: the character circles it as they climb. */
-export interface PostClimbSurface {
-  kind: 'post';
-  /** Centre of the post in world space, at its base. */
-  base: Vector3;
-  radius: number;
-  height: number;
-  /** How far outside the radius the character can still grab on. */
-  grabMargin: number;
-}
-
-/** A flat ladder on a wall: the character faces it and moves up, down and across. */
-export interface LadderClimbSurface {
-  kind: 'ladder';
-  /** Centre of the ladder's foot, on the face of the wall. */
-  base: Vector3;
-  /** Horizontal unit vector pointing out of the wall, toward the climber. */
-  normal: Vector3;
-  /** Horizontal unit vector across the ladder, normal rotated a quarter turn. */
-  right: Vector3;
-  halfWidth: number;
-  height: number;
-  /** How far out from the wall the character can still grab on. */
-  grabMargin: number;
-}
-
-export type ClimbSurface = PostClimbSurface | LadderClimbSurface;
-
 export class CollisionWorld {
   readonly octree = new Octree();
   readonly waters: WaterVolume[] = [];
-  readonly climbables: ClimbSurface[] = [];
 
   private readonly scratchRay = new Ray();
   private readonly scratchVector = new Vector3();
@@ -72,33 +43,6 @@ export class CollisionWorld {
 
   addWater(bounds: Box3, surfaceY: number, test?: (x: number, z: number) => boolean): void {
     this.waters.push({ bounds, surfaceY, test });
-  }
-
-  addClimbablePost(base: Vector3, radius: number, height: number, grabMargin = 0.55): void {
-    this.climbables.push({ kind: 'post', base: base.clone(), radius, height, grabMargin });
-  }
-
-  /**
-   * Registers a ladder. `normal` points out of the wall the ladder is fixed
-   * to, so the character grabs it from that side and climbs facing the wall.
-   */
-  addClimbableLadder(
-    base: Vector3,
-    normal: Vector3,
-    halfWidth: number,
-    height: number,
-    grabMargin = 0.9,
-  ): void {
-    const outward = normal.clone().setY(0).normalize();
-    this.climbables.push({
-      kind: 'ladder',
-      base: base.clone(),
-      normal: outward,
-      right: new Vector3(-outward.z, 0, outward.x),
-      halfWidth,
-      height,
-      grabMargin,
-    });
   }
 
   /** Resolves a capsule against world geometry, or returns null if it is clear. */
@@ -139,50 +83,6 @@ export class CollisionWorld {
   }
 
   /**
-   * The climbable surface the character can grab from `point`, if any.
-   * Returns the nearest candidate so dense clusters behave sensibly.
-   */
-  climbableAt(point: Vector3, characterHeight: number): ClimbSurface | null {
-    let best: ClimbSurface | null = null;
-    let bestDistance = Infinity;
-
-    for (const climbable of this.climbables) {
-      const top = climbable.base.y + climbable.height;
-      // The feet may be below the surface's base while the hands are on it,
-      // so the vertical test uses the character's midpoint with some slack.
-      if (point.y + characterHeight < climbable.base.y) continue;
-      if (point.y > top) continue;
-
-      let distance: number;
-
-      if (climbable.kind === 'post') {
-        const dx = point.x - climbable.base.x;
-        const dz = point.z - climbable.base.z;
-        distance = Math.hypot(dx, dz);
-        if (distance > climbable.radius + climbable.grabMargin) continue;
-      } else {
-        // A ladder is only grabbable from in front of its wall, and only
-        // within its width.
-        const offsetX = point.x - climbable.base.x;
-        const offsetZ = point.z - climbable.base.z;
-        const outward = offsetX * climbable.normal.x + offsetZ * climbable.normal.z;
-        if (outward < -0.25 || outward > climbable.grabMargin) continue;
-
-        const lateral = offsetX * climbable.right.x + offsetZ * climbable.right.z;
-        if (Math.abs(lateral) > climbable.halfWidth + 0.35) continue;
-
-        distance = Math.hypot(outward, lateral);
-      }
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = climbable;
-      }
-    }
-    return best;
-  }
-
-  /**
    * Ground height and surface normal directly below `point`, or null.
    *
    * A downward ray is a far more dependable way to find the floor than the
@@ -216,7 +116,6 @@ export class CollisionWorld {
 
   reset(): void {
     this.waters.length = 0;
-    this.climbables.length = 0;
   }
 }
 

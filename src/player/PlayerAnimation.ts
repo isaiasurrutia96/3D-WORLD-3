@@ -24,8 +24,6 @@ export interface AnimationInputs {
   submerged: boolean;
   /** True while the dive control is held. */
   diving: boolean;
-  /** Which kind of surface is being climbed, when the state is 'climb'. */
-  climbKind: 'post' | 'ladder';
   inputStrength: number;
   /** 0 at the start of a swim stroke, 1 when it has finished. */
   strokeProgress: number;
@@ -57,6 +55,18 @@ interface Pose {
 const pose: Pose = createPose();
 const current: Pose = createPose();
 let initialised = false;
+
+/**
+ * How far through the walk cycle the character is, in radians.
+ *
+ * This is accumulated rather than computed as elapsed time multiplied by the
+ * stride rate. The stride rate rises with speed, so multiplying jumped the
+ * phase every time the speed changed: starting to run shifted the legs to a
+ * completely different point in the cycle, and they appeared to scrabble for
+ * a moment before settling. Adding up small steps means a change in rate
+ * changes how fast the cycle advances, and nothing else.
+ */
+let stridePhase = 0;
 
 function createPose(): Pose {
   return {
@@ -132,9 +142,6 @@ function buildTargetPose(input: AnimationInputs): void {
   switch (input.state) {
     case 'swim':
       poseSwim(input);
-      break;
-    case 'climb':
-      poseClimb(input);
       break;
     case 'air':
       poseAir(input);
@@ -221,7 +228,8 @@ function poseGround(input: AnimationInputs): void {
   // Stride frequency rises with speed, but not linearly: a run has longer
   // strides as well as faster ones.
   const stride = 2.6 + normalised * 5.4;
-  const phase = input.time * stride;
+  stridePhase = (stridePhase + stride * input.delta) % (Math.PI * 2);
+  const phase = stridePhase;
   const swing = Math.sin(phase);
   const counterSwing = Math.sin(phase + Math.PI);
 
@@ -358,69 +366,6 @@ function poseSwim(input: AnimationInputs): void {
 
     pose.headPitch = -0.1;
   }
-}
-
-function poseClimb(input: AnimationInputs): void {
-  if (input.climbKind === 'ladder') {
-    poseLadder(input);
-    return;
-  }
-
-  // Hugging a post: arms reach above and wrap round, legs grip below,
-  // alternating as the character moves. The cycle runs only while climbing.
-  const climbing = input.inputStrength > 0.15;
-  const phase = climbing ? input.time * 4.4 : 0;
-  const swing = Math.sin(phase);
-
-  pose.bodyPitch = 0.1;
-  pose.shoulderLeftPitch = -2.6 + swing * 0.5;
-  pose.shoulderRightPitch = -2.6 - swing * 0.5;
-  pose.shoulderLeftRoll = 0.3;
-  pose.shoulderRightRoll = 0.3;
-  pose.elbowLeft = -0.55 + swing * 0.3;
-  pose.elbowRight = -0.55 - swing * 0.3;
-
-  pose.hipLeft = -0.8 - swing * 0.3;
-  pose.hipRight = -0.8 + swing * 0.3;
-  pose.kneeLeft = 1.15 + swing * 0.25;
-  pose.kneeRight = 1.15 - swing * 0.25;
-
-  pose.headPitch = -0.22;
-}
-
-/**
- * On a ladder the character faces the rungs and goes up hand over hand, so
- * the limbs alternate on opposite phases rather than squeezing together the
- * way they do round a post.
- */
-function poseLadder(input: AnimationInputs): void {
-  const climbing = input.inputStrength > 0.15;
-  const phase = climbing ? input.time * 3.6 : 0;
-  const swing = Math.sin(phase);
-  const reach = climbing ? 1 : 0.45;
-
-  // Upright and close in to the rungs.
-  pose.bodyPitch = 0.07;
-  pose.bodyRoll = swing * 0.05 * reach;
-
-  // One hand high, the other at chest height, swapping each half cycle.
-  pose.shoulderLeftPitch = -2.45 - swing * 0.45 * reach;
-  pose.shoulderRightPitch = -2.45 + swing * 0.45 * reach;
-  pose.shoulderLeftRoll = 0.12;
-  pose.shoulderRightRoll = 0.12;
-  pose.elbowLeft = -0.3 + Math.max(0, -swing) * 0.85 * reach;
-  pose.elbowRight = -0.3 + Math.max(0, swing) * 0.85 * reach;
-
-  // The opposite foot rises as each hand does, which is what makes a climb
-  // read as hand over hand rather than as a frog hop.
-  pose.hipLeft = -0.35 - Math.max(0, swing) * 0.55 * reach;
-  pose.hipRight = -0.35 - Math.max(0, -swing) * 0.55 * reach;
-  pose.kneeLeft = 0.5 + Math.max(0, swing) * 0.75 * reach;
-  pose.kneeRight = 0.5 + Math.max(0, -swing) * 0.75 * reach;
-  pose.ankleLeft = -0.2;
-  pose.ankleRight = -0.2;
-
-  pose.headPitch = -0.3;
 }
 
 function applyCarry(): void {
