@@ -2,6 +2,11 @@ import * as THREE from 'three';
 
 // Authoring coordinates: meters, +Y up, +Z forward. These landmarks define
 // the neutral model independently of any animation, controller, or game data.
+const ARM_DROP = 0.02;
+export const FOOT_PROFILE = Object.freeze({
+  ankleHeight: 0.15, centerHeight: 0.099, forwardOffset: 0.12,
+  radiusX: 0.1705, radiusY: 0.099, radiusZ: 0.297,
+});
 const LANDMARKS = [
   ['pelvis', null, [0, 0.91, 0]],
   ['spine', 'pelvis', [0, 1.13, 0]],
@@ -11,12 +16,12 @@ const LANDMARKS = [
 ];
 for (const [side, sign] of [['left', -1], ['right', 1]]) {
   LANDMARKS.push(
-    [`${side}_upper_arm`, 'chest', [sign * 0.38, 1.48, 0]],
-    [`${side}_forearm`, `${side}_upper_arm`, [sign * 0.47, 1.12, 0.025]],
-    [`${side}_hand`, `${side}_forearm`, [sign * 0.5, 0.83, 0.06]],
+    [`${side}_upper_arm`, 'chest', [sign * 0.38, 1.48 - ARM_DROP, 0]],
+    [`${side}_forearm`, `${side}_upper_arm`, [sign * 0.47, 1.12 - ARM_DROP, 0.025]],
+    [`${side}_hand`, `${side}_forearm`, [sign * 0.5, 0.83 - ARM_DROP, 0.06]],
     [`${side}_thigh`, 'pelvis', [sign * 0.165, 0.86, 0]],
     [`${side}_calf`, `${side}_thigh`, [sign * 0.165, 0.51, 0.015]],
-    [`${side}_foot`, `${side}_calf`, [sign * 0.165, 0.15, 0]],
+    [`${side}_foot`, `${side}_calf`, [sign * 0.165, FOOT_PROFILE.ankleHeight, 0]],
     [`${side}_toe`, `${side}_foot`, [sign * 0.18, 0.099, 0.30]],
   );
 }
@@ -105,18 +110,23 @@ export function createAvatar() {
   ellipsoid([0, 2.0, 0], [0.33, 0.36, 0.3], 'head');
   for (const [side, sign] of [['left', -1], ['right', 1]]) {
     loft([
-      [sign * 0.38, 1.60, 0, 0.008, 0.008],
-      [sign * 0.38, 1.59, 0, 0.05, 0.05],
-      [sign * 0.38, 1.565, 0, 0.085, 0.085],
-      [sign * 0.385, 1.53, 0, 0.115, 0.115],
-      [sign * 0.39, 1.48, 0, 0.127, 0.127],
-      [sign * 0.40, 1.40, 0.005, 0.13, 0.13],
-      [sign * 0.42, 1.32, 0.01, 0.125, 0.125],
-      [sign * 0.47, 1.12, 0.025, 0.105, 0.105],
-      [sign * 0.49, 0.98, 0.045, 0.11, 0.105],
-      [sign * 0.5, 0.83, 0.06, 0.085, 0.085],
-    ], y => y > 0.98 ? blend(`${side}_upper_arm`, `${side}_forearm`, (1.28 - y) / 0.3) : blend(`${side}_forearm`, `${side}_hand`, (0.92 - y) / 0.13));
-    ellipsoid([sign * 0.51, 0.735, 0.075], [0.132, 0.1595, 0.132], `${side}_hand`);
+      [sign * 0.38, 1.60 - ARM_DROP, 0, 0.008, 0.008],
+      [sign * 0.38, 1.59 - ARM_DROP, 0, 0.05, 0.05],
+      [sign * 0.38, 1.565 - ARM_DROP, 0, 0.085, 0.085],
+      [sign * 0.385, 1.53 - ARM_DROP, 0, 0.115, 0.115],
+      [sign * 0.39, 1.48 - ARM_DROP, 0, 0.127, 0.127],
+      [sign * 0.40, 1.40 - ARM_DROP, 0.005, 0.13, 0.13],
+      [sign * 0.42, 1.32 - ARM_DROP, 0.01, 0.125, 0.125],
+      [sign * 0.47, 1.12 - ARM_DROP, 0.025, 0.105, 0.105],
+      [sign * 0.49, 0.98 - ARM_DROP, 0.045, 0.11, 0.105],
+      [sign * 0.5, 0.83 - ARM_DROP, 0.06, 0.085, 0.085],
+    ], y => {
+      const authoredY = y + ARM_DROP;
+      return authoredY > 0.98
+        ? blend(`${side}_upper_arm`, `${side}_forearm`, (1.28 - authoredY) / 0.3)
+        : blend(`${side}_forearm`, `${side}_hand`, (0.92 - authoredY) / 0.13);
+    });
+    ellipsoid([sign * 0.51, 0.735 - ARM_DROP, 0.075], [0.132, 0.1595, 0.132], `${side}_hand`);
     loft([
       [sign * 0.165, 0.98, 0, 0.015, 0.015],
       [sign * 0.165, 0.96, 0, 0.085, 0.085],
@@ -127,7 +137,7 @@ export function createAvatar() {
       [sign * 0.165, 0.34, 0.01, 0.13, 0.12],
       [sign * 0.165, 0.15, 0, 0.09, 0.095],
     ], y => y > 0.31 ? blend(`${side}_thigh`, `${side}_calf`, (0.65 - y) / 0.28) : blend(`${side}_calf`, `${side}_foot`, (0.27 - y) / 0.12));
-    ellipsoid([sign * 0.18, 0.099, 0.12], [0.1705, 0.099, 0.297], `${side}_foot`);
+    ellipsoid([sign * 0.18, FOOT_PROFILE.centerHeight, FOOT_PROFILE.forwardOffset], [FOOT_PROFILE.radiusX, FOOT_PROFILE.radiusY, FOOT_PROFILE.radiusZ], `${side}_foot`);
   }
 
   const geometry = new THREE.BufferGeometry();
