@@ -222,9 +222,11 @@ that something works; it cannot tell that something looks or feels wrong.
 
 A checkpoint is a named, permanent marker on a commit that was played and
 approved by the owner. It can always be returned to, whatever is built
-afterwards.
+afterwards. Each one is kept as a branch rather than a tag, because this
+working environment is not permitted to push tags; a branch that is never
+moved serves the same purpose and is easier to open on GitHub.
 
-**1. `checkpoint-1-jumps` — 4 November 2026, commit `c7d2a40`.** Approved by the
+**1. Branch `checkpoint-1-jumps` — 4 November 2026, commit `c7d2a40`.** Approved by the
 owner with "wow i love it". It contains the floor slab, the avatar's body and
 rig, walking, running, the single jump, the double jump and the triple jump
 with its somersault, the orbit and chase cameras, and the GitHub Pages
