@@ -213,6 +213,41 @@ if (jumpPeaks.length !== 3) {
 
 await resetPlayer(page);
 
+// ---- The third jump's somersault, tapped and held ------------------------
+const flips = [];
+for (const hold of [0.06, 0.45]) {
+  const result = await page.evaluate(
+    (hold) => window.__letsgo.debug.simulateTripleJump(1 / 60, hold),
+    hold,
+  );
+  flips.push({ hold, ...result });
+
+  if (!result.completedBeforeLanding) {
+    problems.push(
+      `with the jump held for ${hold}s, the somersault did not come all the way round`,
+    );
+  }
+  // Measured while airborne only. The somersault used to swing the whole
+  // figure a body-length through the floor, because the rotation was centred
+  // on the feet rather than the hips.
+  if (result.lowestPart < -0.01) {
+    problems.push(
+      `with the jump held for ${hold}s, part of the body reached ` +
+        `${result.lowestPart}m, below the floor`,
+    );
+  }
+}
+
+// A tap must still give a lower jump than a hold.
+if (flips.length === 2 && !(flips[1].peak > flips[0].peak + 0.3)) {
+  problems.push(
+    `holding the jump (${flips[1].peak}m) is not clearly higher than tapping it ` +
+      `(${flips[0].peak}m)`,
+  );
+}
+
+await resetPlayer(page);
+
 // ---- A turnaround of the figure, for judging the body -------------------
 await resetPlayer(page);
 await page.waitForTimeout(400);
@@ -258,6 +293,12 @@ for (const step of steps) {
 }
 console.log(`\n run ${runSpeed} m/s, walk ${walkSpeed} m/s, jump peak ${peak.toFixed(2)}m`);
 console.log(` jump combo heights: ${jumpPeaks.map((h) => `${h}m`).join(', ')}`);
+for (const f of flips) {
+  console.log(
+    ` somersault held ${f.hold}s: peak ${f.peak}m, lowest part ${f.lowestPart}m, ` +
+      `completed ${f.completedBeforeLanding}`,
+  );
+}
 console.log(` distance covered holding E: ${travelled.toFixed(1)}m`);
 console.log(
   ` holding back: ${backTravel.toFixed(1)}m travelled, ` +

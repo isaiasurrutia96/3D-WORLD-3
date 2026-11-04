@@ -46,8 +46,17 @@ export const TUNING = {
   jumpComboWindow: 0.26,
   /** Below this speed the combo will not continue; it is a running move. */
   jumpComboMinSpeed: 2.6,
-  /** Seconds the triple jump's somersault takes to come all the way round. */
-  tripleJumpFlipTime: 0.62,
+  /**
+   * How long the character rises before the somersault begins. Starting it
+   * the instant the feet leave the ground looks like a trip rather than a
+   * jump.
+   */
+  tripleJumpFlipDelay: 0.13,
+  /**
+   * The somersault finishes this long before landing, so the character comes
+   * down on their feet rather than mid-rotation.
+   */
+  tripleJumpLandMargin: 0.07,
   /** Velocity retained when the jump button is released early. */
   jumpCutMultiplier: 0.42,
   terminalVelocity: 34,

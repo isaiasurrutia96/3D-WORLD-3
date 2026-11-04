@@ -201,12 +201,15 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
   const buckleMaterial = clay ?? make(PALETTE.buckle, 0.35, 0.55);
 
   const root = new Group();
+  // The body group sits on the hip line, so rotating it turns the figure
+  // about its middle rather than about its feet.
   const body = new Group();
+  body.position.y = HIP_HEIGHT;
   root.add(body);
 
-  // The torso's origin sits on the hip line, so leg offsets read directly.
+  // Leg offsets are measured from the hip line, so the torso sits at the
+  // body group's own origin.
   const torso = new Group();
-  torso.position.y = 0.92;
   body.add(torso);
 
   // ---- Torso ---------------------------------------------------------------
@@ -344,4 +347,13 @@ export function createCharacterRig(options: RigOptions = {}): CharacterRig {
 
 /** Total height of the rig in world units, used to size the collision capsule. */
 export const CHARACTER_HEIGHT = 1.82;
+
+/**
+ * Height of the hip line, and the point the whole figure rotates about.
+ *
+ * The body group used to sit at the character's feet, so a somersault swung
+ * the head a full body-length below the ground. Putting the group on the hip
+ * line means the figure turns about its own middle, the way a person does.
+ */
+export const HIP_HEIGHT = 0.92;
 export const CHARACTER_RADIUS = 0.34;

@@ -62,8 +62,10 @@ export class Player {
   private jumpStage: 1 | 2 | 3 = 1;
   /** Counts down after landing; a jump within it continues the combo. */
   private comboWindow = 0;
-  /** Time since the triple jump's somersault began, or -1 when not flipping. */
+  /** Time since a triple jump took off, or -1 when there is no somersault. */
   private flipTimer = -1;
+  /** How far round the somersault is, 0 to 1. */
+  private flipProgress = 0;
   private landingTimer = 0;
   private skidding = false;
   private strokeTimer = 0;
@@ -174,6 +176,7 @@ export class Player {
 
     this.integrate(delta);
 
+    this.updateFlip(delta);
     this.updateCarry(delta, input);
     this.updateRecovery(delta);
     this.syncModel(delta, strength);
@@ -360,6 +363,7 @@ export class Player {
     if (this.onGround) {
       if (!wasOnGround) {
         this.flipTimer = -1;
+        this.flipProgress = 0;
         // A third jump ends the combo: the next one starts again from one.
         this.comboWindow = this.jumpStage < 3 ? TUNING.jumpComboWindow : 0;
         if (this.jumpStage >= 3) this.jumpStage = 1;
@@ -522,6 +526,7 @@ export class Player {
 
     // The third jump comes with a somersault.
     this.flipTimer = this.jumpStage === 3 ? 0 : -1;
+    this.flipProgress = 0;
 
     this.comboWindow = 0;
     this.jumpHeld = true;
@@ -531,10 +536,80 @@ export class Player {
     this.state = 'air';
   }
 
-  /** How far round the triple jump's somersault is, 0 to 1. */
-  private get flipProgress(): number {
-    if (this.flipTimer < 0) return 0;
-    return Math.min(1, this.flipTimer / TUNING.tripleJumpFlipTime);
+  /**
+   * Advances the somersault so that it finishes just before landing.
+   *
+   * The rotation cannot run on a fixed clock. A tapped third jump is much
+   * lower than a held one, and a fixed rotation either leaves the character
+   * turning as they hit the ground or spins them long after they land. The
+   * remaining airtime is worked out from the current height and vertical
+   * speed each frame, and the rotation is paced to fit it, so a short hop
+   * turns quickly and a full jump turns slowly.
+   */
+  private updateFlip(delta: number): void {
+    if (this.flipTimer < 0) return;
+
+    // Landing ends it, whatever it was doing.
+    if (this.state !== 'air') {
+      this.flipTimer = -1;
+      this.flipProgress = 0;
+      return;
+    }
+
+    // Rise first. Rotating from the instant the feet leave the ground reads
+    // as a trip rather than a jump.
+    if (this.flipTimer < TUNING.tripleJumpFlipDelay) return;
+
+    const airtime = this.predictTimeToLand() - TUNING.tripleJumpLandMargin;
+    // Floored at one frame, not at some fixed fraction of a second. Floored
+    // higher, the rotation only ever covers a fraction of what is left each
+    // frame and approaches the end without reaching it, so the character
+    // lands still turning.
+    const remaining = Math.max(delta, airtime);
+    const rate = (1 - this.flipProgress) / remaining;
+    this.flipProgress = Math.min(1, this.flipProgress + rate * delta);
+  }
+
+  /**
+   * Seconds until the character is predicted to touch down, from where they
+   * are and how fast they are moving. Gravity differs on the way up and the
+   * way down, so the two halves are worked out separately.
+   */
+  private predictTimeToLand(): number {
+    const probe = this.scratchSide.set(
+      this.object.position.x,
+      this.object.position.y + 0.3,
+      this.object.position.z,
+    );
+    const ground = this.world.groundProbe(probe, 80);
+    if (!ground) return Infinity;
+
+    let height = Math.max(0, this.object.position.y - ground.y);
+    const rising = TUNING.gravity;
+    const falling = TUNING.gravity * TUNING.fallGravityMultiplier;
+
+    let seconds = 0;
+    let vertical = this.velocity.y;
+    if (vertical > 0) {
+      seconds += vertical / rising;
+      height += (vertical * vertical) / (2 * rising);
+      vertical = 0;
+    }
+
+    const descending = -vertical;
+    seconds +=
+      (-descending + Math.sqrt(descending * descending + 2 * falling * height)) / falling;
+    return seconds;
+  }
+
+  /** True only while the somersault is actually turning. */
+  private get flipping(): boolean {
+    return this.flipTimer >= TUNING.tripleJumpFlipDelay && this.flipProgress < 1;
+  }
+
+  /** How far round the somersault is, 0 to 1. Exposed for the tests. */
+  get somersaultProgress(): number {
+    return this.flipTimer < 0 ? 0 : this.flipProgress;
   }
 
   private updateWaterState(): void {
@@ -788,7 +863,8 @@ export class Player {
       submerged: this.submerged && !this.atSurface,
       diving: this.diving && this.state === 'swim',
       jumpStage: this.jumpStage,
-      flipAngle: this.flipProgress * Math.PI * 2,
+      flipAngle: this.flipTimer < 0 ? 0 : this.flipProgress * Math.PI * 2,
+      flipping: this.flipping,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

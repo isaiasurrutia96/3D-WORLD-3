@@ -8,6 +8,7 @@
  */
 
 import './styles.css';
+import { Box3 } from 'three';
 import { Engine } from './core/Engine.ts';
 import { CameraRig } from './core/CameraRig.ts';
 import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
@@ -232,6 +233,96 @@ class Game {
           for (let i = 0; i < 3; i += 1) step();
         }
         return peaks;
+      },
+
+      /**
+       * Runs a combo through to the third jump, holding the button for
+       * `holdSeconds`, and reports what the somersault did. A tap and a hold
+       * give very different airtimes, and the rotation has to fit both.
+       */
+      simulateTripleJump: (dt = 1 / 60, holdSeconds = 0.4) => {
+        let holding = false;
+        let alreadyPressed = false;
+        const stub = {
+          move: { x: 0, y: -1 },
+          look: { x: 0, y: 0 },
+          isDown: (action: string) => action === 'jump' && holding,
+          wasPressed: (action: string) => action === 'jump' && holding && !alreadyPressed,
+          wasReleased: () => false,
+        } as unknown as Input;
+
+        const yaw = this.cameraRig.movementYaw;
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const step = () => this.player.update(dt, stub, yaw);
+        const grounded = () =>
+          ['idle', 'walk', 'run', 'skid'].includes(this.player.stateName);
+
+        this.player.teleport(this.world.spawn.clone(), this.world.spawnFacing);
+        for (let i = 0; i < frames(1); i += 1) step();
+
+        // The first two jumps of the combo, both held.
+        for (let jump = 0; jump < 2; jump += 1) {
+          holding = true;
+          alreadyPressed = false;
+          step();
+          alreadyPressed = true;
+          for (let i = 0; i < frames(0.4); i += 1) step();
+          holding = false;
+          for (let i = 0; i < frames(2); i += 1) {
+            step();
+            if (grounded()) break;
+          }
+          for (let i = 0; i < 3; i += 1) step();
+        }
+
+        // The third, held for the requested time.
+        const bounds = new Box3();
+        let peak = this.player.position.y;
+        let lowestPart = Infinity;
+        let lowestAt = { y: 0, progress: 0, state: '', frame: 0 };
+        let frame = 0;
+        let completedBeforeLanding = false;
+
+        holding = true;
+        alreadyPressed = false;
+        step();
+        alreadyPressed = true;
+
+        const measure = () => {
+          peak = Math.max(peak, this.player.position.y);
+          this.player.object.updateMatrixWorld(true);
+          bounds.setFromObject(this.player.object);
+          frame += 1;
+          if (!grounded() && bounds.min.y < lowestPart) {
+            lowestPart = bounds.min.y;
+            lowestAt = {
+              y: Math.round(this.player.position.y * 1000) / 1000,
+              progress: Math.round(this.player.somersaultProgress * 100) / 100,
+              state: this.player.stateName,
+              frame,
+            };
+          }
+          if (this.player.somersaultProgress >= 1) completedBeforeLanding = true;
+        };
+
+        for (let i = 0; i < frames(holdSeconds); i += 1) {
+          step();
+          measure();
+        }
+        holding = false;
+        for (let i = 0; i < frames(3); i += 1) {
+          step();
+          measure();
+          if (grounded()) break;
+        }
+
+        return {
+          stage: this.player.stateName,
+          peak: Math.round(peak * 100) / 100,
+          lowestPart: Math.round(lowestPart * 1000) / 1000,
+          lowestAt,
+          completedBeforeLanding,
+        };
       },
 
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {

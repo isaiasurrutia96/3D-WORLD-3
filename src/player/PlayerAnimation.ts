@@ -8,7 +8,7 @@
  */
 
 import { MathUtils } from 'three';
-import type { CharacterRig } from './PlayerModel.ts';
+import { HIP_HEIGHT, type CharacterRig } from './PlayerModel.ts';
 import type { MovementState } from './Player.ts';
 
 export interface AnimationInputs {
@@ -28,6 +28,8 @@ export interface AnimationInputs {
   jumpStage: 1 | 2 | 3;
   /** How far round the triple jump's somersault is, in radians. */
   flipAngle: number;
+  /** True only while the somersault is actually turning. */
+  flipping: boolean;
   inputStrength: number;
   /** 0 at the start of a swim stroke, 1 when it has finished. */
   strokeProgress: number;
@@ -116,7 +118,7 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   // The somersault is added after blending. Easing toward it like any other
   // pose value would smooth a full rotation into almost no rotation at all.
   rig.body.rotation.set(current.bodyPitch + input.flipAngle, current.bodyYaw, current.bodyRoll);
-  rig.body.position.y = current.bodyHeight;
+  rig.body.position.y = HIP_HEIGHT + current.bodyHeight;
   rig.body.scale.set(
     1 / Math.sqrt(current.bodySquash),
     current.bodySquash,
@@ -280,7 +282,7 @@ function poseAir(input: AnimationInputs): void {
 
   // The third jump of a combo is a somersault. The rotation itself is applied
   // to the rig separately; this is the tuck that goes with it.
-  if (rising && input.jumpStage === 3) {
+  if (input.flipping) {
     pose.shoulderLeftPitch = -2.75;
     pose.shoulderRightPitch = -2.75;
     pose.shoulderLeftRoll = 0.15;
