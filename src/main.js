@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
+import {TRACK,createKart,stepKart,roadDistance} from './driving.js';
 import {COURSE_SURFACES,CHECKPOINTS,createCourse,updateCourse} from './course.js';
-import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, MAX_SPEED, POOL, TOWER, LADDER, floorHeight, inPool } from './movement.js';
+import { createPlayer, stepPlayer, FLOOR_HALF_SIZE, FLOOR_HALF_LENGTH, MAX_SPEED, POOL, TOWER, LADDER, floorHeight, inPool } from './movement.js';
 
 const canvas = document.querySelector('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -15,7 +16,7 @@ renderer.toneMappingExposure = 1.25;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#080e25');
 scene.fog = new THREE.Fog('#080e25', 35, 85);
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
 let manualCameraUntil=0;
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -64,10 +65,10 @@ const groundMaterial = material('#e6e0cf');
 function ground(x1,x2,z1,z2) {
   return mesh(new THREE.BoxGeometry(x2-x1,0.25,z2-z1),groundMaterial,scene,[(x1+x2)/2,-0.125,(z1+z2)/2]);
 }
-ground(-FLOOR_HALF_SIZE,POOL.minX,-FLOOR_HALF_SIZE,FLOOR_HALF_SIZE);
-ground(POOL.maxX,FLOOR_HALF_SIZE,-FLOOR_HALF_SIZE,FLOOR_HALF_SIZE);
-ground(POOL.minX,POOL.maxX,-FLOOR_HALF_SIZE,POOL.minZ);
-ground(POOL.minX,POOL.maxX,POOL.maxZ,FLOOR_HALF_SIZE);
+ground(-FLOOR_HALF_SIZE,POOL.minX,-FLOOR_HALF_LENGTH,FLOOR_HALF_LENGTH);
+ground(POOL.maxX,FLOOR_HALF_SIZE,-FLOOR_HALF_LENGTH,FLOOR_HALF_LENGTH);
+ground(POOL.minX,POOL.maxX,-FLOOR_HALF_LENGTH,POOL.minZ);
+ground(POOL.minX,POOL.maxX,POOL.maxZ,FLOOR_HALF_LENGTH);
 const tower = mesh(new THREE.BoxGeometry(6,TOWER.height,6),material('#8a819b'),scene,[-9,TOWER.height/2,-5]);
 tower.name='Climbing box';
 const ladderMaterial = material('#ba9461');
@@ -132,6 +133,56 @@ for(let i=0;i<route.length-1;i++){
     marker.rotation.x=-Math.PI/2;marker.rotation.z=Math.atan2(to.x-from.x,-(to.z-from.z));
   }
 }
+// Wide oval circuit around the movement course.
+function ovalPoints(radius){
+  const points=[];
+  for(let i=0;i<40;i++)points.push(new THREE.Vector3(radius,0,-100+i*5));
+  for(let i=0;i<64;i++){const angle=i/64*Math.PI;points.push(new THREE.Vector3(Math.cos(angle)*radius,0,100+Math.sin(angle)*radius));}
+  for(let i=0;i<40;i++)points.push(new THREE.Vector3(-radius,0,100-i*5));
+  for(let i=0;i<64;i++){const angle=Math.PI+i/64*Math.PI;points.push(new THREE.Vector3(Math.cos(angle)*radius,0,-100+Math.sin(angle)*radius));}
+  return points;
+}
+const outer=ovalPoints(TRACK.radius+TRACK.width/2),inner=ovalPoints(TRACK.radius-TRACK.width/2);
+const roadVertices=[],roadIndices=[];
+for(let i=0;i<outer.length;i++){roadVertices.push(outer[i].x,0.035,outer[i].z,inner[i].x,0.035,inner[i].z);const next=(i+1)%outer.length;roadIndices.push(i*2,next*2,i*2+1,next*2,next*2+1,i*2+1);}
+const roadGeometry=new THREE.BufferGeometry();roadGeometry.setAttribute('position',new THREE.Float32BufferAttribute(roadVertices,3));roadGeometry.setIndex(roadIndices);roadGeometry.computeVertexNormals();
+const roadMaterial=material('#3b4353');roadMaterial.side=THREE.DoubleSide;mesh(roadGeometry,roadMaterial,scene,[0,0,0]);
+const barrierGeometry=new THREE.BoxGeometry(1,0.7,1),barrierMaterials=[material('#bfc9d5'),material('#47647a')];
+const barrierInstances=[[],[]];
+for(const radius of [66,84]){
+  const points=ovalPoints(radius);
+  points.forEach((point,index)=>{
+    if(radius===66 && point.x>60 && point.z>=-10 && point.z<10)return;
+    const next=points[(index+1)%points.length];
+    barrierInstances[Math.floor(index/3)%2].push({x:(point.x+next.x)/2,z:(point.z+next.z)/2,length:point.distanceTo(next)+0.06,yaw:Math.atan2(next.x-point.x,next.z-point.z)});
+  });
+}
+const instanceTransform=new THREE.Object3D();
+barrierInstances.forEach((instances,color)=>{
+  const walls=new THREE.InstancedMesh(barrierGeometry,barrierMaterials[color],instances.length);
+  instances.forEach((part,index)=>{
+    instanceTransform.position.set(part.x,0.35,part.z);instanceTransform.rotation.set(0,part.yaw,0);instanceTransform.scale.set(0.45,1,part.length);instanceTransform.updateMatrix();walls.setMatrixAt(index,instanceTransform.matrix);
+  });scene.add(walls);
+});
+const lanePoints=ovalPoints(75),laneDashes=new THREE.InstancedMesh(new THREE.BoxGeometry(0.18,0.015,2),material('#d7d7bd'),lanePoints.length/2);
+lanePoints.forEach((point,index)=>{if(index%2)return;const next=lanePoints[(index+1)%lanePoints.length];instanceTransform.position.set(point.x,0.055,point.z);instanceTransform.rotation.set(0,Math.atan2(next.x-point.x,next.z-point.z),0);instanceTransform.scale.set(1,1,1);instanceTransform.updateMatrix();laneDashes.setMatrixAt(index/2,instanceTransform.matrix);});scene.add(laneDashes);
+for(let x=67;x<83;x+=2)for(let z=-1;z<1;z++)mesh(new THREE.BoxGeometry(2,0.018,1),material((Math.round((x-67)/2)+z)%2?'#e8e8dd':'#121b29'),scene,[x+1,0.06,z+0.5]);
+worldLabel('CIRCUIT → · VISIT KART',[43,3.2,0]);
+worldLabel('H · ENTER / EXIT',[75,4,0]);
+const kart=createKart(),kartModel=joint(scene,'Placeholder kart',[kart.x,0,kart.z]);
+const kartBody=material('#597eaa'),kartDark=material('#1e2735'),rubber=material('#1b2028');
+mesh(new THREE.BoxGeometry(1.9,0.3,2.8),kartBody,kartModel,[0,0.58,0]);
+mesh(new THREE.BoxGeometry(1.7,0.3,0.8),kartBody,kartModel,[0,0.76,0.9]);
+mesh(new THREE.BoxGeometry(0.85,0.5,0.9),kartDark,kartModel,[0,0.92,-0.15]);
+mesh(new THREE.BoxGeometry(0.85,0.8,0.18),kartDark,kartModel,[0,1.2,-0.55]);
+mesh(new THREE.BoxGeometry(2.1,0.15,0.16),kartDark,kartModel,[0,0.48,1.5]);
+const wheels=[];
+for(const x of [-1,1])for(const z of [-0.95,0.95]){
+  const steering=joint(kartModel,'wheel_steering',[x,0.4,z]);
+  const wheel=mesh(new THREE.CylinderGeometry(0.38,0.38,0.32,12),rubber,steering,[0,0,0]);wheel.rotation.z=Math.PI/2;
+  wheels.push({steering,wheel,front:z>0});
+}
+const steeringWheel=mesh(new THREE.TorusGeometry(0.24,0.04,6,12),kartDark,kartModel,[0,1.22,0.57]);steeringWheel.rotation.x=-0.6;
 // Simple era-style contact shadow, rather than modern real-time soft shadows.
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.61, 16),
   new THREE.MeshBasicMaterial({ color: '#36333c', transparent: true, opacity: 0.22, depthWrite: false }));
@@ -264,14 +315,34 @@ document.addEventListener('mousemove', event => {
 });
 const player = createPlayer();
 const course=createCourse();
+function kartSidePosition(){
+  let x=kart.x+Math.cos(kart.yaw)*2.5,z=kart.z-Math.sin(kart.yaw)*2.5;
+  if(roadDistance(x,z)<66.7||roadDistance(x,z)>83.3){x=kart.x-Math.cos(kart.yaw)*2.5;z=kart.z+Math.sin(kart.yaw)*2.5;}
+  return {x,z};
+}
+function nearKart(){return player.mode==='land'&&player.grounded&&Math.hypot(player.x-kart.x,player.z-kart.z)<3.6;}
+function toggleKart(){
+  if(player.mode==='drive'){
+    if(Math.abs(kart.speed)>1){document.querySelector('#drive-status').textContent='Brake to a stop before getting out';return;}
+    Object.assign(player,{mode:'land',...kartSidePosition(),y:0,vx:0,vy:0,vz:0,grounded:true});
+  }else if(nearKart()){player.mode='drive';player.jumpQueued=false;player.interactQueued=false;}
+  clearInput();manualCameraUntil=0;
+}
+document.querySelector('#enter-kart').addEventListener('click',toggleKart);
+document.querySelector('#visit-kart').addEventListener('click',()=>{
+  if(player.mode==='drive')return;
+  Object.assign(player,createPlayer(),kartSidePosition());
+  clearInput();controls.target.set(player.x,1.3,player.z);reset();
+});
 document.querySelector('#restart').addEventListener('click',()=>{
   Object.assign(player,createPlayer());Object.assign(course,createCourse());clearInput();
   controls.target.set(0,1.3,0);reset();
 });
 const keys = new Set();
 const joystickInput={x:0,y:0};
-const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC']);
+const inputCodes = new Set(['KeyE','KeyD','KeyA','KeyF','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','KeyC','KeyH']);
 function press(code) {
+  if(code==='KeyH'&&!keys.has(code)){toggleKart();return;}
   if (code === 'Space' && !keys.has(code)) player.jumpQueued = true;
   if (code === 'KeyC' && !keys.has(code) && player.mode!=='swim' && player.mode!=='exitPool') player.interactQueued = true;
   keys.add(code); player.jumpHeld = keys.has('Space');
@@ -421,9 +492,35 @@ document.addEventListener('visibilitychange', () => { clearInput(); previousTime
 renderer.setAnimationLoop(time => {
   const dt = previousTime === undefined ? 0 : Math.min((time-previousTime)/1000,0.1);
   previousTime = time; accumulator += dt;
-  while (accumulator >= fixedStep) { stepPlayer(player,inputDirection(),fixedStep);updateCourse(course,player,fixedStep); accumulator-=fixedStep; }
+  while (accumulator >= fixedStep) {
+    if(player.mode==='drive'){
+      const throttle=Number(keys.has('KeyE')||keys.has('ArrowUp'));
+      const brake=Number(keys.has('KeyD')||keys.has('ArrowDown'));
+      const steer=Number(keys.has('KeyF')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joystickInput.x;
+      stepKart(kart,{throttle,brake,steer},fixedStep);
+      Object.assign(player,{x:kart.x,z:kart.z,y:0,yaw:kart.yaw,vx:Math.sin(kart.yaw)*kart.speed,vz:Math.cos(kart.yaw)*kart.speed});
+    }else{stepPlayer(player,inputDirection(),fixedStep);updateCourse(course,player,fixedStep);}
+    accumulator-=fixedStep;
+  }
   izzy.position.set(player.x,player.y,player.z); izzy.rotation.y=player.yaw;
-  animatePlayer(dt);
+  kartModel.position.set(kart.x,0,kart.z);kartModel.rotation.y=kart.yaw;
+  wheels.forEach(({steering,wheel,front})=>{steering.rotation.y=front?kart.steer*0.4:0;wheel.rotation.x=kart.wheelSpin;});
+  const driving=player.mode==='drive';
+  izzy.scale.setScalar(driving?0.7:1);
+  izzy.position.y=driving?0.48:player.y;
+  if(driving){
+    pelvis.position.y=0.9;pelvis.rotation.x=0;torso.rotation.x=0.1;torso.rotation.y=0;
+    limbs.forEach(limb=>{limb.hip.rotation.x=-1.25;limb.knee.rotation.x=1.4;limb.ankle.rotation.x=-0.15;limb.shoulder.rotation.x=-1.2;limb.elbow.rotation.x=-0.6;limb.wrist.rotation.x=0;});
+  }else animatePlayer(dt);
+  document.body.classList.toggle('driving',driving);
+  document.querySelector('.controls div').firstChild.nodeValue=driving?'E gas · D brake / reverse · A/F steer · H exit':'E/D/A/F move · Space jump/swim/exit · C dive · Auto ladder';
+  document.querySelector('#enter-kart').hidden=!driving&&!nearKart();
+  document.querySelector('#enter-kart').textContent=driving?(Math.abs(kart.speed)>1?'Stop to exit':'Exit kart · H'):'Drive · H';
+  document.querySelector('#enter-kart').disabled=driving&&Math.abs(kart.speed)>1;
+  document.querySelector('#drive-status').hidden=!driving;
+  if(driving)document.querySelector('#drive-status').textContent=`${Math.round(Math.abs(kart.speed)*3.6)} km/h · LAP ${kart.laps+1} · ${kart.lapTime.toFixed(1)}s · E gas / D brake / A F steer`;
+  document.querySelector('[data-key="Space"]').hidden=driving;
+  document.querySelectorAll('.pedal').forEach(button=>button.hidden=!driving);
   updateBubbles(dt);
   const diveButton=document.querySelector('[data-key="KeyC"]');
   diveButton.hidden=player.mode!=='swim';
@@ -432,22 +529,22 @@ renderer.setAnimationLoop(time => {
     : `${course.next}/${CHECKPOINTS.length} · NEXT: ${CHECKPOINTS[course.next].name} · ${course.elapsed.toFixed(1)}s`;
   checkpointMarkers.forEach((marker,index)=>marker.material.color.set(index<course.next?'#76ba8a':index===course.next?'#f1c45d':'#7c899b'));
   shadow.position.set(player.x,floorHeight(player.x,player.z)+0.004,player.z);
-  shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_SIZE;
+  shadow.visible = !inPool(player.x,player.z) && player.mode!=='climb' && Math.abs(player.x)<=FLOOR_HALF_SIZE && Math.abs(player.z)<=FLOOR_HALF_LENGTH;
   shadow.material.opacity=0.22/(1+Math.max(0,player.y)*0.5);
   shadow.scale.setScalar(1+Math.max(0,player.y)*0.12); shadow.scale.y*=0.7;
-  const target = new THREE.Vector3(player.x,player.y+(player.mode==='swim' ? 1.0 : 1.3),player.z);
+  const target = new THREE.Vector3(player.x,player.y+(player.mode==='drive'?1.2:player.mode==='swim'?1.0:1.3),player.z);
   const offset = target.sub(controls.target);
   controls.target.add(offset); camera.position.add(offset);
   controls.update();
   // Settle behind the character, preserving manual orbit/zoom for a short time.
   chaseOffset.subVectors(camera.position,controls.target);
   chaseSpherical.setFromVector3(chaseOffset);
-  const travelling=Math.hypot(player.vx,player.vz)>0.5 || player.mode==='climb' || player.mode==='swim';
+  const travelling=Math.hypot(player.vx,player.vz)>0.5 || player.mode==='climb' || player.mode==='swim' || player.mode==='drive';
   if(time> manualCameraUntil && travelling){
     const heading=player.yaw+Math.PI;
     const difference=Math.atan2(Math.sin(heading-chaseSpherical.theta),Math.cos(heading-chaseSpherical.theta));
     chaseSpherical.theta+=difference*(1-Math.exp(-2.5*dt));
-    chaseSpherical.phi=THREE.MathUtils.lerp(chaseSpherical.phi,player.mode==='swim' ? 1.43 : 1.18,1-Math.exp(-2*dt));
+    chaseSpherical.phi=THREE.MathUtils.lerp(chaseSpherical.phi,player.mode==='drive'?1.30:player.mode==='swim' ? 1.43 : 1.18,1-Math.exp(-2*dt));
     camera.position.copy(controls.target).add(chaseOffset.setFromSpherical(chaseSpherical));
   }
   // Keep the chase camera in front of the climbing box rather than inside it.
@@ -464,12 +561,12 @@ renderer.setAnimationLoop(time => {
   }
   const submerged=inPool(camera.position.x,camera.position.z)&&camera.position.y<POOL.water;
   scene.fog.color.set(submerged ? '#174957' : '#080e25');
-  scene.fog.near=submerged ? 4 : 35;scene.fog.far=submerged ? 30 : 85;
+  scene.fog.near=submerged?4:player.mode==='drive'?70:35;scene.fog.far=submerged?30:player.mode==='drive'?260:160;
   camera.lookAt(controls.target);
   worldLabels.forEach(label=>{label.visible=label.position.distanceTo(camera.position)>7;});
   renderer.render(scene,camera);
   canvas.dataset.state = player.mode==='land' ? (player.grounded ? 'grounded' : 'airborne') : player.mode;
   const label=document.querySelector('.scene-label');
-  label.textContent=player.mode==='exitPool' ? 'PULLING UP · PUSHING ONTO THE EDGE' : player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / C DIVE · TAP SPACE AT EDGE TO CLIMB OUT' : 'LADDER: WALK OR JUMP ON · E UP / D DOWN';
+  label.textContent=player.mode==='drive' ? 'E GAS · D BRAKE / REVERSE · A F STEER · H EXIT WHEN STOPPED' : player.mode==='exitPool' ? 'PULLING UP · PUSHING ONTO THE EDGE' : player.mode==='climb' ? 'CLIMBING · E UP / D DOWN · SPACE LET GO' : player.mode==='swim' ? 'SWIMMING · SPACE STROKE / C DIVE · TAP SPACE AT EDGE TO CLIMB OUT' : 'LADDER: WALK OR JUMP ON · E UP / D DOWN';
   canvas.dataset.position = `${player.x.toFixed(3)},${player.y.toFixed(3)},${player.z.toFixed(3)}`;
 });

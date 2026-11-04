@@ -94,3 +94,35 @@ test('course requires ordered checkpoints, then records completion',async()=>{
  for(const checkpoint of CHECKPOINTS){Object.assign(p,{x:checkpoint.x,y:checkpoint.y,z:checkpoint.z,mode:checkpoint.name==='SWIM'?'swim':'land',grounded:true,vx:1});updateCourse(course,p,dt);}
  assert.equal(course.finished,true);assert.equal(course.next,CHECKPOINTS.length);const time=course.elapsed;updateCourse(course,p,1);assert.equal(course.elapsed,time);
 });
+
+test('kart accelerates, brakes, reverses, and cannot steer while stopped',async()=>{
+ const {createKart,stepKart,KART_MAX_SPEED}=await import('../src/driving.js');const kart=createKart();
+ for(let i=0;i<360;i++)stepKart(kart,{throttle:1},dt);assert.equal(kart.speed,KART_MAX_SPEED);
+ for(let i=0;i<240;i++)stepKart(kart,{brake:1},dt);assert.ok(kart.speed<0);assert.ok(kart.speed>=-8);
+ Object.assign(kart,{speed:0,yaw:0});stepKart(kart,{steer:1},dt);assert.equal(kart.yaw,0);
+});
+test('kart steering changes heading and circuit walls contain it',async()=>{
+ const {createKart,stepKart,roadDistance}=await import('../src/driving.js');const kart=createKart();
+ for(let i=0;i<1200;i++){stepKart(kart,{throttle:1,steer:0.7},dt);const d=roadDistance(kart.x,kart.z);assert.ok(d>=67.19&&d<=82.81);}
+ assert.ok(Math.abs(kart.yaw)>0.5);
+});
+test('lap counting requires every gate in order',async()=>{
+ const {createKart,stepKart}=await import('../src/driving.js');const kart=createKart();stepKart(kart,{},dt);assert.equal(kart.laps,0);
+ for(const [x,z] of [[0,175],[-75,0],[0,-175],[75,0]]){Object.assign(kart,{x,z});stepKart(kart,{},dt);}
+ assert.equal(kart.laps,1);assert.equal(kart.gate,0);
+});
+
+test('the complete oval is drivable at speed and records a lap',async()=>{
+ const {createKart,stepKart}=await import('../src/driving.js');const kart=createKart(),r=75,L=400+2*Math.PI*r;
+ const point=s=>{s=((s%L)+L)%L;if(s<200)return [r,s-100];s-=200;if(s<Math.PI*r)return [Math.cos(s/r)*r,100+Math.sin(s/r)*r];s-=Math.PI*r;if(s<200)return [-r,100-s];s-=200;return [Math.cos(Math.PI+s/r)*r,-100+Math.sin(Math.PI+s/r)*r];};
+ for(let i=0;i<6000 && kart.laps===0;i++){
+  let progress;if(kart.z>100)progress=200+Math.atan2(kart.z-100,kart.x)*r;
+  else if(kart.z< -100){let angle=Math.atan2(kart.z+100,kart.x);if(angle<0)angle+=Math.PI*2;progress=400+Math.PI*r+(angle-Math.PI)*r;}
+  else progress=kart.x>=0?kart.z+100:200+Math.PI*r+100-kart.z;
+  const [tx,tz]=point(progress+18),dx=tx-kart.x,dz=tz-kart.z;
+  const desired=Math.atan2(dx,dz),error=Math.atan2(Math.sin(desired-kart.yaw),Math.cos(desired-kart.yaw));
+  const curvature=2*Math.sin(error)/Math.hypot(dx,dz);
+  stepKart(kart,{throttle:1,steer:Math.atan(curvature*2.4)*(1+Math.abs(kart.speed)*0.065)/0.6},dt);
+ }
+ assert.equal(kart.laps,1);assert.ok(kart.lastLap>20);assert.ok(kart.speed>25);
+});

@@ -1,6 +1,6 @@
 # LetsGo — Izzy's first ground
 
-A small Three.js test scene: a 200 × 200 floor slab and a mannequin Izzy wearing a white T-shirt, charcoal chinos, white shoes, and a dark LA cap with running, jumping, swimming, and ladder climbing. Drag to orbit, scroll or pinch to zoom, and use **Reset view** (or press **R** with the canvas focused) to restore the camera.
+A small Three.js test scene: a 260 × 460 floor slab and a mannequin Izzy wearing a white T-shirt, charcoal chinos, white shoes, and a dark LA cap with running, jumping, swimming, and ladder climbing. Drag to orbit, scroll or pinch to zoom, and use **Reset view** (or press **R** with the canvas focused) to restore the camera.
 
 ## Development
 
@@ -32,6 +32,12 @@ The model matches the gray mannequin reference: round featureless head, visible 
 
 ## Movement course
 
-Follow the numbered gold rings in order: stairs, gap-jump platforms, down the ramp, ladder roof, pool, finish. The course timer begins when you move; passed rings turn green. Tap Space for shorter hops across the gaps, or hold it to jump higher. **Restart course** resets Izzy, the camera, timer, and progress. The slab is 200 × 200 units.
+Follow the numbered gold rings in order: stairs, gap-jump platforms, down the ramp, ladder roof, pool, finish. The course timer begins when you move; passed rings turn green. Tap Space for shorter hops across the gaps, or hold it to jump higher. **Restart course** resets Izzy, the camera, timer, and progress. The slab is 260 × 460 units.
 
-Sleeves have a hard color boundary, the cap tilts back slightly to raise its brim, Dive appears only while swimming, and the pool pull-up takes 0.65 seconds. No car or driving mode is included.
+Sleeves have a hard color boundary, the cap tilts back slightly to raise its brim, Dive appears only while swimming, and the pool pull-up takes 0.65 seconds. A separate basic kart-driving circuit surrounds the movement course.
+
+## Oval circuit and kart
+
+Click **Visit circuit**, then press **H** or tap **Drive** near the kart. E accelerates, D brakes and then reverses, and A/F steer; steering is relative to the kart rather than the camera. Stop before pressing H or Exit to get out. On mobile, use the joystick to steer and the Gas/Brake pedals. The chase camera follows the kart.
+
+The oval has two 200-unit straights, broad 75-unit-radius turns, an 18-unit-wide road, lane markings, low barriers, and an infield entrance beside the kart. Lap gates must be passed in order. The center movement course remains available. This is a placeholder kart and independently tuned arcade handling; drifting, opponents, items, and a detailed vehicle model are future work.

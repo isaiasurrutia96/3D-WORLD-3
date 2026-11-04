@@ -1,7 +1,9 @@
+import {roadDistance} from './driving.js';
 import { COURSE_SURFACES, contains, surfaceHeight } from './course.js';
 // World units are approximately meters. These are independently tuned prototype
 // values, not a port of the original game's physics or animation code.
-export const FLOOR_HALF_SIZE = 100;
+export const FLOOR_HALF_SIZE = 130;
+export const FLOOR_HALF_LENGTH = 230;
 export const MAX_SPEED = 11.5;
 export const POOL = { minX: 7, maxX: 27, minZ: -10, maxZ: 10, bottom: -4, water: -0.35 };
 export const TOWER = { minX: -12, maxX: -6, minZ: -8, maxZ: -2, height: 5 };
@@ -87,6 +89,20 @@ export function stepPlayer(player, input, dt) {
   player.jumpQueued = false;
   const previousX=player.x,previousZ=player.z;
   player.x += player.vx * dt; player.z += player.vz * dt;
+  // Low circuit barriers can be jumped; the infield gate remains open.
+  if(player.y<0.7){
+    const before=roadDistance(previousX,previousZ),after=roadDistance(player.x,player.z);
+    const gate=player.x>60&&Math.abs(player.z)<10;
+    let boundary=null;
+    if(!gate && before<66 && after>65.4)boundary=65.4;
+    else if(!gate && before>=66 && before<=84 && after<66.6)boundary=66.6;
+    if(before<=84 && before>=66 && after>83.4)boundary=83.4;
+    else if(before>84 && after<84.6)boundary=84.6;
+    if(boundary!==null){
+      const spine=Math.max(-100,Math.min(100,player.z)),distance=roadDistance(player.x,player.z);
+      player.x=player.x/distance*boundary;player.z=spine+(player.z-spine)/distance*boundary;player.vx=player.vz=0;
+    }
+  }
   // Small stair risers are walkable; raised platform sides block entry.
   for(const surface of COURSE_SURFACES){
     if(!contains(surface,player.x,player.z))continue;
@@ -126,7 +142,7 @@ export function stepPlayer(player, input, dt) {
       player.gait+=dt*(moving?7:2);return;
     }
   }
-  const aboveFloor = Math.abs(player.x) <= FLOOR_HALF_SIZE && Math.abs(player.z) <= FLOOR_HALF_SIZE;
+  const aboveFloor = Math.abs(player.x) <= FLOOR_HALF_SIZE && Math.abs(player.z) <= FLOOR_HALF_LENGTH;
   const ground = floorHeight(player.x,player.z);
   if(player.grounded && aboveFloor && ground-player.y<=0.34 && player.y-ground<=0.5)player.y=ground;
   else if (!aboveFloor || player.y>ground+0.01) player.grounded = false;
