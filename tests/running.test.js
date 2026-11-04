@@ -116,7 +116,7 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
   assert.equal(SPRINT_DURATION,.46);
   assert.equal(SPRINT_SPEED,SPRINT_STRIDE/SPRINT_DURATION);
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
-  animation.update({speed:SPRINT_SPEED,phase:.239,distance:0,sprinting:true,sprintStarts:1},1);
+  animation.update({speed:SPRINT_SPEED,phase:.214,distance:0,sprinting:true,sprintStarts:1},1);
   avatar.updateMatrixWorld(true);
   const ankle=avatar.skeleton.getBoneByName('left_foot').getWorldPosition(new THREE.Vector3());
   assert.ok(ankle.z<-.35);assert.ok(avatar.skeleton.getBoneByName('left_calf').rotation.x<.6);
@@ -128,7 +128,7 @@ test('longer sprint extends the rear leg without increasing cadence or diagonal 
 test('sprint balances opposite arm/knee drive with a straight leaning torso and extended push-off',()=>{
   const avatar=createAvatar(),animation=createRunningAnimator(avatar);
   const bones=avatar.skeleton;
-  for(const [side,phase] of [['left',.239],['right',.739]]){
+  for(const [side,phase] of [['left',.214],['right',.714]]){
     animation.update({speed:SPRINT_SPEED,phase,distance:0,sprinting:true},1);
     avatar.updateMatrixWorld(true);
     const point=name=>bones.getBoneByName(name).getWorldPosition(new THREE.Vector3());
@@ -136,14 +136,14 @@ test('sprint balances opposite arm/knee drive with a straight leaning torso and 
     const bend=knee.clone().sub(hip).angleTo(ankle.clone().sub(knee));
     assert.ok(bend<.20 && bend>.04,`push-off bend ${bend}`);
     const opposite=side==='left'?'right':'left';
-    assert.ok(point(`${opposite}_calf`).y>point(`${opposite}_thigh`).y+.08);
+    assert.ok(point(`${opposite}_foot`).z-point(`${opposite}_thigh`).z<.26,'recovery stays close to the body');
     const hand=bones.getBoneByName(`${side}_hand`).localToWorld(new THREE.Vector3(side==='left'?-.01:.01,-.095,.015));
     const head=bones.getBoneByName('head').localToWorld(new THREE.Vector3(0,.15,0));
     assert.ok(hand.y<head.y-.15,'arm range stays below the old exaggerated head-height reach');
     const pelvisAxis=point('spine').sub(point('pelvis')).normalize();
     const chestAxis=point('neck').sub(point('spine')).normalize();
     assert.ok(pelvisAxis.dot(chestAxis)>.9999,'pelvis and chest remain aligned');
-    assert.ok(pelvisAxis.z>.08 && pelvisAxis.z<.12,'small whole-torso lean');
+    assert.ok(pelvisAxis.z>.18 && pelvisAxis.z<.22,'hips and torso lean forward together');
     assert.ok(Math.abs(bones.getBoneByName('spine').rotation.x)<.0001);
   }
 });
@@ -159,4 +159,20 @@ test('sprint arms have one smooth forward/backward swing per leg cycle',()=>{
   assert.equal(minima,1);assert.equal(maxima,1);
   assert.ok(Math.abs(sprintArmSwing(.24)+.95)<1e-10);
   assert.ok(Math.abs(sprintArmSwing(.74)-.65)<1e-10);
+});
+
+test('sprint reduces forward reach and recovery knee bend across the complete cycle',()=>{
+  const avatar=createAvatar(),animation=createRunningAnimator(avatar),bones=avatar.skeleton;
+  let maximumReach=0,maximumBend=0;
+  for(let i=0;i<240;i++){
+    animation.update({speed:SPRINT_SPEED,phase:i/240,distance:0,sprinting:true},1);
+    avatar.updateMatrixWorld(true);
+    const p=name=>bones.getBoneByName(name).getWorldPosition(new THREE.Vector3());
+    for(const side of ['left','right']){
+      const hip=p(`${side}_thigh`),knee=p(`${side}_calf`),ankle=p(`${side}_foot`);
+      maximumReach=Math.max(maximumReach,ankle.z-hip.z);
+      maximumBend=Math.max(maximumBend,knee.clone().sub(hip).angleTo(ankle.clone().sub(knee)));
+    }
+  }
+  assert.ok(maximumReach<.26);assert.ok(maximumBend<2.3);
 });
