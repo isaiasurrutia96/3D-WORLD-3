@@ -101,18 +101,23 @@ const FRAGMENT = /* glsl */ `
     // showed up as one large white smear; fine ripples break it into glints.
     vec3 halfVector = normalize(uSunDirection + viewDirection);
     float specular = pow(max(dot(normal, halfVector), 0.0), 420.0);
+    // Finer than it was. These frequencies were chosen for a moat eighty
+    // metres across; on a thirty metre pool they were coarse enough to read
+    // as a checkerboard smear rather than as glints on water.
     float ripple = 0.5 + 0.5 *
-      sin(vWorldPosition.x * 8.3 + uTime * 2.6) *
-      sin(vWorldPosition.z * 7.1 - uTime * 2.1);
-    above += vec3(1.0, 0.97, 0.88) * specular * (0.25 + ripple * 0.7);
+      sin(vWorldPosition.x * 21.7 + uTime * 2.6) *
+      sin(vWorldPosition.z * 18.3 - uTime * 2.1);
+    above += vec3(1.0, 0.97, 0.88) * specular * (0.15 + ripple * 0.45);
 
     // Fine sparkle so the surface is never completely still. Three
     // non-harmonic frequencies, so it does not settle into a visible grid.
+    // Likewise: finer, sparser and fainter, so it is a scatter of glints
+    // instead of a regular grid of dots laid over the whole pool.
     float sparkle =
-      sin(vWorldPosition.x * 11.3 + uTime * 2.2) *
-      sin(vWorldPosition.z * 9.7 - uTime * 1.8) *
-      sin((vWorldPosition.x + vWorldPosition.z) * 5.1 + uTime * 1.1);
-    above += vec3(0.55, 0.6, 0.62) * max(0.0, abs(sparkle) - 0.86) * 2.4;
+      sin(vWorldPosition.x * 27.3 + uTime * 2.2) *
+      sin(vWorldPosition.z * 23.9 - uTime * 1.8) *
+      sin((vWorldPosition.x + vWorldPosition.z) * 13.7 + uTime * 1.1);
+    above += vec3(0.55, 0.6, 0.62) * max(0.0, abs(sparkle) - 0.93) * 1.6;
 
     // ---- Seen from underneath ----------------------------------------------
     // Looking up through water is not looking down at it. Straight up there
