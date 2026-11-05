@@ -715,11 +715,15 @@ for (const [where, result] of [
       `eight presses of Space ${where} gave ${result.states.join(' > ')}`,
     );
   }
-  if (result.rose > 0.6) {
-    problems.push(
-      `eight presses of Space ${where} lifted him ${result.rose}m, out of the water`,
-    );
-  }
+}
+// The height check belongs to the surface alone. Underwater, strokes are
+// meant to carry him up — that is how you come back from the bottom — and
+// the test starts him down there, so a four metre rise is the right answer.
+if (course.strokeSpam.surface.rose > 0.6) {
+  problems.push(
+    `eight presses of Space at the surface lifted him ` +
+      `${course.strokeSpam.surface.rose}m, out of the water`,
+  );
 }
 // And floating still is floating still: coming up from the bottom with
 // nothing pressed must leave him treading water, not snatched onto the side.
