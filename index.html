@@ -12,7 +12,10 @@
       <header><a class="brand" href="./">LetsGo<span>®</span></a></header>
       <section class="trial-panel" aria-label="Time trial">
         <div class="trial-heading"><span>TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
-        <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
+        <div class="trial-current">
+          <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
+          <span class="speed-readout"><output id="kart-speed" aria-label="Kart speed in miles per hour" aria-live="off">0</output><span>MPH</span></span>
+        </div>
         <div class="trial-best"><span class="ghost-rank ghost-rank-1">#1 BEST</span> <output id="trial-best" aria-label="Best lap time">--:--.---</output></div>
         <ol class="trial-records" start="2" aria-label="Second through fourth fastest laps">
           <li><span class="ghost-rank ghost-rank-2">#2</span><output data-lap-rank="2">--:--.---</output></li>

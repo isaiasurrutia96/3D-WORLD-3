@@ -7,11 +7,14 @@ import {trackSamples} from '../src/track.js';
 import {createAvatar} from '../src/avatar.js';
 import {createOnFootAvatar} from '../src/on-foot/avatar.js';
 import {createJumpClip} from '../src/animation/jump-clip.js';
-import {createSeatedPose,createVehicleView} from '../src/vehicle-view.js';
+import {createSeatedPose,createVehicleView,speedToMph} from '../src/vehicle-view.js';
 import {createKartFrame} from '../src/kart.js';
 import {createGhostTemplate} from '../src/ghost-kart.js';
 const DT=1/120;
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
+test('MPH readout converts metres per second and shows reverse speed as a magnitude',()=>{
+ for(const [speed,mph]of [[0,0],[25,56],[42,94],[66,148],[-8,18]])assert.equal(speedToMph(speed),mph);
+});
 function advance(state,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/DT);i++)stepVehicle(state,input,DT,world);}
 
 test('kart accelerates, coasts, brakes and reverses with bounded speed',()=>{

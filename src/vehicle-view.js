@@ -1,6 +1,8 @@
 import {resetRig,HIP_HEIGHT} from './on-foot/avatar.js';
 import * as THREE from 'three';
 
+export function speedToMph(speed){return Math.round(Math.abs(speed)*2.2369362920544);}
+
 export function createVehicleView(model){
  const wheels=[];
  for(const axle of ['front_axle','rear_axle'])for(const side of ['left','right'])wheels.push({node:model.getObjectByName(`${axle}_${side}_wheel`),front:axle==='front_axle'});
