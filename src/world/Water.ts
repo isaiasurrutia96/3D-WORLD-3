@@ -21,6 +21,10 @@ const VERTEX = /* glsl */ `
   uniform float uTime;
   varying vec3 vWorldPosition;
   varying vec3 vNormalW;
+  // The plane's own coordinates, which is how far across this body of water
+  // a point is. Depth has to come from the water, not from where the water
+  // happens to sit in the world.
+  varying vec2 vLocal;
 
   // Three travelling waves at different angles and scales. Summing them keeps
   // the surface from showing an obvious repeating direction.
@@ -47,6 +51,7 @@ const VERTEX = /* glsl */ `
 
   void main() {
     vec4 world = modelMatrix * vec4(position, 1.0);
+    vLocal = position.xz;
     vWorldPosition = world.xyz;
     vNormalW = waveNormal(world.xz, uTime);
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -61,8 +66,10 @@ const FRAGMENT = /* glsl */ `
   uniform vec3 uUnderColor;
   uniform vec3 uSunDirection;
   uniform float uReflectivity;
+  uniform float uHalfSize;
   varying vec3 vWorldPosition;
   varying vec3 vNormalW;
+  varying vec2 vLocal;
 
   void main() {
     vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
@@ -73,11 +80,18 @@ const FRAGMENT = /* glsl */ `
     // rather than collapsing to the single value a clamp gives it.
     float facing = abs(dot(viewDirection, normal));
 
+    // ---- How deep the water is here ----------------------------------------
+    // Shallow at the rim, deepest in the middle, measured across the water's
+    // own plane. This used to be the distance from the world origin, which
+    // was written for a moat ringing an island that sits there — any other
+    // body of water is tens of metres away from it, so the term pinned at
+    // its maximum and the whole pool came out the darkest colour on the
+    // ramp, every pixel of it.
+    float toEdge = max(abs(vLocal.x), abs(vLocal.y)) / max(uHalfSize, 0.001);
+    float deep = smoothstep(0.0, 0.72, 1.0 - clamp(toEdge, 0.0, 1.0));
+
     // ---- Seen from above ---------------------------------------------------
-    // A cheap stand-in for depth: the water is deeper away from the island.
-    float shoreDistance = clamp(
-      (abs(vWorldPosition.x) + abs(vWorldPosition.z + 12.0)) * 0.012, 0.0, 1.0);
-    vec3 baseColor = mix(uShallowColor, uDeepColor, 0.45 + shoreDistance * 0.3);
+    vec3 baseColor = mix(uShallowColor, uDeepColor, deep);
 
     // Grazing angles reflect the sky; looking straight down shows the depth.
     float fresnel = pow(1.0 - facing, 3.0);
@@ -119,9 +133,15 @@ const FRAGMENT = /* glsl */ `
     // between two different-looking materials from one frame to the next.
     float side = smoothstep(0.08, -0.08, cameraPosition.y - vWorldPosition.y);
 
+    // Deep water hides what is under it; shallow water does not. A single
+    // flat 0.74 meant the middle of the pool was three quarters of a dark
+    // basin, in a scene with no sky to light either of them — which is most
+    // of why it read as black rather than as blue.
+    float aboveAlpha = mix(0.62, 0.86, deep);
+
     gl_FragColor = vec4(
       mix(above, under, side),
-      mix(0.74, mix(0.94, 0.55, window), side)
+      mix(aboveAlpha, mix(0.9, 0.55, window), side)
     );
     #include <colorspace_fragment>
   }
@@ -134,6 +154,7 @@ export class Water extends Mesh {
     uDeepColor: { value: Color };
     uSkyColor: { value: Color };
     uUnderColor: { value: Color };
+    uHalfSize: { value: number };
     uSunDirection: { value: Vector3 };
     uReflectivity: { value: number };
   };
@@ -141,14 +162,19 @@ export class Water extends Mesh {
   constructor(size: number, level: number, sunDirection: Vector3, reflective: boolean) {
     const uniforms = {
       uTime: { value: 0 },
-      uShallowColor: { value: new Color('#3fb6c9') },
-      uDeepColor: { value: new Color('#14566e') },
+      // Lifted from where they were. The old pair was chosen against a lit
+      // terrain under a sky; here the water lies over an unlit basin with a
+      // near-black backdrop behind it, and anything this dark simply
+      // disappeared into both.
+      uShallowColor: { value: new Color('#5ccbd8') },
+      uDeepColor: { value: new Color('#1d7f9c') },
       uSkyColor: { value: new Color('#bfe4f7') },
       // The colour the underside falls to at grazing angles: the water below
       // it, mirrored back down. Dark, but never black.
-      uUnderColor: { value: new Color('#0d3d52') },
+      uUnderColor: { value: new Color('#1a6079') },
       uSunDirection: { value: sunDirection.clone() },
       uReflectivity: { value: reflective ? 0.95 : 0.55 },
+      uHalfSize: { value: size / 2 },
     };
 
     super(
