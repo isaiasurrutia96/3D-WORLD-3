@@ -63,6 +63,10 @@
         <div class="camera-keys"><span><kbd>V</kbd>Change view</span><span id="camera-hint">Drag to rotate · Scroll / pinch to zoom</span><span><kbd>L</kbd>Mouse lock <kbd>ESC</kbd>Release <kbd>R</kbd>Reset view</span></div>
       </aside>
       <section id="touch-controls" class="touch-controls" aria-label="Touch controls">
+        <div id="touch-steering" role="group" aria-label="Kart steering buttons" hidden>
+          <button id="touch-left" type="button" aria-label="Steer left" aria-pressed="false"><span aria-hidden="true">←</span><small>Left</small></button>
+          <button id="touch-right" type="button" aria-label="Steer right" aria-pressed="false"><span aria-hidden="true">→</span><small>Right</small></button>
+        </div>
         <div id="touch-steer" role="group" aria-label="Touch steering joystick"><span id="touch-stick-thumb"></span><span id="touch-steer-label">Steer</span></div>
         <button id="touch-secondary" type="button" aria-pressed="false"><span aria-hidden="true">↓</span><span id="touch-secondary-label">Reverse</span></button>
         <button id="touch-primary" type="button" aria-pressed="false"><span id="touch-primary-label">Drift</span><small id="touch-primary-hint">E-brake</small></button>

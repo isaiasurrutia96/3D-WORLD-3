@@ -53,9 +53,16 @@ canvas[data-drifting="true"]~.key-chart .drift-key kbd{color:#b5f8ff;border-colo
 #touch-secondary>span:first-child{font-size:17px}
 #touch-primary.is-held,#touch-secondary.is-held{border-color:#a1f6ff;background:#245265c9}
 #touch-secondary.is-unavailable{opacity:.4}
+#touch-steering{position:absolute;left:max(24px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));display:flex;gap:10px;pointer-events:none}
+#touch-left,#touch-right{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:64px;height:64px;border:1.5px solid #d2def78c;border-radius:20px;background:#101b3566;color:#f1f5fe;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#touch-left>span,#touch-right>span{font:500 26px Arial,sans-serif}#touch-left small,#touch-right small{font:600 9px Arial,sans-serif}
+#touch-left.is-held,#touch-right.is-held{border-color:#a1f6ff;background:#245265c9}
+#touch-controls[data-mode="driving"] #touch-secondary{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 84px)}
 @media(max-width:700px){.game-navigation{top:64px;left:20px}.race-tools{top:16px;right:12px;width:176px}}
 @media(max-width:380px){.touch-mode .game-navigation{display:grid;grid-template-columns:repeat(2,auto)}.touch-mode .race-tools{width:164px}.touch-mode #trial-time{font-size:20px}}
 @media(orientation:landscape) and (max-height:550px){
+ #touch-steering{bottom:max(18px,env(safe-area-inset-bottom))}
+ #touch-controls[data-mode="driving"] #touch-secondary{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 84px)}
  .touch-mode .trial-details[open] .trial-details-body{position:absolute;top:0;right:calc(100% + 10px);width:176px;padding:10px 11px;border:1px solid #65758d80;border-radius:12px;background:#101b35f5}
  .touch-mode .trial-details[open]>summary{margin-bottom:0}
  #touch-steer{width:104px;height:104px;bottom:max(18px,env(safe-area-inset-bottom))}

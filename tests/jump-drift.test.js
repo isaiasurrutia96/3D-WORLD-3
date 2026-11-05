@@ -6,7 +6,7 @@ import {createOnFootAvatar} from '../src/on-foot/avatar.js';
 import {createOnFootState,stepOnFoot,STEP} from '../src/on-foot/controller.js';
 import {createOnFootAnimator} from '../src/on-foot/animation.js';
 import {RUN_SPEED} from '../src/on-foot/ground-movement.js';
-import {createVehicleState,stepVehicle,VEHICLE_TOP_SPEED} from '../src/vehicle-controller.js';
+import {createVehicleState,stepVehicle,VEHICLE_TOP_SPEED,DRIFT_EXIT_DURATION} from '../src/vehicle-controller.js';
 import {readDrivingInput} from '../src/input.js';
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 function advance(kart,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/STEP);i++)stepVehicle(kart,input,STEP,world);}
@@ -100,6 +100,40 @@ test('unwinding the sideways body angle does not add an unintended turn to the t
    assert.ok(Math.abs(angle(Math.atan2(kart.x-x,kart.z-z),initial))<1e-9,'body alignment preserves the existing movement direction');
   }
   assert.ok(Math.abs(kart.driftAngle)<.002);
+ }
+});
+
+test('drift release eases the body into alignment without an initial whip, extra turn or speed change',()=>{
+ for(const direction of [-1,1])for(const speed of [42,66]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed,boostTime:speed>42?5:0};
+  advance(kart,.8,{throttle:1,steer:direction,drift:true});kart.steering=0;
+  const slip=Math.abs(kart.driftAngle),heading=kart.yaw+kart.driftAngle;
+  let previous=slip,firstRate=0,lastRate=0,maxRate=0;
+  for(let i=0;i<Math.round(DRIFT_EXIT_DURATION/STEP);i++){
+   const x=kart.x,z=kart.z;stepVehicle(kart,{throttle:1},STEP,flat);
+   const current=Math.abs(kart.driftAngle),rate=(previous-current)/STEP;
+   assert.ok(current<=previous+1e-9&&kart.driftAngle*direction>=0,'monotonic recovery without overshoot');
+   assert.ok(Math.abs(angle(Math.atan2(kart.x-x,kart.z-z),heading))<1e-9,'alignment cannot introduce a turn');
+   if(i===0)firstRate=rate;lastRate=rate;maxRate=Math.max(maxRate,rate);previous=current;
+   if(i===11)assert.ok(current>slip*.94,'the first 100 ms must not abruptly consume the slide');
+   assert.equal(kart.speed,speed,'release preserves the accelerator and existing speed cap');
+  }
+  assert.ok(firstRate<maxRate*.02&&lastRate<maxRate*.02,'both ends of recovery ease gently');
+  assert.ok(Math.abs(kart.driftAngle)<1e-9);assert.equal(kart.drifting,false);
+ }
+});
+
+test('countersteering and re-entering a drift remain responsive during release recovery',()=>{
+ for(const direction of [-1,1]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:42};
+  advance(kart,.8,{throttle:1,steer:direction,drift:true});
+  advance(kart,.15,{throttle:1});assert.ok(Math.abs(kart.driftAngle)>.4);
+  const corrected=travelHeading(kart,.15,{throttle:1,steer:-direction});
+  assert.ok(corrected.rate*direction>0,'ordinary steering remains available during recovery');
+  const before={...kart};stepVehicle(kart,{throttle:1,steer:-direction,drift:true},STEP,flat);
+  assert.equal(kart.drifting,true);assert.equal(kart.driftDirection,-direction);assert.equal(kart.driftExitTime,-1);
+  assert.ok(Math.hypot(kart.x-before.x,kart.z-before.z)<.36,'re-entry does not jump position');
+  assert.ok(Math.abs(angle(kart.yaw,before.yaw))<.15,'re-entry does not snap the body around');
  }
 });
 

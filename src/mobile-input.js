@@ -11,8 +11,10 @@ export function stickDirection(dx,dy,radius){
 // is queued so it cannot disappear between fixed simulation steps.
 export function createMobileInput(){
  const held=new Map();let stick=null,right=0,forward=0,primaryPressed=false,secondaryPressed=false;
- function read(){return{right,forward,primary:[...held.values()].includes('primary'),primaryPressed,secondary:[...held.values()].includes('secondary'),secondaryPressed};}
+ const isHeld=action=>[...held.values()].includes(action);
+ function read(){return{right:clamp(right+Number(isHeld('right'))-Number(isHeld('left'))),forward,primary:isHeld('primary'),primaryPressed,secondary:isHeld('secondary'),secondaryPressed};}
  return{
+  isHeld,
   beginStick(id){if(stick!==null&&stick!==id)return false;stick=id;return true;},
   moveStick(id,axes){if(stick===id){right=clamp(axes.right);forward=clamp(axes.forward);}},
   hold(id,action){if(![...held.values()].includes(action)){if(action==='primary')primaryPressed=true;else if(action==='secondary')secondaryPressed=true;}held.set(id,action);},

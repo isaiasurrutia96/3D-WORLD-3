@@ -5,14 +5,15 @@ export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=66;
 export const STEERING_LOCK=.39;
 export const DRIFT_MIN_SPEED=12;
 export const E_BRAKE_DECELERATION=48;
+export const DRIFT_EXIT_DURATION=.55;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftTurn:0,driftAngle:0,driftBlocked:false};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftTurn:0,driftAngle:0,driftBlocked:false,driftExitTime:-1,driftExitAngle:0};
 }
 export function stepVehicle(state,input,dt,world){
- const previousYaw=state.yaw,previousDriftAngle=state.driftAngle;
+ const previousYaw=state.yaw,previousDriftAngle=state.driftAngle,wasDrifting=state.drifting;
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
  const boosting=state.boostTime>0,spinning=state.spinTime>0;
  state.boostTime=Math.max(0,state.boostTime-dt);
@@ -28,6 +29,8 @@ export function stepVehicle(state,input,dt,world){
  if(canDrift&&driftHeld&&!state.drifting&&!state.driftBlocked&&state.speed>=DRIFT_MIN_SPEED&&Math.abs(steer)>.15){
   state.drifting=true;state.driftDirection=Math.sign(steer);state.driftTurn=Math.abs(steer);
  }
+ if(wasDrifting&&!driftHeld&&state.grounded&&!spinning){state.driftExitTime=0;state.driftExitAngle=state.driftAngle;}
+ if(state.drifting||spinning||!state.grounded)state.driftExitTime=-1;
  // Outside an established slide, Space overrides acceleration, including
  // nitro. Neutral steering inside a slide instead retains its current arc.
  const eBraking=driftHeld&&!state.drifting&&state.grounded;
@@ -50,7 +53,14 @@ export function stepVehicle(state,input,dt,world){
  if(state.drifting)state.driftTurn=clamp(state.driftTurn+balance*(countersteering?4:1.2)*dt,0,1);
  const slip=state.drifting?state.driftDirection*.56*state.driftTurn:0;
  const unwinding=state.drifting&&Math.abs(slip)<Math.abs(state.driftAngle);
- state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?(unwinding?14:5):7)*dt));
+ if(state.driftExitTime>=0){
+  // Voluntary release eases at both ends, instead of putting most of the
+  // straightening into the first frame. Shared by Space and touch release.
+  state.driftExitTime+=dt;
+  const t=Math.min(1,state.driftExitTime/DRIFT_EXIT_DURATION),ease=t*t*t*(t*(t*6-15)+10);
+  state.driftAngle=state.driftExitAngle*(1-ease);
+  if(t===1){state.driftAngle=0;state.driftExitTime=-1;}
+ }else state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?(unwinding?14:5):7)*dt));
  if(Math.abs(state.driftAngle)<1e-5)state.driftAngle=0;
  if(!canDrift&&(spinning||!state.grounded)){state.driftAngle=0;state.driftBlocked=!!input.drift;}
  // Opposite input must steer the path, not merely reduce a stored turn.
@@ -89,7 +99,7 @@ export function stepVehicle(state,input,dt,world){
    const speed=incoming*loss,away=.018,sign=Math.sign(state.speed)||1;
    const dx=tx*direction+nx*away,dz=tz*direction+nz*away;
    state.speed=speed*sign;state.yaw=Math.atan2(dx*sign,dz*sign);
-   state.drifting=false;state.driftAngle=0;state.driftBlocked=!!input.drift;
+   state.drifting=false;state.driftAngle=0;state.driftExitTime=-1;state.driftBlocked=!!input.drift;
    x+=nx*.015;z+=nz*.015;state.steering*=.7;state.railContactTime=.22;
   }
  }

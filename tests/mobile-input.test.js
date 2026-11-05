@@ -17,6 +17,22 @@ test('steering and drift fingers remain independent and a second finger cannot s
  input.release(1);assert.equal(input.peek().right,0);assert.equal(input.peek().primary,true);
  input.release(2);assert.equal(input.peek().primary,false);
 });
+test('left/right buttons release independently of drift and opposite steering',()=>{
+ const input=createMobileInput();input.hold(1,'left');input.hold(2,'primary');
+ assert.equal(input.peek().right,-1);assert.equal(input.peek().primary,true);
+ input.hold(3,'right');assert.equal(input.peek().right,0);
+ assert.equal(input.isHeld('left'),true);assert.equal(input.isHeld('right'),true);
+ input.release(1);assert.equal(input.peek().right,1);assert.equal(input.peek().primary,true);
+ input.release(3,true);assert.equal(input.peek().right,0);assert.equal(input.peek().primary,true);
+ input.release(2,true);assert.equal(input.consume().primary,false);assert.equal(input.consume().primaryPressed,false);
+});
+test('multiple fingers on one steering button retain ownership until the last release',()=>{
+ const input=createMobileInput();input.hold(1,'left');input.hold(2,'left');
+ input.release(1);assert.equal(input.peek().right,-1);
+ input.release(2,true);assert.equal(input.peek().right,0);
+ input.hold(3,'right');assert.equal(input.peek().right,1);
+ input.reset();assert.equal(input.peek().right,0);assert.equal(input.isHeld('right'),false);
+});
 test('fast Jump or Flip taps survive until a simulation step and never repeat while held',()=>{
  for(const action of ['primary','secondary']){
   const input=createMobileInput(),pressed=action+'Pressed';input.hold(4,action);input.release(4);

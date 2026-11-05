@@ -20,14 +20,14 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 
 Touch devices use a layout based on the mobile racing reference, in portrait or landscape:
 
-- The bottom-left **Steer** pad provides analog steering. The kart accelerates automatically while driving; a physical E/D key overrides that accelerator when used.
-- Hold the bottom-right **Drift / E-brake** button while steering to drift. It uses the existing Space handling, including countersteering. Holding it without a drift strongly brakes. **Reverse** brakes and reverses while held.
+- The bottom-left **Left / Right** buttons steer the kart. The kart accelerates automatically while driving; a physical E/D key overrides that accelerator when used. Each finger releases independently; pressing both steering buttons gives neutral steering.
+- Hold the bottom-right **Drift / E-brake** button while steering to drift. It uses the existing Space handling, including countersteering. Releasing it eases the body back into alignment over 0.55 seconds while preserving the travel direction; laptop Space release uses the same recovery. Holding it without a drift strongly brakes. **Reverse** brakes and reverses while held.
 - The upper-right item button shows **Boost** or **Shell** after collecting a box. One tap uses the held item, including while other fingers hold steering and drift. Holding the button cannot automatically consume a later pickup.
 - **View** changes between the existing third-person and isometric cameras. The **Laps & ghosts** disclosure keeps times, replay toggle and restart accessible without covering the driving controls; it opens beside the HUD on short landscape screens.
 - **Exit** brakes to a stop before using the existing safe kart exit. On foot, the left pad becomes **Move** (small movements walk, larger movements run), the right button becomes **Jump**, and the secondary button becomes a standing **Flip**. **Kart** re-enters when nearby.
 - Returning Home, cancelling a touch, changing orientation, losing focus or hiding the page clears held fingers. Background/home simulation does not advance. Play starts another attempt without deleting records.
 
-`src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture so fingers can release independently. The touch input merges into the existing keyboard/vehicle interfaces, and the driving/animation/track implementations are unchanged. `tests/mobile-input.test.js` covers stick limits, finger ownership, cancellation, queued taps, input precedence and combined steering/drift.
+`src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture and document-level release/cancel handling, including release outside a control when capture fails. It also recovers after all touches end and ignores stale capture-loss notifications. The touch input merges into the existing keyboard/vehicle interfaces. `tests/mobile-input.test.js` covers stick limits, button/finger ownership, cancellation, queued taps, input precedence and combined steering/drift. `tests/jump-drift.test.js` checks gentle drift recovery, travel direction, retained speed and countersteering.
 
 ## Development
 
