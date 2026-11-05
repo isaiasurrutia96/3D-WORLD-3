@@ -148,15 +148,30 @@ export function buildSlab(
   // across, and the collision octree stops descending as soon as it reaches a
   // node holding triangles, so giant ones there would mask anything smaller.
   // The floor plane above is what is actually walked on.
-  const body = new Mesh(
-    new BoxGeometry(SLAB_SIZE, SLAB_THICKNESS, SLAB_SIZE),
-    new MeshStandardMaterial({ color: new Color('#2a2f38'), roughness: 0.95 }),
-  );
-  body.position.y = -SLAB_THICKNESS / 2 - 0.02;
-  body.receiveShadow = true;
-  body.castShadow = true;
-  body.name = 'slab-body';
-  root.add(body);
+  //
+  // It has the same holes cut in it as the floor above. It used to be one
+  // solid box across the whole slab, and its top face sits two centimetres
+  // below the floor — so it closed off every hole from underneath. The pool
+  // water, which belongs just under the deck, was behind that face and
+  // painted nothing at all: looking into the pool showed this box's own
+  // dark top, which is the black surface in the screenshots. The water only
+  // ever appeared from angles grazing enough to catch it above the lip.
+  const bodyMaterial = new MeshStandardMaterial({
+    color: new Color('#2a2f38'),
+    roughness: 0.95,
+  });
+  for (const piece of slabBodyPieces(holes)) {
+    const [x0, x1, z0, z1] = piece;
+    const body = new Mesh(
+      new BoxGeometry(x1 - x0, SLAB_THICKNESS, z1 - z0),
+      bodyMaterial,
+    );
+    body.position.set((x0 + x1) / 2, -SLAB_THICKNESS / 2 - 0.02, (z0 + z1) / 2);
+    body.receiveShadow = true;
+    body.castShadow = true;
+    body.name = 'slab-body';
+    root.add(body);
+  }
 
   let water: Water | null = null;
   const carryables: Carryable[] = [];
@@ -435,6 +450,47 @@ function cutHole(geometry: PlaneGeometry, hole: FloorHole): void {
     kept.push(index.getX(i), index.getX(i + 1), index.getX(i + 2));
   }
   geometry.setIndex(kept);
+}
+
+/**
+ * The slab's underside, as rectangles with the holes taken out of them.
+ *
+ * Starts as the whole slab and splits every piece that overlaps a hole into
+ * the strips around it — north, south, then what is left either side. Any
+ * number of holes, in any arrangement, and nothing left covering one.
+ */
+function slabBodyPieces(holes: FloorHole[]): Array<[number, number, number, number]> {
+  const half = SLAB_SIZE / 2;
+  let pieces: Array<[number, number, number, number]> = [[-half, half, -half, half]];
+
+  for (const hole of holes) {
+    const hx0 = hole.x - hole.half;
+    const hx1 = hole.x + hole.half;
+    const hz0 = hole.z - hole.half;
+    const hz1 = hole.z + hole.half;
+    const next: Array<[number, number, number, number]> = [];
+
+    for (const [x0, x1, z0, z1] of pieces) {
+      // Clear of this hole: keep it whole.
+      if (hx1 <= x0 || hx0 >= x1 || hz1 <= z0 || hz0 >= z1) {
+        next.push([x0, x1, z0, z1]);
+        continue;
+      }
+      const cx0 = Math.max(x0, hx0);
+      const cx1 = Math.min(x1, hx1);
+      const cz0 = Math.max(z0, hz0);
+      const cz1 = Math.min(z1, hz1);
+
+      if (z0 < cz0) next.push([x0, x1, z0, cz0]);
+      if (cz1 < z1) next.push([x0, x1, cz1, z1]);
+      if (x0 < cx0) next.push([x0, cx0, cz0, cz1]);
+      if (cx1 < x1) next.push([cx1, x1, cz0, cz1]);
+    }
+    pieces = next;
+  }
+
+  // Degenerate slivers help nobody.
+  return pieces.filter(([x0, x1, z0, z1]) => x1 - x0 > 0.01 && z1 - z0 > 0.01);
 }
 
 function createFloor(holes: FloorHole[]): Mesh {
