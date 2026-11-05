@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-Claude’s plain jointed avatar, walking and running are now connected to the existing slab and racing circuit. The kart handling, items, lap timing, saved top-four records and ghost playback remain the racing implementation. This is migration stage 1 only.
+Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and racing circuit. Kart driving now includes controlled drifting. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
 
 ## Controls
 
@@ -10,10 +10,10 @@ Claude’s plain jointed avatar, walking and running are now connected to the ex
 - Running is the default. Hold either Shift key with E, D, S or F to walk. Diagonal movement is normalized; Shift alone does not move.
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - H: enter the kart when nearby; H exits when stopped and a safe spot is available.
-- While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes, and a fresh Shift press uses the held item. The mouse changes the view without steering.
+- While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes, and a fresh Shift press uses the held item. Hold A while steering at speed to drift; release A to regain grip. The mouse changes the view without steering.
 - Q + Space while standing still: a standing backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
-- Walking and sprinting are separate clips. The avatar returns to its exact neutral pose after stopping; there is no idle animation.
+- Walking, running and normal jumping use Claude’s native rig and pose animation. Idle remains still.
 
 ## Development
 
@@ -30,7 +30,7 @@ npm run build
 
 ## Legacy movement compatibility
 
-The following legacy modules remain as compatibility sources for the existing single jump/backflip and comparison page. Current walking and running use the stage-1 adapter described below:
+The following legacy modules remain as compatibility sources for the existing backflip and comparison page. Current walking, running and normal jumping use the native adapter described below:
 
 - `src/input.js` preserves the E/D/S/F input contract.
 - `src/running-controller.js` runs at a fixed 120 Hz with normalized input, capped acceleration/braking, planar velocity and bounded facing changes. It has idle/walk/sprint/jump/fall states, vertical velocity, gravity, grounded checks and one jump per press. Fast-gait speed comes directly from stride length divided by cycle duration; Shift selects the existing walking speed.
@@ -50,7 +50,7 @@ Tests cover input mapping, diagonal normalization, acceleration/braking, loop cl
 
 The character starts near the slab's right-hand bridge, facing the circuit. Walk or sprint forward onto the circuit. Guardrails block movement at road level and may be cleared by a jump. The overpass has clearance for the character and a full jump on the lower road. Its upper road is reached through the ramps, with no snapping between levels. Falling into the void returns the character to the bridge approach. Scroll out and orbit to inspect the whole layout; R returns to the close view.
 
-Jump speed is 7.8 m/s with 22 m/s² gravity, giving about 1.35 m of rise and 0.7 seconds airborne on a flat surface. A tap is queued until the next simulation step so quick Space presses are not missed. Surface support is sampled against the same triangles rendered by the road mesh. Rail collision is indexed spatially and accounts for the character's elevation.
+The normal jump uses Claude’s 9.6 m/s takeoff and 27 m/s² rising gravity, with 1.42 times gravity on descent. It rises about 1.67 m in the fixed-step simulation, roughly 25% higher than the previous jump. Claude’s native ascent pose swings both arms up and tucks the legs; the falling pose opens the arms and extends the feet. A tap is queued until the next simulation step so quick Space presses are not missed. Holding Space does not repeat the jump, and airborne presses do not add extra moves. Surface support is sampled against the same triangles rendered by the road mesh. Rail collision is indexed spatially and accounts for the character's elevation.
 
 Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a complete circuit traversal including both crossing levels, held-key single jumps, landing on elevated track, unsupported falling, finite geometry and exact stillness after landing.
 
@@ -60,7 +60,9 @@ Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a co
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, slightly reduced speed-sensitive steering (0.39 low-speed lock), guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s (previously 32), with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 66 m/s, with 36 m/s² boosted acceleration for the existing two-second burst. Space brakes. There are no CPU opponents, drifting or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, slightly reduced speed-sensitive steering (0.39 low-speed lock), guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s (previously 32), with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 66 m/s, with 36 m/s² boosted acceleration for the existing two-second burst. Space brakes. There are no CPU opponents or vehicle jumps.
+
+Hold **A + S/F** above 12 m/s to start a controlled drift. The body turns into the corner while the travel direction slips outward; steering into the slide tightens the arc and countersteering opens it without abruptly switching sides. Releasing A smoothly restores grip. Braking, reversing, low speed, airborne travel and shell spins cancel drifting. Rail contact cancels the slide and keeps the existing gentle tangent response; release A before starting another drift. Drifting adds no speed boost or mini-turbo. Actual position and body heading are already in the ghost trace, so drifted laps replay without changing stored-record formats or course identifiers.
 
 `src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. The chase camera follows the kart's heading, while mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
@@ -72,7 +74,7 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 
-- Nitro lasts two seconds, accelerates to a 60 m/s cap, and shows blue exhaust. Braking still works, and boosted speed eases back toward the normal cap after expiry.
+- Nitro lasts two seconds, accelerates to a 66 m/s cap, and shows blue exhaust. Braking still works, and boosted speed eases back toward the normal cap after expiry.
 - Green shells slide forward, follow the road, ricochet off guardrails and disappear after eight seconds or when leaving the road. Substeps prevent collision tunneling. A ricochet can hit the occupied kart after its initial launch grace period, slowing it into a brief spin-out.
 
 `src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
@@ -101,9 +103,9 @@ Up to four translucent ghosts replay together against the current timer: cyan #1
 Source: `isaiasurrutia96/3D-WORLD-3`, branch `chatgpt-work`, pinned commit `b60e295cd836f830c93e9ddc28ae61e157ef2b3f`. That repository is not modified. See `src/claude/README.md` for provenance and adapter boundaries.
 
 - `src/claude/player/PlayerModel.ts` and `Tuning.ts` are copied from that source unchanged. The model is the plain clay variant with named joint groups.
-- `src/claude/player/PlayerAnimation.ts` retains the original pose equations. Its accumulated state is isolated per rig and resettable for mounting/exiting. Only ground inputs are enabled through this migration adapter. Idle is sampled at time zero to preserve stillness.
+- `src/claude/player/PlayerAnimation.ts` retains the original pose equations. Its accumulated state is isolated per rig and resettable for mounting/exiting. Ground and normal first-jump inputs are enabled through the adapter. Idle is sampled at time zero to preserve stillness.
 - `src/on-foot/ground-movement.js` ports the source’s normal-ground acceleration, speed-sensitive turning, reversal skid, momentum and stopping behavior. E/D/S/F runs at 8.6 units/s; Shift uses the original keyboard scaling, about 2.536 units/s.
-- `src/on-foot/controller.js` connects that motor to the existing track support/collision API and fixed simulation. `src/on-foot/animation.js` applies the native ground animation. The old single jump/backflip remains available through a temporary pose adapter; Claude’s advanced jumps, ladders, ledges, pool and obstacle course are not enabled in this stage.
+- `src/on-foot/controller.js` connects that motor and the normal jump to the existing track support/collision API and fixed simulation. `src/on-foot/animation.js` applies the native ground/air animation. Only the standing backflip still uses the temporary legacy pose adapter; Claude’s advanced jumps, ladders, ledges, pool and obstacle course are not enabled in this stage.
 - `src/vehicle-view.js` seats the imported rig. `src/ghost-kart.js` bakes that seated model into the existing shared ghost geometry. Recorded kart coordinates and storage keys are unchanged, so saved lap traces still replay.
 
 `tests/fixtures/claude-ground-b60e295.json` contains ground-pose and motor snapshots generated from the original source, not from this adapter. `tests/stage1.test.js` compares against them and checks source proportions, input speeds, state isolation, mount/reset, retained aerial moves and traversal of both circuit levels. Browser checks cover the visible figure, run/Shift-walk, jump/backflip, kart entry/exit and trial startup.

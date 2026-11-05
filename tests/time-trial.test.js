@@ -63,6 +63,27 @@ test('real kart physics completes ordered checkpoints and a timed lap across bot
  assert.equal(state.completed,1);assert.ok(peak>8);assert.ok(state.best.duration>200&&state.best.duration<500);
 });
 
+test('a lap with repeated drifts still validates and records the sideways kart pose for replay',()=>{
+ const state=createTimeTrial(),kart={...createVehicleState(),...RACE_START},dt=1/120;armTimeTrial(state);
+ let index=START_INDEX+1,driftTime=0,rest=0,driftTicks=0,peak=0,sample=null;
+ for(let frame=0;frame<100000&&state.completed===0;frame++){
+  const waypoint=trackSamples[index%count].point;
+  if(Math.hypot(waypoint.x-kart.x,waypoint.z-kart.z)<5)index++;
+  const target=trackSamples[(index+2)%count].point,desired=Math.atan2(target.x-kart.x,target.z-kart.z);
+  const error=Math.atan2(Math.sin(desired-kart.yaw-kart.driftAngle),Math.cos(desired-kart.yaw-kart.driftAngle)),steer=Math.max(-1,Math.min(1,-error*2));
+  rest=Math.max(0,rest-dt);driftTime=Math.max(0,driftTime-dt);
+  if(rest===0&&kart.speed>12&&Math.abs(steer)>.2){driftTime=.3;rest=5;}
+  const previous={...kart};stepVehicle(kart,{throttle:kart.speed<13?1:0,steer,brake:kart.speed>15,drift:driftTime>0},dt,worldPhysics);
+  stepTimeTrial(state,previous,kart,frame===0,dt);peak=Math.max(peak,kart.y);
+  if(kart.drifting){driftTicks++;if(!sample&&Math.abs(kart.driftAngle)>.15)sample={time:state.elapsed,...kart};}
+  assert.equal(state.status,'running',state.reason);assert.equal(kart.grounded,true);
+ }
+ assert.equal(state.completed,1);assert.ok(driftTicks>500&&peak>8);assert.ok(sample);
+ const replay=sampleGhost(state.best,sample.time);
+ assert.ok(Math.hypot(replay.x-sample.x,replay.z-sample.z)<.02);
+ assert.ok(Math.abs(Math.atan2(Math.sin(replay.yaw-sample.yaw),Math.cos(replay.yaw-sample.yaw)))<.01);
+});
+
 test('rolling laps restart the clock at the finish without losing checkpoint order',()=>{
  const state=createTimeTrial();armTimeTrial(state);let previous=pose(START_INDEX);
  for(let i=1;i<=count*2+1;i++){const current=pose(START_INDEX+i);stepTimeTrial(state,previous,current,true,.1);assert.equal(state.status,'running');previous=current;}

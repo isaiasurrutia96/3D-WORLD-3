@@ -3,11 +3,12 @@ import {GRAVITY} from './running-controller.js';
 
 export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=66;
 export const STEERING_LOCK=.39;
+export const DRIFT_MIN_SPEED=12;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftAngle:0,driftBlocked:false};
 }
 export function stepVehicle(state,input,dt,world){
  const previousYaw=state.yaw;
@@ -25,11 +26,28 @@ export function stepVehicle(state,input,dt,world){
   state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?36:16))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
  else state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
+ // Holding A commits a moving kart to one slide direction. Countersteering
+ // opens the arc; steering into it tightens it. Release A to regain grip.
+ // Body heading and travel heading differ during the slide; ordinary driving
+ // remains the original bicycle model when the slip angle is zero.
+ if(!input.drift)state.driftBlocked=false;
+ const canDrift=state.grounded&&!spinning&&!input.brake&&rawThrottle>=0&&state.speed>8;
+ if(!input.drift||!canDrift)state.drifting=false;
+ if(canDrift&&input.drift&&!state.drifting&&!state.driftBlocked&&state.speed>=DRIFT_MIN_SPEED&&Math.abs(steer)>.15){
+  state.drifting=true;state.driftDirection=Math.sign(steer);
+ }
+ const balance=steer*state.driftDirection;
+ const slip=state.drifting?state.driftDirection*(.28+.16*balance):0;
+ state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?5:7)*dt));
+ if(Math.abs(state.driftAngle)<1e-5)state.driftAngle=0;
+ if(!canDrift&&(spinning||!state.grounded)){state.driftAngle=0;state.driftBlocked=!!input.drift;}
+ const steeringInput=state.drifting?state.driftDirection*(.55+.45*balance):steer;
  const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
- state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-9*dt));
- if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
+ state.steering+=(steeringInput*maxSteer-state.steering)*(1-Math.exp(-9*dt));
+ if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*(state.drifting?1.15:1)*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);
- let x=oldX+sin*state.speed*dt,z=oldZ+cos*state.speed*dt;
+ const travelYaw=state.yaw+state.driftAngle,vx=Math.sin(travelYaw)*state.speed,vz=Math.cos(travelYaw)*state.speed;
+ let x=oldX+vx*dt,z=oldZ+vz*dt;
  const proposedX=x,proposedZ=z;
  // A short capsule approximates the kart's width/length, including the tires.
  for(const offset of [-.35,.35]){
@@ -42,7 +60,7 @@ export function stepVehicle(state,input,dt,world){
   // Remove inward motion and guide the kart along the rail, with only a
   // tiny outward bias. Reflection made glancing hits fling it across the road.
   const correctionX=x-proposedX,correctionZ=z-proposedZ,length=Math.hypot(correctionX,correctionZ);
-  const nx=correctionX/length,nz=correctionZ/length,vx=sin*state.speed,vz=cos*state.speed;
+  const nx=correctionX/length,nz=correctionZ/length;
   if(vx*nx+vz*nz<0){
    const tx=-nz,tz=nx,incoming=Math.abs(state.speed),along=vx*tx+vz*tz;
    // A direct hit has no meaningful tangent. Use the requested turn (or a
@@ -52,6 +70,7 @@ export function stepVehicle(state,input,dt,world){
    const speed=incoming*loss,away=.018,sign=Math.sign(state.speed)||1;
    const dx=tx*direction+nx*away,dz=tz*direction+nz*away;
    state.speed=speed*sign;state.yaw=Math.atan2(dx*sign,dz*sign);
+   state.drifting=false;state.driftAngle=0;state.driftBlocked=!!input.drift;
    x+=nx*.015;z+=nz*.015;state.steering*=.7;state.railContactTime=.22;
   }
  }

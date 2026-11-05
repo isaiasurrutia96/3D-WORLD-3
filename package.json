@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/avatar.test.js && node tests/running.test.js && node tests/world.test.js && node tests/vehicle.test.js && node tests/items.test.js && node tests/backflip-preview.test.js && node tests/time-trial.test.js && node tests/stage1.test.js"
+    "test": "node tests/avatar.test.js && node tests/running.test.js && node tests/world.test.js && node tests/vehicle.test.js && node tests/items.test.js && node tests/backflip-preview.test.js && node tests/time-trial.test.js && node tests/stage1.test.js && node tests/jump-drift.test.js"
   },
   "repository": {
     "type": "git",
