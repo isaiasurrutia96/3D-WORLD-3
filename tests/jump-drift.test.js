@@ -11,6 +11,16 @@ import {readDrivingInput} from '../src/input.js';
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 function advance(kart,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/STEP);i++)stepVehicle(kart,input,STEP,world);}
 const angle=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
+function travelHeading(state,seconds,input){
+ let heading=0,previousHeading=null,rate=0;
+ for(let i=0;i<Math.round(seconds/STEP);i++){
+  const x=state.x,z=state.z;stepVehicle(state,input,STEP,flat);
+  heading=Math.atan2(state.x-x,state.z-z);
+  if(previousHeading!==null)rate=angle(heading,previousHeading)/STEP;
+  previousHeading=heading;
+ }
+ return{heading,rate};
+}
 
 test('normal jump rises higher, stays single per press and preserves the ground run speed',()=>{
  const state=createOnFootState();let apex=0;
@@ -67,17 +77,30 @@ test('drifting creates mirrored sideways travel and release restores grip withou
  advance(right,1.2,{throttle:1});assert.ok(Math.abs(right.driftAngle)<.001);assert.equal(right.speed,VEHICLE_TOP_SPEED);assert.equal(right.boostTime,0);
 });
 
-test('countersteering progressively opens a held drift and retains the corrected arc',()=>{
- const tight={...createVehicleState(),x:0,z:0,yaw:0,speed:30};advance(tight,.25,{throttle:1,steer:1,drift:true});
- const open={...tight},startYaw=tight.yaw;
- advance(tight,.5,{throttle:1,steer:1,drift:true});advance(open,.5,{throttle:1,steer:-1,drift:true});
- assert.equal(open.driftDirection,1);assert.ok(open.driftAngle>0&&open.driftAngle<tight.driftAngle);
- assert.ok(Math.abs(open.yaw-startYaw)<Math.abs(tight.yaw-startYaw)*.8,'the arc opens progressively rather than changing direction instantly');
- const correction=open.driftTurn;assert.ok(correction<.11);
- advance(open,.6,{throttle:1,drift:true});assert.equal(open.driftTurn,correction);
- assert.ok(open.steering>0&&open.steering<tight.steering*.15,'corrected curve is retained without flipping into the opposite turn');
- advance(open,.3,{throttle:1,steer:-1,drift:true});advance(open,.8,{throttle:1,drift:true});
- assert.equal(open.driftTurn,0);assert.ok(Math.abs(open.steering)<.0001&&Math.abs(open.driftAngle)<.001,'longer countersteer straightens the slide');
+test('opposite steering corrects the actual travel path within 150 ms in both directions',()=>{
+ for(const direction of [-1,1])for(const speed of [20,42,66]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed,boostTime:speed>42?5:0};
+  travelHeading(kart,.8,{throttle:1,steer:direction,drift:true});
+  const before=travelHeading(kart,.3,{throttle:1,drift:true});assert.ok(before.rate*direction<0);
+  const corrected=travelHeading(kart,.15,{throttle:1,steer:-direction,drift:true});
+  assert.ok(corrected.rate*direction>.2,'opposite key steers the trajectory, rather than just reducing a stored value');
+  assert.ok(angle(corrected.heading,before.heading)*direction>0,'kart path has started correcting in the requested direction');
+  travelHeading(kart,.2,{throttle:1,steer:-direction,drift:true});
+  const straight=travelHeading(kart,.5,{throttle:1,drift:true});
+  assert.equal(kart.driftTurn,0);assert.ok(Math.abs(straight.rate)<.01&&Math.abs(kart.driftAngle)<.001,'releasing the correction leaves a straight trajectory');
+ }
+});
+
+test('unwinding the sideways body angle does not add an unintended turn to the travel path',()=>{
+ for(const direction of [-1,1]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:42};advance(kart,.8,{throttle:1,steer:direction,drift:true});
+  kart.steering=0;const initial=kart.yaw+kart.driftAngle;
+  for(let i=0;i<100;i++){
+   const x=kart.x,z=kart.z;stepVehicle(kart,{throttle:1},STEP,flat);
+   assert.ok(Math.abs(angle(Math.atan2(kart.x-x,kart.z-z),initial))<1e-9,'body alignment preserves the existing movement direction');
+  }
+  assert.ok(Math.abs(kart.driftAngle)<.002);
+ }
 });
 
 test('Space is the kart e-brake/drift input and A no longer activates it',()=>{
@@ -91,20 +114,19 @@ test('Space is the kart e-brake/drift input and A no longer activates it',()=>{
  assert.deepEqual(readDrivingInput(new Set(['KeyS','ArrowRight'])),{throttle:0,steer:0,drift:false});
 });
 
-test('releasing steering preserves the established drift arc in either direction',()=>{
+test('neutral steering carries a softer drift instead of a full-lock circle',()=>{
  for(const direction of [-1,1]){
   const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:VEHICLE_TOP_SPEED};
-  advance(kart,.8,{throttle:1,steer:direction,drift:true});
+  const full=travelHeading(kart,.8,{throttle:1,steer:direction,drift:true});
   assert.ok(Math.abs(kart.driftAngle)>.54,'stronger full-steer slide than the previous 0.44 rad maximum');
-  const fullSteering=Math.abs(kart.steering),fullSlip=Math.abs(kart.driftAngle),turn=kart.driftTurn;
+  const fullSlip=Math.abs(kart.driftAngle),turn=kart.driftTurn;
   stepVehicle(kart,{throttle:1,drift:true},STEP,flat);
   assert.ok(Math.abs(kart.driftAngle-fullSlip*direction)<.03,'no abrupt grip change when steering is released');
-  advance(kart,1.2,{throttle:1,drift:true});
+  const neutral=travelHeading(kart,1.2,{throttle:1,drift:true});
   assert.equal(kart.drifting,true);assert.equal(kart.driftDirection,direction);
   assert.equal(kart.driftTurn,turn);assert.ok(Math.abs(kart.driftAngle)>.55,'neutral input retains the existing slide');
-  assert.ok(Math.abs(kart.steering)>fullSteering*.99&&Math.abs(kart.steering)<fullSteering*1.01,'neutral input retains the existing curve');
-  const yaw=kart.yaw;advance(kart,.5,{throttle:1,drift:true});
-  assert.ok(Math.abs(kart.yaw-yaw)>.9&&Math.abs(kart.yaw-yaw)<1,'continues the established turning arc');
+  assert.ok(neutral.rate*direction<0,'neutral input still carries the original drift direction');
+  assert.ok(Math.abs(neutral.rate)>Math.abs(full.rate)*.25&&Math.abs(neutral.rate)<Math.abs(full.rate)*.65,'carry arc is substantially softer and can be corrected');
  }
 });
 
@@ -134,7 +156,7 @@ test('a brief countersteer makes a smaller lasting correction than holding it lo
  for(const direction of [-1,1]){
   const original={...createVehicleState(),speed:42};advance(original,.8,{throttle:1,steer:direction,drift:true});
   const brief={...original},long={...original};
-  advance(brief,.1,{throttle:1,steer:-direction,drift:true});advance(long,.3,{throttle:1,steer:-direction,drift:true});
+  advance(brief,.1,{throttle:1,steer:-direction,drift:true});advance(long,.2,{throttle:1,steer:-direction,drift:true});
   const briefTurn=brief.driftTurn,longTurn=long.driftTurn;
   assert.ok(briefTurn>longTurn&&longTurn>0);
   advance(brief,.5,{throttle:1,drift:true});advance(long,.5,{throttle:1,drift:true});

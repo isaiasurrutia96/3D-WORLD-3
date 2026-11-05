@@ -12,7 +12,7 @@ export function createVehicleState(){
  return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftTurn:0,driftAngle:0,driftBlocked:false};
 }
 export function stepVehicle(state,input,dt,world){
- const previousYaw=state.yaw;
+ const previousYaw=state.yaw,previousDriftAngle=state.driftAngle;
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
  const boosting=state.boostTime>0,spinning=state.spinTime>0;
  state.boostTime=Math.max(0,state.boostTime-dt);
@@ -46,15 +46,24 @@ export function stepVehicle(state,input,dt,world){
  // Body heading and travel heading differ during the slide; ordinary driving
  // remains the original bicycle model when the slip angle is zero.
  const balance=steer*state.driftDirection;
- if(state.drifting)state.driftTurn=clamp(state.driftTurn+balance*(balance<0?1.8:1.2)*dt,0,1);
+ const countersteering=state.drifting&&balance<-.001;
+ if(state.drifting)state.driftTurn=clamp(state.driftTurn+balance*(countersteering?4:1.2)*dt,0,1);
  const slip=state.drifting?state.driftDirection*.56*state.driftTurn:0;
- state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?5:7)*dt));
+ const unwinding=state.drifting&&Math.abs(slip)<Math.abs(state.driftAngle);
+ state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?(unwinding?14:5):7)*dt));
  if(Math.abs(state.driftAngle)<1e-5)state.driftAngle=0;
  if(!canDrift&&(spinning||!state.grounded)){state.driftAngle=0;state.driftBlocked=!!input.drift;}
- const steeringInput=state.drifting?state.driftDirection*state.driftTurn:steer;
+ // Opposite input must steer the path, not merely reduce a stored turn.
+ // Neutral input carries a softer arc; it does not force a full-lock circle.
+ const carry=Math.abs(steer)<.001?.45:.85;
+ const steeringInput=state.drifting?(countersteering?steer*.85:state.driftDirection*state.driftTurn*carry):steer;
  const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
- state.steering+=(steeringInput*maxSteer-state.steering)*(1-Math.exp(-9*dt));
- if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*(state.drifting?1.15:1)*dt;
+ const steeringRate=countersteering||(state.drifting&&state.driftTurn===0)?18:9;
+ state.steering+=(steeringInput*maxSteer-state.steering)*(1-Math.exp(-steeringRate*dt));
+ // Changing the sideways body angle must not bend the travel path. Keep
+ // travel yaw continuous, then let the steering change its direction.
+ state.yaw+=previousDriftAngle-state.driftAngle;
+ if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);
  const travelYaw=state.yaw+state.driftAngle,vx=Math.sin(travelYaw)*state.speed,vz=Math.cos(travelYaw)*state.speed;
  let x=oldX+vx*dt,z=oldZ+vz*dt;
