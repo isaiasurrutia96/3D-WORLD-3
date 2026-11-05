@@ -368,6 +368,32 @@ export const TUNING = {
   swimGravity: 7.5,
   /** Impulse from one stroke of the jump button. */
   strokeImpulse: 4.6,
+  /**
+   * How much of a stroke goes upward, at the surface and below it.
+   *
+   * These used to be the same number, written as a ternary with both sides
+   * equal — someone meant to tell them apart and did not. At the surface he
+   * is already where he floats, so a stroke there is a push *along* the
+   * water; giving it more than half its force upward is what let repeated
+   * presses walk him out of the pool and into the air.
+   */
+  strokeLiftSurface: 0.05,
+  strokeLiftUnder: 0.55,
+  /**
+   * The fastest he rises while already at the surface. Without a cap, coming
+   * up fast from the bottom breaches like a whale and lands him in the air,
+   * where every further press of the button is a land move.
+   */
+  swimSurfaceRise: 1.3,
+  /**
+   * How long after leaving water the airborne boost and the ground pound
+   * stay unavailable.
+   *
+   * They are the second and third presses of a jump, and leaving the water
+   * is not a jump. Without this, a stroke taken a moment before surfacing is
+   * counted as the next press in that sequence.
+   */
+  waterExitGrace: 0.45,
   /** Seconds before another stroke can be taken. */
   strokeCooldown: 0.52,
   /** Downward acceleration while the dive button is held. */

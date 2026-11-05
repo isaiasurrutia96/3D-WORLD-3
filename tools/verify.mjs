@@ -704,6 +704,23 @@ if (!course.pool.neverDucked) {
   );
 }
 if (!course.pool.out) problems.push('station 12: there is no way out of the pool');
+// Space in water is a stroke, however many times it is pressed. It is not a
+// jump, so it cannot become the boost or the ground pound that follow one.
+for (const [where, result] of [
+  ['at the surface', course.strokeSpam.surface],
+  ['underwater', course.strokeSpam.under],
+]) {
+  if (!result.stayedWet) {
+    problems.push(
+      `eight presses of Space ${where} gave ${result.states.join(' > ')}`,
+    );
+  }
+  if (result.rose > 0.6) {
+    problems.push(
+      `eight presses of Space ${where} lifted him ${result.rose}m, out of the water`,
+    );
+  }
+}
 // And floating still is floating still: coming up from the bottom with
 // nothing pressed must leave him treading water, not snatched onto the side.
 if (!course.floating.treads) {
@@ -890,6 +907,14 @@ console.log(
 console.log(
   `                floating still: "${course.floating.state}" at ${course.floating.at}m, ` +
     `then "${course.floating.stayed}"`,
+);
+console.log(
+  `                8x Space at the surface: rose ${course.strokeSpam.surface.rose}m, ` +
+    `${course.strokeSpam.surface.states.join(' > ')}`,
+);
+console.log(
+  `                8x Space underwater:     rose ${course.strokeSpam.under.rose}m, ` +
+    `${course.strokeSpam.under.states.join(' > ')}`,
 );
 
 console.log('\n--- report ---');

@@ -212,6 +212,8 @@ export class Player {
   private waterVolume: WaterVolume | null = null;
   private submerged = false;
   private atSurface = false;
+  /** Counts down after leaving water; see updateAir. */
+  private leftWaterTimer = 0;
   private diving = false;
   private footstepPhase = 0;
   private animationTime = 0;
@@ -332,6 +334,7 @@ export class Player {
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
     if (this.ladderCooldown > 0) this.ladderCooldown -= delta;
+    if (this.leftWaterTimer > 0) this.leftWaterTimer -= delta;
     if (this.sinceTakeOff < 10) this.sinceTakeOff += delta;
     if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
     if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
@@ -584,7 +587,13 @@ export class Player {
     // Each press of jump in the air does the next thing: the first gives a
     // push upward, the second brings him down hard. Checked after the wall
     // kick, because a wall is the more specific thing to be doing.
-    if (input.wasPressed('jump')) {
+    //
+    // Not straight out of water, though. These are the second and third
+    // presses of a jump, and surfacing is not a jump: a stroke taken just
+    // before his head cleared the water used to be counted as one of them,
+    // which is how pressing the stroke button repeatedly ended in a boost
+    // and then a ground pound.
+    if (input.wasPressed('jump') && this.leftWaterTimer <= 0) {
       this.airPresses += 1;
       if (this.airPresses === 1) {
         this.velocity.y = Math.max(this.velocity.y, 0) + TUNING.airBoostVelocity;
@@ -1207,7 +1216,7 @@ export class Player {
     if (input.wasPressed('jump') && this.strokeTimer <= 0) {
       this.strokeTimer = TUNING.strokeCooldown;
       const forward = this.forwardVector(this.scratchMove);
-      const lift = this.atSurface ? 0.55 : 0.55;
+      const lift = this.atSurface ? TUNING.strokeLiftSurface : TUNING.strokeLiftUnder;
       this.velocity.addScaledVector(forward, TUNING.strokeImpulse);
       this.velocity.y += TUNING.strokeImpulse * lift;
     }
@@ -1215,6 +1224,13 @@ export class Player {
     if (strength > 0.001) {
       this.turnToward(wish, delta, 0, 5.5);
       this.velocity.addScaledVector(wish, TUNING.swimAcceleration * strength * delta);
+    }
+
+    // However he got here, he does not come out of the water under his own
+    // rising. Capped at the surface only, so a dive still rises freely until
+    // it gets there.
+    if (this.atSurface && this.velocity.y > TUNING.swimSurfaceRise) {
+      this.velocity.y = TUNING.swimSurfaceRise;
     }
 
     const drag = Math.max(0, 1 - TUNING.swimDrag * delta);
@@ -1789,6 +1805,10 @@ export class Player {
       this.submerged = false;
       this.atSurface = false;
       this.diving = false;
+      // Nothing pressed in the water carries over onto land.
+      this.leftWaterTimer = TUNING.waterExitGrace;
+      this.airPresses = 0;
+      this.jumpBufferTimer = 0;
     }
   }
 

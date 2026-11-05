@@ -1288,6 +1288,43 @@ class Game {
         const floatState = player.stateName;
         const floatY2 = round(player.position.y);
         for (let i = 0; i < frames(3); i += 1) step();
+        // Space pressed over and over in the water: it must stay a stroke.
+        // It used to walk him up out of the pool and then hand the next
+        // press to the land combo — a boost, and then a ground pound.
+        {
+          const hammer = (start: number, dive: boolean) => {
+            place(-35, start, 12, 0);
+            for (let i = 0; i < frames(1.6); i += 1) step();
+            if (dive) {
+              held.add('dive');
+              for (let i = 0; i < frames(1.5); i += 1) step();
+              held.delete('dive');
+            }
+            const from = player.position.y;
+            const states: string[] = [];
+            let highest = from;
+            for (let press = 0; press < 8; press += 1) {
+              tap('jump');
+              for (let i = 0; i < frames(0.18); i += 1) {
+                step();
+                held.delete('jump');
+                highest = Math.max(highest, player.position.y);
+                const name = player.stateName;
+                if (states[states.length - 1] !== name) states.push(name);
+              }
+            }
+            held.clear();
+            return {
+              from: round(from),
+              highest: round(highest),
+              rose: round(highest - from),
+              states,
+              stayedWet: states.every((n) => n.startsWith('swim')),
+            };
+          };
+          results.strokeSpam = { surface: hammer(1, false), under: hammer(1, true) };
+        }
+
         results.floating = {
           state: floatState,
           at: floatY2,
