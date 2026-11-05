@@ -13,6 +13,7 @@ import {
   DirectionalLight,
   FogExp2,
   HemisphereLight,
+  MathUtils,
   PCFSoftShadowMap,
   PerspectiveCamera,
   Scene,
@@ -47,6 +48,22 @@ export const STUDIO_SUN_DIRECTION = new Vector3(-0.45, 0.8, -0.75).normalize();
 const STUDIO_SHADOW_HALF = 9;
 const STUDIO_SUN_DISTANCE = 26;
 
+/**
+ * The two looks the scene has out of water, and the one it has under it.
+ *
+ * They are named here rather than written inline in three places, because
+ * the crossing of the waterline mixes between them every frame and the mix
+ * has to start from whichever of the two is in force.
+ */
+const SKY_BACKGROUND = new Color(0xbfe4f7);
+const STUDIO_BACKGROUND = new Color(0x12161d);
+const SKY_HEMISPHERE = new Color(0xcfe8ff);
+const STUDIO_HEMISPHERE = new Color(0xa8bdd8);
+const UNDERWATER_BACKGROUND = new Color(0x0f4a63);
+const UNDERWATER_FOG = new Color(0x135a76);
+const UNDERWATER_HEMISPHERE = new Color(0x2f90b0);
+const UNDERWATER_FOG_DENSITY = 0.05;
+
 export class Engine {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
@@ -67,6 +84,9 @@ export class Engine {
   private quality: QualityLevel;
 
   private underwater = false;
+  /** How far across the waterline the look has travelled, 0 to 1. */
+  private underwaterMix = 0;
+  private wasUnderwater = false;
 
   /** Smoothed frames per second, for the on-screen performance readout. */
   fps = 0;
@@ -140,13 +160,13 @@ export class Engine {
 
     if (enabled) {
       this.scene.fog = null;
-      (this.scene.background as Color).set(0x12161d);
+      (this.scene.background as Color).copy(STUDIO_BACKGROUND);
       this.sun.intensity = 1.9;
       this.sun.color.set(0xfff4e2);
       // Enough fill that anything standing in the key light's shadow — on the
       // far side of the box, or on the ladder — is still readable.
       this.hemisphere.intensity = 0.95;
-      this.hemisphere.color.set(0xa8bdd8);
+      this.hemisphere.color.copy(STUDIO_HEMISPHERE);
       this.hemisphere.groundColor.set(0x474d58);
       this.ambient.intensity = 0.3;
 
@@ -161,10 +181,10 @@ export class Engine {
       this.rimLight.visible = true;
     } else {
       this.scene.fog = this.fog;
-      (this.scene.background as Color).set(0xbfe4f7);
+      (this.scene.background as Color).copy(SKY_BACKGROUND);
       this.sun.intensity = 2.15;
       this.hemisphere.intensity = 1.0;
-      this.hemisphere.color.set(0xcfe8ff);
+      this.hemisphere.color.copy(SKY_HEMISPHERE);
       this.ambient.intensity = 0.22;
       if (this.rimLight) this.rimLight.visible = false;
     }
@@ -290,33 +310,64 @@ export class Engine {
   }
 
   /**
-   * Switches the scene between the open-air look and a dense blue-green
-   * underwater one. Without this, putting the camera below the waterline just
-   * fills the screen with the flat colour of the water surface.
+   * Says whether the *camera* is below a waterline, which is the only thing
+   * that decides what the screen should look like.
+   *
+   * It used to be wired to the character's swimming state, and then never
+   * called at all — so putting the eye under the surface showed the scene's
+   * own background, which in this mode is very nearly black with the sky
+   * switched off. That is where the black ceiling came from: not the water,
+   * but the absence of anything behind it.
    */
   setUnderwater(underwater: boolean): void {
-    if (this.studio || underwater === this.underwater) return;
     this.underwater = underwater;
-
-    if (underwater) {
-      this.fog.color.set(0x14566e);
-      this.fog.density = 0.055;
-      (this.scene.background as Color).set(0x0e4055);
-      this.sun.intensity = 1.1;
-      this.hemisphere.color.set(0x2f90b0);
-      this.hemisphere.intensity = 1.35;
-    } else {
-      this.fog.color.set(0xbfe4f7);
-      this.fog.density = this.preset.fogDensity;
-      (this.scene.background as Color).set(0xbfe4f7);
-      this.sun.intensity = 2.15;
-      this.hemisphere.color.set(0xcfe8ff);
-      this.hemisphere.intensity = 1.0;
-    }
   }
 
   get isUnderwater(): boolean {
     return this.underwater;
+  }
+
+  /**
+   * Eases the scene across the waterline.
+   *
+   * Snapping the background, the fog and the lights the instant the camera
+   * crosses makes a camera bobbing on the line flash between two worlds, so
+   * the whole look is carried on one number that takes about a fifth of a
+   * second to travel.
+   */
+  private applyUnderwater(delta: number): void {
+    const target = this.underwater ? 1 : 0;
+    if (this.underwaterMix !== target) {
+      this.underwaterMix = MathUtils.lerp(
+        this.underwaterMix,
+        target,
+        1 - Math.exp(-9 * delta),
+      );
+      if (Math.abs(this.underwaterMix - target) < 0.002) this.underwaterMix = target;
+    } else if (target === 0 && !this.wasUnderwater) {
+      // Dry, and dry last frame too: the open-air look is already in place
+      // and nothing here should be touching it.
+      return;
+    }
+    const mix = this.underwaterMix;
+    this.wasUnderwater = mix > 0;
+
+    const airColor = this.studio ? STUDIO_BACKGROUND : SKY_BACKGROUND;
+    const airSun = this.studio ? 1.9 : 2.15;
+    const airHemisphere = this.studio ? 0.95 : 1.0;
+    const airHemisphereColor = this.studio ? STUDIO_HEMISPHERE : SKY_HEMISPHERE;
+    const airDensity = this.studio ? 0 : this.preset.fogDensity;
+
+    (this.scene.background as Color).copy(airColor).lerp(UNDERWATER_BACKGROUND, mix);
+    this.fog.color.copy(airColor).lerp(UNDERWATER_FOG, mix);
+    this.fog.density = MathUtils.lerp(airDensity, UNDERWATER_FOG_DENSITY, mix);
+    this.sun.intensity = MathUtils.lerp(airSun, 1.15, mix);
+    this.hemisphere.intensity = MathUtils.lerp(airHemisphere, 1.35, mix);
+    this.hemisphere.color.copy(airHemisphereColor).lerp(UNDERWATER_HEMISPHERE, mix);
+
+    // Studio mode has no fog of its own, so it only gets one under water.
+    const wantsFog = !this.studio || mix > 0.001;
+    this.scene.fog = wantsFog ? this.fog : null;
   }
 
   render(delta: number): void {
@@ -328,8 +379,10 @@ export class Engine {
       this.fpsFrames = 0;
     }
 
-    this.sky.visible = !this.underwater && !this.studio;
-    if (!this.underwater && !this.studio) {
+    this.applyUnderwater(delta);
+
+    this.sky.visible = this.underwaterMix < 0.5 && !this.studio;
+    if (this.sky.visible) {
       this.sky.position.copy(this.camera.position);
       this.sky.update(delta, this.camera.position);
     }

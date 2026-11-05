@@ -26,6 +26,9 @@ export interface HudState {
 export class Hud {
   private readonly stats: HTMLDivElement;
   private readonly focusNotice: HTMLDivElement;
+  /** The one-line offer shown when a button would do something here. */
+  private readonly prompt: HTMLDivElement;
+  private promptText = '';
   private visible = true;
 
   constructor(container: HTMLElement) {
@@ -48,17 +51,26 @@ export class Hud {
       Walk <b>hold Shift</b> · Jump <b>Space</b><br />
       Jump again on landing for a higher second and third jump · at a run,
       <b>Space</b> then <b>A</b> for a <b>side flip</b><br />
-      <b>Q</b> crouches on land and <b>dives</b> in water — crouch running then
-      jump for a <b>long jump</b>, crouch still then jump for a <b>backflip</b><br />
+      <b>C</b> crouches on land — crouch running then jump for a <b>long
+      jump</b>, crouch still then jump for a <b>backflip</b><br />
       <b>Space</b> again in the air for a boost, and <b>again</b> to <b>ground
       pound</b> · kick off walls as long as you keep reaching them<br />
-      <b>R</b> pick up and throw · <b>E</b>/<b>D</b> climb a ladder, <b>Space</b>
-      leaves it · let go at a run to <b>skid</b><br />
+      Ladder: <b>E</b>/<b>D</b> up and down · <b>Space</b> jumps off ·
+      <b>G</b> climbs down from the top<br />
+      Hanging: <b>S</b>/<b>F</b> along the edge · <b>E</b> pulls up ·
+      <b>Space</b> jumps off · <b>C</b> lets go<br />
+      Water: <b>Space</b> strokes and climbs out · <b>Q</b> or <b>Ctrl</b>
+      dives<br />
+      <b>R</b> pick up and throw · let go at a run to <b>skid</b> ·
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
-      Quality <b>1</b> low · <b>2</b> medium · <b>3</b> high<br />
+      Quality <b>1</b>/<b>2</b>/<b>3</b><br />
       <span class="hud__build">build ${__BUILD_STAMP__}</span>
     `;
     hud.appendChild(hints);
+
+    this.prompt = document.createElement('div');
+    this.prompt.className = 'hud__prompt';
+    hud.appendChild(this.prompt);
 
     // The page only receives key presses while it has focus. Without this,
     // a browser that has not been clicked looks identical to broken controls.
@@ -66,6 +78,15 @@ export class Hud {
     this.focusNotice.className = 'hud__focus';
     this.focusNotice.textContent = 'Click the page to give it keyboard focus';
     hud.appendChild(this.focusNotice);
+  }
+
+  /** Shows a prompt such as "G — Climb down", or clears it with null. */
+  setPrompt(text: string | null): void {
+    const next = text ?? '';
+    if (next === this.promptText) return;
+    this.promptText = next;
+    this.prompt.textContent = next;
+    this.prompt.classList.toggle('is-visible', next !== '');
   }
 
   toggleStats(): void {

@@ -58,6 +58,7 @@ const FRAGMENT = /* glsl */ `
   uniform vec3 uShallowColor;
   uniform vec3 uDeepColor;
   uniform vec3 uSkyColor;
+  uniform vec3 uUnderColor;
   uniform vec3 uSunDirection;
   uniform float uReflectivity;
   varying vec3 vWorldPosition;
@@ -67,15 +68,20 @@ const FRAGMENT = /* glsl */ `
     vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
     vec3 normal = normalize(vNormalW);
 
-    // Grazing angles reflect the sky; looking straight down shows the depth.
-    float fresnel = pow(1.0 - max(dot(viewDirection, normal), 0.0), 3.0);
+    // How square-on the surface is being looked at, whichever side of it the
+    // eye is. Taken as an absolute so the underside has a shape of its own
+    // rather than collapsing to the single value a clamp gives it.
+    float facing = abs(dot(viewDirection, normal));
 
+    // ---- Seen from above ---------------------------------------------------
     // A cheap stand-in for depth: the water is deeper away from the island.
     float shoreDistance = clamp(
       (abs(vWorldPosition.x) + abs(vWorldPosition.z + 12.0)) * 0.012, 0.0, 1.0);
     vec3 baseColor = mix(uShallowColor, uDeepColor, 0.45 + shoreDistance * 0.3);
 
-    vec3 color = mix(baseColor, uSkyColor, fresnel * uReflectivity);
+    // Grazing angles reflect the sky; looking straight down shows the depth.
+    float fresnel = pow(1.0 - facing, 3.0);
+    vec3 above = mix(baseColor, uSkyColor, fresnel * uReflectivity);
 
     // Sun glitter. The wave normal varies slowly, so an unbroken highlight
     // showed up as one large white smear; fine ripples break it into glints.
@@ -84,7 +90,7 @@ const FRAGMENT = /* glsl */ `
     float ripple = 0.5 + 0.5 *
       sin(vWorldPosition.x * 8.3 + uTime * 2.6) *
       sin(vWorldPosition.z * 7.1 - uTime * 2.1);
-    color += vec3(1.0, 0.97, 0.88) * specular * (0.25 + ripple * 0.7);
+    above += vec3(1.0, 0.97, 0.88) * specular * (0.25 + ripple * 0.7);
 
     // Fine sparkle so the surface is never completely still. Three
     // non-harmonic frequencies, so it does not settle into a visible grid.
@@ -92,9 +98,31 @@ const FRAGMENT = /* glsl */ `
       sin(vWorldPosition.x * 11.3 + uTime * 2.2) *
       sin(vWorldPosition.z * 9.7 - uTime * 1.8) *
       sin((vWorldPosition.x + vWorldPosition.z) * 5.1 + uTime * 1.1);
-    color += vec3(0.55, 0.6, 0.62) * max(0.0, abs(sparkle) - 0.86) * 2.4;
+    above += vec3(0.55, 0.6, 0.62) * max(0.0, abs(sparkle) - 0.86) * 2.4;
 
-    gl_FragColor = vec4(color, 0.74);
+    // ---- Seen from underneath ----------------------------------------------
+    // Looking up through water is not looking down at it. Straight up there
+    // is a bright window where the light comes through; toward the
+    // horizontal the surface turns into a mirror of the dark water below,
+    // which is what makes it read as a ceiling of water rather than as a
+    // hole in the world. Without this branch it was neither, and the scene
+    // behind it in this mode is very nearly black.
+    float window = pow(facing, 0.75);
+    vec3 under = mix(uUnderColor, uSkyColor * 0.92, window);
+    float caustic = 0.5 + 0.5 *
+      sin(vWorldPosition.x * 2.1 + uTime * 1.3) *
+      sin(vWorldPosition.z * 1.7 - uTime * 1.1);
+    under += uSkyColor * caustic * 0.07 * window;
+
+    // Crossing the waterline is a band rather than a line. Switched on the
+    // sign alone, a camera sitting on the surface flips the whole plane
+    // between two different-looking materials from one frame to the next.
+    float side = smoothstep(0.08, -0.08, cameraPosition.y - vWorldPosition.y);
+
+    gl_FragColor = vec4(
+      mix(above, under, side),
+      mix(0.74, mix(0.94, 0.55, window), side)
+    );
     #include <colorspace_fragment>
   }
 `;
@@ -105,6 +133,7 @@ export class Water extends Mesh {
     uShallowColor: { value: Color };
     uDeepColor: { value: Color };
     uSkyColor: { value: Color };
+    uUnderColor: { value: Color };
     uSunDirection: { value: Vector3 };
     uReflectivity: { value: number };
   };
@@ -115,6 +144,9 @@ export class Water extends Mesh {
       uShallowColor: { value: new Color('#3fb6c9') },
       uDeepColor: { value: new Color('#14566e') },
       uSkyColor: { value: new Color('#bfe4f7') },
+      // The colour the underside falls to at grazing angles: the water below
+      // it, mirrored back down. Dark, but never black.
+      uUnderColor: { value: new Color('#0d3d52') },
       uSunDirection: { value: sunDirection.clone() },
       uReflectivity: { value: reflective ? 0.95 : 0.55 },
     };

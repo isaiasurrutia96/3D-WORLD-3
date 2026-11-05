@@ -165,8 +165,10 @@ export const TUNING = {
    * The upward push the second press of jump gives while he is still in the
    * air. Small on purpose: it is a nudge that extends a jump, and the thing
    * that makes the third press a deliberate choice rather than an accident.
+   * Lifted a little from where it started: at 5.4 the boost read as the jump
+   * simply refusing to fall for a moment rather than as a push upward.
    */
-  airBoostVelocity: 5.4,
+  airBoostVelocity: 6.5,
   /** How long he hangs before the drop. The pause is most of the move. */
   groundPoundHover: 0.22,
   /** How fast he comes down. Far quicker than falling. */
@@ -179,8 +181,12 @@ export const TUNING = {
   ladderSnagDistance: 0.85,
   /** How fast he goes up and down one. */
   ladderSpeed: 2.8,
-  /** How far he stands off the face of the ladder while on it. */
-  ladderStandOff: 0.42,
+  /**
+   * How far he stands off the centre line of the rungs while on it. Enough
+   * that his body clears the rungs rather than passing through them, which
+   * is also the distance his hands reach forward to hold them.
+   */
+  ladderStandOff: 0.46,
   /**
    * How far above his shoulders the two hands reach for rungs. One high and
    * one low, swapping as he climbs.
@@ -191,6 +197,25 @@ export const TUNING = {
   ladderJumpOff: 4.5,
   /** How long after letting go of a ladder before another can be caught. */
   ladderCooldown: 0.6,
+  /**
+   * How far below the top of the ladder his feet come to rest when he has
+   * climbed all the way up it. His hands are over the edge at that point,
+   * which is the position the step onto the platform starts from.
+   */
+  ladderTopFeet: 1.05,
+  /** How long the step from the top of a ladder onto the platform takes. */
+  ladderTopSeconds: 0.6,
+  /** How far past the edge that step puts him. */
+  ladderTopStand: 0.72,
+  /** How long getting onto a ladder from the platform above takes. */
+  ladderMountSeconds: 0.55,
+  /**
+   * How close to the top of a ladder he has to be standing for the prompt to
+   * offer the climb down, measured flat and vertically. Deliberately tight:
+   * the offer is what makes it deliberate rather than an edge that grabs.
+   */
+  ladderMountReach: 1.7,
+  ladderMountDrop: 1.1,
 
   // ---- Getting over a ledge ------------------------------------------------
   /**
@@ -253,6 +278,35 @@ export const TUNING = {
   ledgeVaultSeconds: 0.5,
   /** How long after a climb before another one can start. */
   ledgeCooldown: 0.25,
+  /** How fast he shuffles sideways along an edge he is hanging from. */
+  ledgeShimmySpeed: 1.3,
+  /**
+   * How far to the side the check for more edge looks before he shuffles
+   * onto it. A shoulder's width, so he stops at a corner rather than
+   * hanging off the end of one.
+   */
+  ledgeShimmyProbe: 0.42,
+  /** Push away from an edge when he jumps off it, and how hard upward. */
+  ledgeJumpOff: 4.2,
+  ledgeJumpUp: 0.72,
+
+  // ---- Climbing out of water ----------------------------------------------
+  /**
+   * Getting out of a pool is its own move, not a ledge hang.
+   *
+   * Hanging settles him onto a fixed drop below the edge, which from the
+   * surface of the water meant a sudden lurch downward and his head going
+   * under before he climbed. This starts from wherever he is floating and
+   * only ever goes up.
+   */
+  waterExitSeconds: 0.75,
+  /** How far past the edge he ends up. */
+  waterExitStand: 0.9,
+  /** How far in front of him the search for a poolside reaches. */
+  waterExitReach: 0.95,
+  /** The band above his feet in which an edge can be climbed out onto. */
+  waterExitLow: 0.35,
+  waterExitHigh: 2.05,
 
   // ---- Braking ------------------------------------------------------------
   /**

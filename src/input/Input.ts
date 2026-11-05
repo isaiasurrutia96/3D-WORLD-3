@@ -19,6 +19,15 @@ export type ActionName =
   | 'dive'
   | 'crouch'
   | 'sideFlip'
+  | 'climbDown'
+  /**
+   * The forward key as a button rather than as an axis.
+   *
+   * Pulling up off a ledge has to answer a fresh press. Reading the movement
+   * axis instead meant that anyone still holding forward from the run-up was
+   * hauled over the edge the instant they caught it, with no hang at all.
+   */
+  | 'forward'
   | 'togglePointerLock';
 
 const STICK_DEADZONE = 0.22;
@@ -340,13 +349,20 @@ function applyDeadzone(value: number): number {
 const KEY_ACTIONS: Record<string, ActionName | undefined> = {
   Space: 'jump',
   KeyR: 'grab',
-  KeyQ: 'crouch',
+  // C crouches on land. Q dives in water, where there is nothing to crouch
+  // for, and Ctrl still does the same.
+  KeyC: 'crouch',
+  KeyQ: 'dive',
+  ControlLeft: 'dive',
   KeyL: 'togglePointerLock',
   Escape: 'pause',
-  ControlLeft: 'dive',
-  KeyC: 'dive',
   KeyW: 'interact',
   KeyA: 'sideFlip',
+  KeyG: 'climbDown',
+  // Also a movement key; the two readings do not interfere, because movement
+  // is taken from the held-key set and this from the press queue.
+  KeyE: 'forward',
+  ArrowUp: 'forward',
 };
 
 const GAMEPAD_ACTIONS: Record<number, ActionName> = {

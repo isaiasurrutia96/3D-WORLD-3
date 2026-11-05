@@ -594,27 +594,86 @@ if (!course.ladderWork.releasedByJump) {
 if (course.ladderWork.landedAfterJump === 'climb') {
   problems.push('jumping off the ladder was undone — it caught him again on the way down');
 }
-if (!course.ladderWork.hung) {
+if (course.ladderWork.reattached) {
+  problems.push('the ladder caught him again after he had jumped off it');
+}
+// Climbing over the top is the ladder's own move now. It used to hand over
+// to the ledge hang, which settles onto a drop below the edge and then waits
+// for a button, so the top of a ladder was somewhere to get stuck.
+if (course.ladderWork.topStates.includes('hanging')) {
   problems.push(
-    `the top of the ladder gave ${course.ladderWork.topStates.join(' > ')} rather than ` +
-      `taking hold of the edge above it`,
+    `the top of the ladder still hands over to the ledge hang ` +
+      `(${course.ladderWork.topStates.join(' > ')})`,
   );
 }
 if (!course.ladderWork.gotOver) {
   problems.push(
     `climbing over the top ended at ${course.ladderWork.onTop}m ` +
-      `(${course.ladderWork.overStates.join(' > ')})`,
+      `(${course.ladderWork.topStates.join(' > ')})`,
+  );
+}
+if (!course.ladderWork.canStillDescend) {
+  problems.push(
+    `pausing at the top of the ladder (${course.ladderWork.pausedAt}m, ` +
+      `"${course.ladderWork.pausedOn}") and pressing back left him at ` +
+      `${course.ladderWork.backedDownTo}m`,
+  );
+}
+if (!course.ladderWork.offered) problems.push('no climb-down was offered at the top of the ladder');
+if (course.ladderWork.offeredAway) {
+  problems.push('the climb-down was offered from the middle of the roof, away from the ladder');
+}
+if (!course.ladderWork.backOn) {
+  problems.push(
+    `G from the platform gave ${course.ladderWork.downStates.join(' > ')} rather than ` +
+      `putting him on the ladder`,
+  );
+}
+if (!course.ladderWork.climbedDown) {
+  problems.push(
+    `after G he went from ${course.ladderWork.mountedAt}m to ` +
+      `${course.ladderWork.descendedTo}m — back does not climb down`,
   );
 }
 
-// Q crouches on land and dives in water, from the one button.
+// Hanging off an edge: along it, up off it, and away from it.
+if (!course.ledgeWork.hung) problems.push('dropping onto the roof edge did not catch it');
+if (!course.ledgeWork.movedAlong) {
+  problems.push(
+    `sideways on the edge moved him from z=${course.ledgeWork.caughtZ} to ` +
+      `z=${course.ledgeWork.shimmiedZ}`,
+  );
+}
+if (!course.ledgeWork.stillHanging) problems.push('shuffling along the edge let go of it');
+if (!course.ledgeWork.heldForwardDidNothing) {
+  problems.push('holding forward pulled him up without a fresh press of it');
+}
+if (!course.ledgeWork.pulledUp) {
+  problems.push(`pressing forward on the edge ended at ${course.ledgeWork.endedAt}m`);
+}
+if (!course.ledgeWork.jumpedOff) {
+  problems.push(`jump on the edge left him "${course.ledgeWork.afterLedgeJump}"`);
+}
+if (!course.ledgeWork.pushedBack) {
+  problems.push('jumping off the edge did not push him away from the wall');
+}
+
+// C crouches on land; Q dives in water.
 if (course.crouchKey.onLand !== 'crouch') {
-  problems.push(`Q on land gave "${course.crouchKey.onLand}" rather than a crouch`);
+  problems.push(`C on land gave "${course.crouchKey.onLand}" rather than a crouch`);
 }
 if (!course.crouchKey.dives) {
   problems.push(
     `Q in the water took him from ${course.crouchKey.floatedAt}m to ` +
       `${course.crouchKey.divedTo}m — it is not diving`,
+  );
+}
+
+// The second press of jump in the air lifts him.
+if (!course.airBoost.lifts) {
+  problems.push(
+    `the air boost took the jump from ${course.airBoost.plain}m to ` +
+      `${course.airBoost.boosted}m, which is not a lift`,
   );
 }
 
@@ -632,7 +691,27 @@ if (!(course.pool.deepest < -6)) {
   problems.push(`station 12: diving only reached ${course.pool.deepest}m of an eight metre pool`);
 }
 if (!course.pool.surfaced) problems.push('station 12: he never came back to the surface');
+if (!course.pool.usedWaterExit) {
+  problems.push('station 12: getting out of the pool did not use the water exit move');
+}
+// And it must not begin by pulling him under. The old way out ran the ledge
+// hang, which settles onto a fixed drop below the edge — from the surface
+// that put his head under before he climbed, so jump looked like dive.
+if (!course.pool.neverDucked) {
+  problems.push(
+    `station 12: climbing out dropped him from ${course.pool.floatedAt}m to ` +
+      `${course.pool.dippedTo}m before he rose`,
+  );
+}
 if (!course.pool.out) problems.push('station 12: there is no way out of the pool');
+// And floating still is floating still: coming up from the bottom with
+// nothing pressed must leave him treading water, not snatched onto the side.
+if (!course.floating.treads) {
+  problems.push(
+    `station 12: rising from the bottom left him "${course.floating.state}" at ` +
+      `${course.floating.at}m, then "${course.floating.stayed}"`,
+  );
+}
 
 await resetPlayer(page);
 
@@ -770,19 +849,47 @@ console.log(` 8  wall kicks  ${course.kickShaft.kicks} kicks, ${course.kickShaft
 console.log(
   ` 10 ladder      ${course.ladderWork.caughtAt}m to ${course.ladderWork.climbedTo}m, off by ` +
     `jump "${course.ladderWork.afterJump}" then "${course.ladderWork.landedAfterJump}", ` +
-    `over the top to ${course.ladderWork.onTop}m`,
+    `caught again ${course.ladderWork.reattached}`,
+);
+console.log(
+  `                over the top: ${course.ladderWork.topStates.join(' > ')} at ` +
+    `${course.ladderWork.onTop}m · paused at ${course.ladderWork.pausedAt}m and backed ` +
+    `down to ${course.ladderWork.backedDownTo}m`,
+);
+console.log(
+  `                G from above: offered ${course.ladderWork.offered}, away from it ` +
+    `${course.ladderWork.offeredAway}, ${course.ladderWork.downStates.join(' > ')} at ` +
+    `${course.ladderWork.mountedAt}m, down to ${course.ladderWork.descendedTo}m`,
+);
+console.log(
+  ` 9  hanging     along the edge z=${course.ledgeWork.caughtZ} to ` +
+    `z=${course.ledgeWork.shimmiedZ}, held forward did nothing ` +
+    `${course.ledgeWork.heldForwardDidNothing}, E pulled up ${course.ledgeWork.pulledUp}, ` +
+    `Space gave "${course.ledgeWork.afterLedgeJump}"`,
+);
+console.log(
+  ` boost          plain ${course.airBoost.plain}m, boosted ${course.airBoost.boosted}m ` +
+    `(+${course.airBoost.gain}m)`,
 );
 console.log(
   ` 8b kicks       ${course.manyKicks.kicks} alternating, up to ${course.manyKicks.highest}m`,
 );
 console.log(
-  ` Q              land "${course.crouchKey.onLand}", water ${course.crouchKey.floatedAt}m ` +
+  ` C / Q          C on land "${course.crouchKey.onLand}", Q in water ${course.crouchKey.floatedAt}m ` +
     `down to ${course.crouchKey.divedTo}m`,
 );
 console.log(` 11 crate       carried ${course.crate.carrying}`);
 console.log(
   ` 12 pool        down to ${course.pool.deepest}m, surfaced ${course.pool.surfaced}, ` +
     `out ${course.pool.out}`,
+);
+console.log(
+  `                out of it: ${course.pool.outStates.join(' > ')}, floating at ` +
+    `${course.pool.floatedAt}m and never below ${course.pool.dippedTo}m`,
+);
+console.log(
+  `                floating still: "${course.floating.state}" at ${course.floating.at}m, ` +
+    `then "${course.floating.stayed}"`,
 );
 
 console.log('\n--- report ---');

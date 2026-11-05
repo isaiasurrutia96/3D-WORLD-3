@@ -10,7 +10,7 @@
 import { MathUtils } from 'three';
 import { TUNING } from './Tuning.ts';
 import { ARM, HIP_HEIGHT, SHOULDER_HEIGHT, type CharacterRig } from './PlayerModel.ts';
-import type { JumpKind, MovementState, PoundPhase } from './Player.ts';
+import type { ClimbMove, JumpKind, MovementState, PoundPhase } from './Player.ts';
 
 export interface AnimationInputs {
   time: number;
@@ -37,6 +37,8 @@ export interface AnimationInputs {
   ledgeProgress: number;
   /** True when the climb is onto a roof rather than over the top of a wall. */
   ledgeWide: boolean;
+  /** Which placed move is running: a climb, a ladder step, or a way out of water. */
+  ledgeMove: ClimbMove;
   /** True while he is holding the edge, waiting for the jump button. */
   ledgeHanging: boolean;
   /** How far the edge he is holding is above his feet, right now. */
@@ -410,6 +412,19 @@ function poseGround(input: AnimationInputs): void {
  * over it instead and swings a leg across.
  */
 function poseLedge(input: AnimationInputs): void {
+  if (input.ledgeMove === 'water-exit') {
+    poseWaterExit(input);
+    return;
+  }
+  if (input.ledgeMove === 'ladder-top') {
+    poseLadderTop(input);
+    return;
+  }
+  if (input.ledgeMove === 'ladder-mount') {
+    poseLadderMount(input);
+    return;
+  }
+
   const wide = input.ledgeWide;
   const p = input.ledgeHanging ? 0 : MathUtils.clamp(input.ledgeProgress, 0, 1);
 
@@ -436,6 +451,103 @@ function poseLedge(input: AnimationInputs): void {
   pose.bodyRoll = wide ? 0 : mix(0, 0.18, 0);
 
   reachForTheEdge(input);
+}
+
+/**
+ * Out of the water and onto the deck.
+ *
+ * It starts from wherever he is floating, which is the whole difference
+ * between this and the ledge hang: there is no drop onto a hang first, so
+ * the head never goes under. Reach, plant both hands, lift the chest over
+ * the hands, then bring the knees up and stand.
+ */
+function poseWaterExit(input: AnimationInputs): void {
+  const p = MathUtils.clamp(input.ledgeProgress, 0, 1);
+  const second = p >= 0.5;
+  const raw = second ? (p - 0.5) / 0.5 : p / 0.5;
+  const t = raw * raw * (3 - 2 * raw);
+  const mix = (reach: number, plant: number, out: number) =>
+    second ? MathUtils.lerp(plant, out, t) : MathUtils.lerp(reach, plant, t);
+
+  // Chin up throughout. The old version inherited the hang, which tipped him
+  // forward and down before anything else happened.
+  pose.bodyPitch = mix(0.26, 0.52, 0.06);
+  pose.bodyHeight = mix(0.04, -0.02, 0);
+  pose.bodySquash = mix(1.01, 0.96, 1);
+  pose.headPitch = mix(-0.38, -0.22, 0);
+
+  // Legs trailing in the water, then folded up underneath him.
+  pose.hipLeft = mix(0.3, -1.5, -0.22);
+  pose.hipRight = mix(0.22, -1.1, -0.22);
+  pose.kneeLeft = mix(0.25, 1.9, 0.3);
+  pose.kneeRight = mix(0.2, 1.4, 0.3);
+  pose.ankleLeft = mix(-0.3, 0.2, 0);
+  pose.ankleRight = mix(-0.3, 0.2, 0);
+
+  reachForTheEdge(input);
+}
+
+/**
+ * The step off the top of a ladder onto what it leads to.
+ *
+ * He is already holding the rungs at chest height, so there is nothing to
+ * catch: one hand stays, the other goes flat on the surface, and a knee
+ * comes up over the edge.
+ */
+function poseLadderTop(input: AnimationInputs): void {
+  const p = MathUtils.clamp(input.ledgeProgress, 0, 1);
+  const t = p * p * (3 - 2 * p);
+
+  pose.bodyPitch = MathUtils.lerp(0.22, 0.08, t);
+  pose.bodyHeight = MathUtils.lerp(-0.02, 0, t);
+  pose.headPitch = MathUtils.lerp(-0.28, -0.05, t);
+  pose.bodyRoll = Math.sin(p * Math.PI) * 0.1;
+
+  // One leg drives up over the edge ahead of the other.
+  pose.hipLeft = MathUtils.lerp(-1.5, -0.24, t);
+  pose.hipRight = MathUtils.lerp(-0.35, -0.24, t);
+  pose.kneeLeft = MathUtils.lerp(1.7, 0.3, t);
+  pose.kneeRight = MathUtils.lerp(0.75, 0.3, t);
+  pose.ankleLeft = MathUtils.lerp(0.2, 0, t);
+  pose.ankleRight = MathUtils.lerp(0.25, 0, t);
+
+  reachForTheEdge(input);
+}
+
+/**
+ * Getting onto a ladder from the platform above it.
+ *
+ * The reverse of the step off the top, and it has to read as deliberate: he
+ * turns, crouches at the edge, puts both hands on it and lowers his feet to
+ * the rungs. The controller turns him through the move, so all this has to
+ * do is the crouch and the hands.
+ */
+function poseLadderMount(input: AnimationInputs): void {
+  const p = MathUtils.clamp(input.ledgeProgress, 0, 1);
+  const crouch = Math.sin(MathUtils.clamp(p * 1.35, 0, 1) * Math.PI);
+
+  pose.bodyPitch = 0.16 + crouch * 0.3;
+  pose.bodyHeight = -crouch * 0.16;
+  pose.headPitch = -0.1 - crouch * 0.2;
+
+  pose.hipLeft = -crouch * 1.0;
+  pose.hipRight = -crouch * 1.25;
+  pose.kneeLeft = crouch * 1.5;
+  pose.kneeRight = crouch * 1.85;
+  pose.ankleLeft = -crouch * 0.5;
+  pose.ankleRight = -crouch * 0.5;
+
+  // Hands down on the edge he is lowering himself over, then onto the rungs.
+  const hand = solveArm(
+    MathUtils.lerp(-0.35, TUNING.ladderHandHigh, p),
+    TUNING.ladderStandOff,
+  );
+  pose.shoulderLeftPitch = hand.shoulder;
+  pose.shoulderRightPitch = hand.shoulder;
+  pose.elbowLeft = hand.elbow;
+  pose.elbowRight = hand.elbow;
+  pose.shoulderLeftRoll = 0.26;
+  pose.shoulderRightRoll = 0.26;
 }
 
 /**
@@ -779,75 +891,155 @@ function poseAir(input: AnimationInputs): void {
   }
 }
 
+/**
+ * How far through the swimming cycle he is, and how much he is actually
+ * swimming rather than treading.
+ *
+ * Both are carried between frames rather than computed from the clock. The
+ * phase is accumulated so that the rate can change — a stroke speeds it up —
+ * without the arms jumping to a different point in the cycle. The drive is
+ * eased so that starting and stopping is a swimmer settling into a stroke
+ * rather than two poses swapping over.
+ */
+let swimPhase = 0;
+let swimDrive = 0;
+
+/**
+ * One arm of an alternating stroke, as a shoulder, an elbow and a roll.
+ *
+ * The cycle is in two halves. The first is the pull: the hand enters ahead
+ * of the head and sweeps through to the hip, which in this rig means the
+ * shoulder swinging from nearly all the way forward back to hanging. The
+ * second is the recovery, which goes back the other way with the elbow high
+ * and the arm carried out to the side, clear of the water.
+ */
+const strokeArm = { shoulder: 0, elbow: 0, roll: 0 };
+function armStroke(phase: number, width: number): typeof strokeArm {
+  const cycle = phase - Math.floor(phase);
+  if (cycle < 0.5) {
+    const s = cycle / 0.5;
+    const ease = s * s * (3 - 2 * s);
+    strokeArm.shoulder = MathUtils.lerp(-2.78, -0.18, ease);
+    strokeArm.elbow = -0.95 * Math.sin(s * Math.PI);
+    strokeArm.roll = 0.2 + Math.sin(s * Math.PI) * 0.2 * width;
+  } else {
+    const r = (cycle - 0.5) / 0.5;
+    const ease = r * r * (3 - 2 * r);
+    strokeArm.shoulder = MathUtils.lerp(-0.18, -2.78, ease);
+    // High elbow, arm carried wide: that is what makes a recovery read as a
+    // recovery rather than as the pull running backwards.
+    strokeArm.elbow = -1.35 * Math.sin(r * Math.PI);
+    strokeArm.roll = 0.26 + Math.sin(r * Math.PI) * (0.78 * width);
+  }
+  return strokeArm;
+}
+
+/**
+ * Three ways of being in water, blended by how hard he is swimming.
+ *
+ * At the surface and moving it is a front crawl: alternating arms, a bent
+ * elbow over the water on the recovery, and a flutter kick underneath.
+ * Submerged it is a butterfly: both arms together, the body undulating and
+ * the legs kicking as one. Still at the surface he treads water, hands by
+ * his hips sculling downward and his head clear of it.
+ */
 function poseSwim(input: AnimationInputs): void {
-  // One clock for both, so the arms and the legs are parts of the same
-  // stroke rather than two loops that happen to be running at once. Taking a
-  // stroke takes the cycle over and deepens it; otherwise it ticks along on
-  // its own, because a swimmer who stops swimming sinks.
+  // How much of a swimmer he is this frame. A stroke counts as swimming
+  // even before he has picked up any speed, so the first stroke from a
+  // standstill is a stroke rather than a twitch of the treading pose.
   const stroking = input.strokeProgress < 1;
-  const cycle = stroking ? input.strokeProgress : (input.time * 0.78) % 1;
-  const depth = stroking ? 1 : 0.62;
-  // Rises through the pull and falls through the recovery, which is what
-  // gives a stroke its beat.
-  const pull = Math.sin(cycle * Math.PI) * depth;
-  const recovery = Math.max(0, -Math.cos(cycle * 2 * Math.PI)) * depth;
+  const moving = MathUtils.clamp(input.speed / 1.5, 0, 1);
+  const target = input.submerged ? 1 : Math.max(moving, stroking ? 1 : 0);
+  swimDrive = MathUtils.lerp(swimDrive, target, 1 - Math.exp(-6 * input.delta));
+
+  // One accumulated clock. A stroke drives it along faster, which is what
+  // ties the push the controller gives to the arm that appears to give it.
+  const rate = (input.submerged ? 0.62 : 0.72) + swimDrive * 0.5 + (stroking ? 0.85 : 0);
+  swimPhase += input.delta * rate;
 
   if (input.submerged) {
-    // Prone and face-down. A quarter turn is exactly horizontal, so swimming
-    // forward sits just under it and a dive goes past it, angling the head
-    // downward in the direction he is actually moving.
-    pose.bodyPitch = input.diving ? 1.85 : 1.26;
-    pose.bodyHeight = 0.26;
-    pose.bodyRoll = Math.sin(cycle * 2 * Math.PI) * 0.12;
-
-    // A breaststroke: both arms reach forward together, sweep out and back,
-    // then fold in and reach again.
-    pose.shoulderLeftPitch = -2.5 + pull * 1.35;
-    pose.shoulderRightPitch = -2.5 + pull * 1.35;
-    pose.shoulderLeftRoll = 0.24 + pull * 0.95;
-    pose.shoulderRightRoll = 0.24 + pull * 0.95;
-    pose.elbowLeft = -0.2 - recovery * 1.5;
-    pose.elbowRight = -0.2 - recovery * 1.5;
-
-    // And the legs kick with the arms rather than against them: drawn up
-    // during the recovery, driven back on the pull.
-    pose.hipLeft = -0.15 - recovery * 1.0 + pull * 0.35;
-    pose.hipRight = -0.15 - recovery * 1.0 + pull * 0.35;
-    pose.kneeLeft = recovery * 1.6;
-    pose.kneeRight = recovery * 1.6;
-    pose.ankleLeft = 0.3 - pull * 0.5;
-    pose.ankleRight = 0.3 - pull * 0.5;
-
-    pose.headPitch = -0.62;
+    poseButterfly(input);
     return;
   }
 
-  // Upright at the surface, head and shoulders clear, working to stay there.
-  pose.bodyPitch = 0.2;
-  pose.bodyHeight = 0.05;
-  pose.bodyRoll = Math.sin(cycle * 2 * Math.PI) * 0.1;
+  // Treading and crawling are posed together and mixed, rather than swapped,
+  // so that pushing off from a float is one movement.
+  const d = swimDrive;
+  const mix = (tread: number, crawl: number) => MathUtils.lerp(tread, crawl, d);
 
-  // The arms alternate: one pulls down and back while the other reaches
-  // forward over the surface. Hanging them straight down, which is what they
-  // did before, is a man standing in water rather than a man swimming.
-  const left = Math.sin(cycle * 2 * Math.PI);
-  const right = -left;
-  pose.shoulderLeftPitch = -1.15 - left * 0.95;
-  pose.shoulderRightPitch = -1.15 - right * 0.95;
-  pose.shoulderLeftRoll = 0.42 + Math.max(0, left) * 0.3;
-  pose.shoulderRightRoll = 0.42 + Math.max(0, right) * 0.3;
-  pose.elbowLeft = -0.75 - Math.max(0, -left) * 0.9;
-  pose.elbowRight = -0.75 - Math.max(0, -right) * 0.9;
+  // ---- Treading ----------------------------------------------------------
+  // Small sculling figures-of-eight by his hips, not sideways arm pumps.
+  const scull = Math.sin(swimPhase * Math.PI * 2.6);
+  const treadShoulder = -0.52 - scull * 0.1;
+  const treadElbow = -1.2 - Math.abs(scull) * 0.16;
+  const treadRoll = 0.5 + scull * 0.07;
+  const eggbeater = Math.sin(swimPhase * Math.PI * 2);
 
-  // A scissor kick underneath, opposite to the arm on the same side.
-  pose.hipLeft = -0.5 - right * 0.55;
-  pose.hipRight = -0.5 - left * 0.55;
-  pose.kneeLeft = 0.6 + Math.max(0, right) * 0.7;
-  pose.kneeRight = 0.6 + Math.max(0, left) * 0.7;
-  pose.ankleLeft = 0.25;
-  pose.ankleRight = 0.25;
+  // ---- Front crawl -------------------------------------------------------
+  const left = armStroke(swimPhase, 1);
+  const leftShoulder = left.shoulder;
+  const leftElbow = left.elbow;
+  const leftRoll = left.roll;
+  const right = armStroke(swimPhase + 0.5, 1);
+  const flutter = Math.sin(swimPhase * Math.PI * 6);
 
-  pose.headPitch = -0.14;
+  // Prone, but not flat out: the head stays up enough to be clearly above
+  // the surface, which is where the rest of the controller believes it is.
+  pose.bodyPitch = mix(0.14, 1.3);
+  pose.bodyHeight = mix(0.04, 0.3);
+  pose.bodyRoll = mix(0, Math.sin(swimPhase * Math.PI * 2) * 0.22);
+  pose.headPitch = mix(-0.1, -0.5);
+
+  pose.shoulderLeftPitch = mix(treadShoulder, leftShoulder);
+  pose.shoulderRightPitch = mix(treadShoulder, right.shoulder);
+  pose.elbowLeft = mix(treadElbow, leftElbow);
+  pose.elbowRight = mix(treadElbow, right.elbow);
+  pose.shoulderLeftRoll = mix(treadRoll, leftRoll);
+  pose.shoulderRightRoll = mix(treadRoll, right.roll);
+
+  pose.hipLeft = mix(-0.95 - eggbeater * 0.3, 0.12 + flutter * 0.3);
+  pose.hipRight = mix(-0.95 + eggbeater * 0.3, 0.12 - flutter * 0.3);
+  pose.kneeLeft = mix(1.1 + Math.max(0, eggbeater) * 0.5, 0.2 + Math.max(0, -flutter) * 0.3);
+  pose.kneeRight = mix(1.1 + Math.max(0, -eggbeater) * 0.5, 0.2 + Math.max(0, flutter) * 0.3);
+  pose.ankleLeft = mix(0.2, -0.32);
+  pose.ankleRight = mix(0.2, -0.32);
+}
+
+/**
+ * Underwater: a butterfly, both arms together and the legs kicking as one.
+ *
+ * The body undulates with the kick rather than holding still, because the
+ * undulation is the stroke — arms moving in front of a rigid body is the
+ * thing that reads as waving rather than swimming.
+ */
+function poseButterfly(input: AnimationInputs): void {
+  const arm = armStroke(swimPhase, 0.55);
+  const wave = Math.sin(swimPhase * Math.PI * 2);
+  const kick = Math.sin(swimPhase * Math.PI * 2 - 0.7);
+
+  // A quarter turn is exactly horizontal, so swimming forward sits just
+  // under it and a dive goes past it, pointing the head down the way he is
+  // actually travelling.
+  pose.bodyPitch = (input.diving ? 1.9 : 1.3) + wave * 0.14;
+  pose.bodyHeight = 0.26;
+  pose.bodyRoll = 0;
+
+  pose.shoulderLeftPitch = arm.shoulder;
+  pose.shoulderRightPitch = arm.shoulder;
+  pose.elbowLeft = arm.elbow;
+  pose.elbowRight = arm.elbow;
+  pose.shoulderLeftRoll = arm.roll;
+  pose.shoulderRightRoll = arm.roll;
+
+  // Dolphin kick: the legs stay together and the whole lower body drives.
+  pose.hipLeft = 0.1 + kick * 0.42;
+  pose.hipRight = 0.1 + kick * 0.42;
+  pose.kneeLeft = 0.25 + Math.max(0, -kick) * 0.85;
+  pose.kneeRight = 0.25 + Math.max(0, -kick) * 0.85;
+  pose.ankleLeft = -0.3 - kick * 0.2;
+  pose.ankleRight = -0.3 - kick * 0.2;
+
+  pose.headPitch = -0.5 - wave * 0.1;
 }
 
 function applyCarry(): void {

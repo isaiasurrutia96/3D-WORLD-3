@@ -39,8 +39,16 @@ import { STUDIO_SUN_DIRECTION } from '../core/Engine.ts';
 export const COURSE_SPAWN = new Vector3(0, 0, 54);
 export const COURSE_FACING = Math.PI;
 
-/** The pool, which the floor needs a hole cutting for. */
-export const COURSE_POOL = { x: -34, z: 18, half: 15, depth: 8 };
+/**
+ * The pool, which the floor needs a hole cutting for.
+ *
+ * Its edges are deliberately on even metres. The floor is one plane of
+ * two-metre squares and the hole is cut by dropping whole triangles, so a
+ * boundary that falls in the middle of a square leaves every other half
+ * triangle behind — which is what the saw-tooth fringe around the old pool
+ * was. On the grid, the cut is straight.
+ */
+export const COURSE_POOL = { x: -35, z: 19, half: 15, depth: 8 };
 
 const STONE = new Color('#5c6673');
 const STONE_DARK = new Color('#49525e');
@@ -198,7 +206,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // 4 — The long jump
   // =========================================================================
   pad(0, 0, 2);
-  sign(4.2, 0, 2, Math.PI * 0.9, '4 · LONG JUMP', 'Run, hold Q, then Space', 'The gap is too wide for a plain jump');
+  sign(4.2, 0, 2, Math.PI * 0.9, '4 · LONG JUMP', 'Run, hold C, then Space', 'The gap is too wide for a plain jump');
   // Two steps up onto it: he walks over a lip of less than half a metre and
   // is stopped by anything taller, so a 1.1m plinth needs a way on.
   block(0, 0, 3.4, 7, 0.4, 1.6, STONE_DARK);
@@ -213,7 +221,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // that block is in the long jump's flight path: the first version put this
   // platform there and the long jump caught its edge instead of landing.
   pad(0, 1.1, -17);
-  sign(12, 0, -21.4, 0, '5 · BACKFLIP', 'Stand still, hold Q, then Space', 'Face the wall — it throws you backwards');
+  sign(12, 0, -21.4, 0, '5 · BACKFLIP', 'Stand still, hold C, then Space', 'Face the wall — it throws you backwards');
   block(12, 0, -23, 10, 5, 1.2, STONE_DARK);
   pad(12, 0, -18.5);
   platform(12, 2.6, -15, 6, 4);
@@ -260,7 +268,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // =========================================================================
   // 9 — Three ways over an edge
   // =========================================================================
-  sign(31.4, 9, 20.4, 0, '9 · OVER THE TOP', 'Jump at the edge, then Space to climb', 'Thin wall · wall top · wide roof');
+  sign(31.4, 9, 20.4, 0, '9 · OVER THE TOP', 'Catch the edge · E pulls up', 'S / F along it · Space jumps off');
   // Thin: vaulted, landing on the far side.
   block(31.4, 9, 24, 6, 2.4, 0.35, ACCENT);
   block(31.4, 0, 27.5, 6, 9, 5);
@@ -273,20 +281,26 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // =========================================================================
   // 10 — The ladder
   // =========================================================================
-  sign(24.4, 0.6, 43, -Math.PI / 2, '10 · LADDER', 'Walk into it · E up, D down', 'Space jumps off, Q lets go');
+  sign(24.4, 0.6, 43, -Math.PI / 2, '10 · LADDER', 'Walk into it · E up · D down', 'Space jumps off · G climbs down from the top');
   // Down from the roof to the floor by a ramp, and back up the ladder.
   block(22, 0, 43, 6, 0.6, 8, STONE_DARK);
-  const ladderX = 26.95;
+  // The wall's face is at x = 26.9, and the ladder hangs on the front of it
+  // rather than inside it. It used to be centred on 26.95, which buried
+  // every rung in the stone and left only the two rails showing as a pair
+  // of lines where they happened to be coplanar with the wall.
+  const ladderFace = 26.9;
   const ladderTop = 11.6;
-  buildLadder(solid, ladderX, 43, ladderTop);
+  // The rungs are what he holds, so they are what he is placed against.
+  const rungX = ladderFace - 0.145;
+  buildLadder(decor, ladderFace, 43, ladderTop);
   collision.addLadder(
     new Box3(
-      new Vector3(ladderX - 1, 0, 43 - 1),
-      new Vector3(ladderX + 0.35, ladderTop, 43 + 1),
+      new Vector3(rungX - 1, 0, 43 - 1),
+      new Vector3(rungX + 0.45, ladderTop, 43 + 1),
     ),
     Math.PI / 2,
     ladderTop,
-    new Vector3(ladderX, 0, 43),
+    new Vector3(rungX, 0, 43),
   );
   pad(22, 0.6, 43, 2);
 
@@ -306,7 +320,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // =========================================================================
   // 12 — The pool
   // =========================================================================
-  sign(-15, 0, 30, Math.PI * 0.6, '12 · SWIM', 'Space strokes · C or Ctrl dives', 'At the surface, Space grabs the edge');
+  sign(-15, 0, 30, Math.PI * 0.6, '12 · SWIM', 'Space strokes · Q or Ctrl dives', 'At the surface, Space climbs out');
   // A board to dive from, on the near side.
   block(-19.5, 0, 30, 4, 6, 4, STONE_DARK);
   block(-23.5, 5.4, 30, 5, 0.5, 2.2, ACCENT);
@@ -319,8 +333,11 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
     ),
     -0.15,
   );
+  // Level with the collision surface and below the deck. Setting it to 0
+  // put it exactly in the plane of the floor, and two coplanar surfaces
+  // fight over every pixel where they meet.
   const water = new Water(COURSE_POOL.half * 2, -0.15, STUDIO_SUN_DIRECTION, false);
-  water.position.set(COURSE_POOL.x, 0, COURSE_POOL.z);
+  water.position.set(COURSE_POOL.x, -0.15, COURSE_POOL.z);
   water.renderOrder = 2;
   root.add(water);
 
@@ -398,24 +415,36 @@ function poolBasin(): Mesh[] {
   return parts;
 }
 
-function buildLadder(solid: Group, x: number, z: number, top: number): void {
+/**
+ * A ladder standing on the face of a wall, `face` being the wall's surface.
+ *
+ * It is built into the decoration rather than the collision. A ladder is
+ * handled by the controller as a volume to be inside, not a surface to be
+ * against, so making the rungs solid only gives the climber something to
+ * snag on a hand's width in front of where he is meant to stand.
+ */
+function buildLadder(group: Group, face: number, z: number, top: number): void {
   const material = new MeshStandardMaterial({ color: WOOD, roughness: 0.8 });
+
+  // Rails flat against the wall.
   for (const side of [-1, 1]) {
     const rail = new Mesh(
-      new BoxGeometry(0.1, top - 0.1, 0.1, 1, Math.ceil(top), 1),
+      new BoxGeometry(0.11, top - 0.1, 0.11, 1, Math.ceil(top), 1),
       material,
     );
-    rail.position.set(x, (top - 0.1) / 2, z + side * 0.34);
+    rail.position.set(face - 0.055, (top - 0.1) / 2, z + side * 0.34);
     rail.castShadow = true;
     rail.receiveShadow = true;
-    solid.add(rail);
+    group.add(rail);
   }
-  for (let y = 0.35; y < top - 0.1; y += 0.42) {
-    const rung = new Mesh(new CylinderGeometry(0.045, 0.045, 0.76, 8), material);
+
+  // Rungs proud of the rails, so there is visibly something to hold.
+  for (let y = 0.36; y < top - 0.12; y += 0.4) {
+    const rung = new Mesh(new CylinderGeometry(0.055, 0.055, 0.78, 8), material);
     rung.rotation.x = Math.PI / 2;
-    rung.position.set(x, y, z);
+    rung.position.set(face - 0.145, y, z);
     rung.castShadow = true;
-    solid.add(rung);
+    group.add(rung);
   }
 }
 

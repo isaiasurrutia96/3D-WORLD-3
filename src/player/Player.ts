@@ -12,7 +12,7 @@
 
 import { Group, MathUtils, Object3D, Vector3 } from 'three';
 import { Capsule } from 'three/addons/math/Capsule.js';
-import type { CollisionWorld, LadderVolume } from '../physics/CollisionWorld.ts';
+import type { CollisionWorld, LadderVolume, WaterVolume } from '../physics/CollisionWorld.ts';
 import type { Input } from '../input/Input.ts';
 import type { Carryable } from '../world/Carryable.ts';
 import { MAX_WALKABLE_NORMAL_Y, TUNING } from './Tuning.ts';
@@ -35,6 +35,24 @@ export type JumpKind = 'normal' | 'long' | 'back' | 'wall' | 'side';
 
 /** Which part of a ground pound is running, if any. */
 export type PoundPhase = 'none' | 'hover' | 'slam' | 'landed';
+
+/**
+ * Which placed move is running, when one is.
+ *
+ * All six are driven by the same timer and the same pair of points, which is
+ * the only thing they have in common. They are kept apart by name because
+ * they used not to be: getting out of a pool and stepping off the top of a
+ * ladder both ran the ledge hang, and both inherited its one real
+ * assumption — that he is dangling off the edge by his hands — which is
+ * false for either of them.
+ */
+export type ClimbMove =
+  | 'mantle'
+  | 'vault'
+  | 'swing'
+  | 'ladder-top'
+  | 'ladder-mount'
+  | 'water-exit';
 
 export interface PlayerEvents {
   onSplash?: (position: Vector3, strength: number) => void;
@@ -165,6 +183,12 @@ export class Player {
   private ledgeWide = false;
   /** True for a top too narrow to stand on, which is gone over rather than onto. */
   private ledgeVault = false;
+  /** Which of the placed moves is running. */
+  private climbMove: ClimbMove = 'mantle';
+  /** The facing the move ends on, turned toward across the move itself. */
+  private ledgeFacingFrom = 0;
+  /** The ladder a 'ladder-mount' move is getting him onto. */
+  private pendingLadder: LadderVolume | null = null;
   /** True while he is holding the edge, waiting for the jump button. */
   private ledgeHanging = false;
   /** How far the edge he is holding is above his feet. */
@@ -173,6 +197,19 @@ export class Player {
   private readonly ledgeFrom = new Vector3();
   private readonly ledgeTo = new Vector3();
   private strokeTimer = 0;
+  /**
+   * The water he is in, decided once a frame.
+   *
+   * It used to be asked for twice with two different questions: the state
+   * machine tested a point a fifth of a metre above his feet, and the
+   * swimming itself tested the middle of his capsule, nearly a metre higher.
+   * Rising quickly from a dive, the second said "not in water" while the
+   * first still said he was, and he was dropped into the air a metre below
+   * the surface — where the search for a ledge promptly caught the poolside
+   * and settled him onto a hang well under it. That is the lurch downward
+   * at the pool edge, and it needed no button at all.
+   */
+  private waterVolume: WaterVolume | null = null;
   private submerged = false;
   private atSurface = false;
   private diving = false;
@@ -203,6 +240,14 @@ export class Player {
    * velocity with a position, and everything downstream went with it.
    */
   private readonly scratchProbe = new Vector3();
+  /**
+   * And one for the ledge search, for the same reason. It used to borrow
+   * scratchA, which in the air is holding the movement intent for that
+   * frame — so every frame the search found nothing, which is most of them,
+   * it left the character's own facing in place of the stick, and steering
+   * in the air quietly did nothing at all.
+   */
+  private readonly scratchLedge = new Vector3();
 
 
   constructor(
@@ -251,6 +296,9 @@ export class Player {
     if (this.poundPhase === 'landed') return 'pound-land';
     if (this.state === 'ledge') {
       if (this.ledgeHanging) return 'hanging';
+      if (this.climbMove === 'water-exit') return 'water-exit';
+      if (this.climbMove === 'ladder-top') return 'ladder-top';
+      if (this.climbMove === 'ladder-mount') return 'ladder-mount';
       if (this.ledgeWide) return 'mantle';
       return this.ledgeVault ? 'ledge-vault' : 'ledge-swing';
     }
@@ -354,6 +402,15 @@ export class Player {
     const speed = horizontal.length();
 
     this.crouching = input.isDown('crouch') && this.poundPhase === 'none';
+
+    // Standing at the top of a ladder, asking to go down it.
+    if (input.wasPressed('climbDown')) {
+      const below = this.ladderToClimbDown();
+      if (below) {
+        this.startLadderMount(below);
+        return;
+      }
+    }
 
     // Walking into a ladder takes hold of it.
     if (strength > 0.001 && !this.crouching && this.tryCatchLadder(wish)) return;
@@ -587,11 +644,15 @@ export class Player {
     };
     if (this.ledgeCooldown > 0) return why('cooldown');
     if (this.velocity.y > TUNING.ledgeGrabRise) return why('rising');
+    // Not out of water. Getting out of a pool is its own move, on its own
+    // button; catching the side by simply drifting near it is what pulled
+    // him under without being asked.
+    if (this.waterVolume) return why('in water');
 
     // Toward the wall if he is against one, otherwise simply ahead.
     const forward = this.againstWall
-      ? this.scratchA.copy(this.wallNormal).negate()
-      : this.forwardVector(this.scratchA);
+      ? this.scratchLedge.copy(this.wallNormal).negate()
+      : this.forwardVector(this.scratchLedge);
     if (forward.lengthSq() < 1e-6) return why('no direction');
 
     const feet = this.object.position.y;
@@ -620,6 +681,7 @@ export class Player {
     const standable = justPast !== null && Math.abs(justPast - top) < 0.25;
     this.ledgeWide = standable && wellPast !== null && Math.abs(wellPast - top) < 0.25;
     this.ledgeVault = !standable;
+    this.climbMove = this.ledgeWide ? 'mantle' : this.ledgeVault ? 'vault' : 'swing';
 
     const stand = this.ledgeWide
       ? TUNING.ledgeStandWide
@@ -645,6 +707,7 @@ export class Player {
     this.syncCapsuleFromPosition();
 
     this.facing = Math.atan2(forward.x, forward.z);
+    this.ledgeFacingFrom = this.facing;
     this.velocity.set(0, 0, 0);
     this.ledgeTimer = 0;
     this.ledgeLift = top - hangY;
@@ -689,39 +752,128 @@ export class Player {
   }
 
   /**
+   * Hanging off an edge, waiting to be told what to do.
+   *
+   * Three answers, and they are kept apart on purpose. Sideways moves him
+   * along the edge, but only onto edge that is actually there. Forward
+   * pulls him up, and only on a fresh press of it: taken from the movement
+   * axis instead, anyone still holding forward from the run-up was hauled
+   * over the moment they caught hold, so there was no hang to speak of.
+   * Jump pushes him off backwards, the same answer the ladder gives.
+   */
+  private updateLedgeHang(delta: number, input: Input): void {
+    this.object.position.copy(this.ledgeFrom);
+    this.object.rotation.y = this.facing;
+    this.syncCapsuleFromPosition();
+
+    // Off the edge, backwards and up, and not caught again on the way down.
+    if (input.wasPressed('jump')) {
+      const away = this.forwardVector(this.scratchMove);
+      this.ledgeHanging = false;
+      this.ledgeTimer = -1;
+      this.ledgeCooldown = TUNING.ledgeCooldown;
+      this.ladderCooldown = TUNING.ladderCooldown;
+      this.velocity.set(
+        -away.x * TUNING.ledgeJumpOff,
+        TUNING.jumpVelocity * TUNING.ledgeJumpUp,
+        -away.z * TUNING.ledgeJumpOff,
+      );
+      this.jumpHeld = true;
+      this.jumpKind = 'normal';
+      this.jumpBufferTimer = 0;
+      this.airPresses = 0;
+      this.state = 'air';
+      return;
+    }
+
+    // Up and over, on a press rather than a hold.
+    if (input.wasPressed('forward')) {
+      this.ledgeHanging = false;
+      this.ledgeTimer = 0;
+      this.jumpBufferTimer = 0;
+      return;
+    }
+
+    // Crouch lets go and drops, because hanging with no way down is a trap.
+    if (input.isDown('crouch')) {
+      this.ledgeHanging = false;
+      this.ledgeTimer = -1;
+      this.ledgeCooldown = TUNING.ledgeCooldown;
+      this.velocity.set(0, 0, 0);
+      this.state = 'air';
+      return;
+    }
+
+    // Along the edge. Left and right are taken from the stick itself rather
+    // than from the camera, because while hanging there is only one line he
+    // can move along and it is the edge's, not the camera's.
+    const sideways = MathUtils.clamp(input.move.x, -1, 1);
+    if (Math.abs(sideways) > 0.2) this.shimmy(sideways, delta);
+  }
+
+  /**
+   * Shuffles him along the edge he is holding, if the edge carries on.
+   *
+   * The check is the point. Without it he slides off the end of a wall and
+   * hangs in mid-air by nothing, so each step looks a shoulder's width ahead
+   * for a surface at the same height as the one in his hands.
+   */
+  private shimmy(direction: number, delta: number): void {
+    const forward = this.forwardVector(this.scratchMove);
+    // His right, on the flat: the cross product of the way he is facing with
+    // up. Written the other way round it is his left, and pressing right
+    // shuffles him left, which is the kind of thing nobody reports as a bug
+    // and everybody notices.
+    const side = this.scratchSide.set(-forward.z, 0, forward.x);
+
+    const step = direction * TUNING.ledgeShimmySpeed * delta;
+    const edgeY = this.ledgeFrom.y + this.ledgeLift;
+
+    // Look where the hand is going before the body follows it.
+    const probeAt = Math.sign(step) * TUNING.ledgeShimmyProbe;
+    const saved = this.scratchProbe.copy(this.object.position);
+    this.object.position.x += side.x * probeAt;
+    this.object.position.z += side.z * probeAt;
+    const ahead = this.ledgeSurfaceAt(forward, TUNING.ledgeReach, this.object.position.y);
+    this.object.position.copy(saved);
+    this.syncCapsuleFromPosition();
+    if (ahead === null || Math.abs(ahead - edgeY) > 0.2) return;
+
+    this.ledgeFrom.x += side.x * step;
+    this.ledgeFrom.z += side.z * step;
+    this.ledgeTo.x += side.x * step;
+    this.ledgeTo.z += side.z * step;
+    this.object.position.copy(this.ledgeFrom);
+    this.syncCapsuleFromPosition();
+  }
+
+  /**
    * Runs the climb. He goes up first and across second, rather than along a
    * straight line between the two points, because a straight line would take
    * him through the very edge he is climbing over.
    */
   private updateLedge(delta: number, input: Input): void {
     if (this.ledgeHanging) {
-      // Held still on the edge. Jump climbs; crouch lets go, because hanging
-      // with no way down would be a trap.
-      this.object.position.copy(this.ledgeFrom);
-      this.object.rotation.y = this.facing;
-      this.syncCapsuleFromPosition();
-
-      if (input.wasPressed('jump')) {
-        this.ledgeHanging = false;
-        this.ledgeTimer = 0;
-        this.jumpBufferTimer = 0;
-      } else if (input.isDown('crouch')) {
-        this.ledgeHanging = false;
-        this.ledgeTimer = -1;
-        this.ledgeCooldown = TUNING.ledgeCooldown;
-        this.velocity.set(0, 0, 0);
-        this.state = 'air';
-      }
+      this.updateLedgeHang(delta, input);
       return;
     }
 
     this.ledgeTimer += delta;
     const progress = MathUtils.clamp(this.ledgeTimer / this.ledgeSeconds, 0, 1);
 
-    // The rise is finished well before the move is, so the last part of it
-    // is him stepping forward onto the surface rather than still climbing.
-    const rise = MathUtils.clamp(progress / (this.ledgeWide ? 0.62 : 0.55), 0, 1);
-    const across = MathUtils.clamp((progress - 0.34) / 0.66, 0, 1);
+    // When the vertical part of the move happens, and when the horizontal
+    // one does. Going up, the rise leads and the step forward follows, so
+    // that he is never carried through the edge he is climbing over. Getting
+    // onto a ladder from the platform above is the same move backwards: he
+    // steps out over the drop first and lowers himself afterwards.
+    const down = this.climbMove === 'ladder-mount';
+    const riseSpan = down ? 0.6 : this.ledgeWide ? 0.62 : 0.55;
+    const riseStart = down ? 0.4 : 0;
+    const acrossStart = down ? 0 : 0.34;
+    const acrossSpan = down ? 0.55 : 0.66;
+
+    const rise = MathUtils.clamp((progress - riseStart) / riseSpan, 0, 1);
+    const across = MathUtils.clamp((progress - acrossStart) / acrossSpan, 0, 1);
 
     const up = rise * rise * (3 - 2 * rise);
     const over = across * across * (3 - 2 * across);
@@ -731,7 +883,9 @@ export class Player {
       MathUtils.lerp(this.ledgeFrom.y, this.ledgeTo.y, up),
       MathUtils.lerp(this.ledgeFrom.z, this.ledgeTo.z, over),
     );
-    this.object.rotation.y = this.facing;
+    // Turning is part of the move rather than something that happens to him
+    // before it: getting onto a ladder means turning to face it.
+    this.object.rotation.y = this.turnThrough(this.ledgeFacingFrom, this.facing, over);
     this.syncCapsuleFromPosition();
 
     this.ledgeLift = this.ledgeTo.y - this.object.position.y;
@@ -741,10 +895,31 @@ export class Player {
       this.ledgeCooldown = TUNING.ledgeCooldown;
       this.wallKicks = 0;
       this.jumpKind = 'normal';
+      this.velocity.set(0, 0, 0);
+
+      // Onto a ladder rather than onto the ground: the move was the way on.
+      if (this.climbMove === 'ladder-mount' && this.pendingLadder) {
+        this.ladder = this.pendingLadder;
+        this.pendingLadder = null;
+        this.facing = this.ladder.facing;
+        this.state = 'climb';
+        this.snapToLadder(this.ladder);
+        return;
+      }
+
+      this.pendingLadder = null;
       this.onGround = true;
       this.coyoteTimer = TUNING.coyoteTime;
       this.state = 'ground';
     }
+  }
+
+  /** The angle `t` of the way round from `from` to `to`, by the short way. */
+  private turnThrough(from: number, to: number, t: number): number {
+    let difference = to - from;
+    while (difference > Math.PI) difference -= Math.PI * 2;
+    while (difference < -Math.PI) difference += Math.PI * 2;
+    return from + difference * t;
   }
 
   /**
@@ -859,33 +1034,129 @@ export class Player {
     const climb = MathUtils.clamp(-input.move.y, -1, 1);
     this.velocity.set(0, climb * TUNING.ladderSpeed, 0);
 
-    // He climbs to exactly the height he would hang at, and no further, so
-    // that taking hold of the edge above moves him not at all.
-    const highest = ladder.topY - TUNING.ledgeHangLift;
+    // He climbs until his feet are a step below the top, which puts his
+    // hands over the edge. That is where the step onto the platform starts
+    // from, and it is also simply the top of the ladder: resting there and
+    // then pressing back climbs down again, because nothing has happened yet.
+    const highest = ladder.topY - TUNING.ladderTopFeet;
     const next = this.object.position.y + this.velocity.y * delta;
-    const atTop = next >= highest;
     this.object.position.y = MathUtils.clamp(next, ladder.bounds.min.y - 0.2, highest);
     this.snapToLadder(ladder);
 
-    // At the top, hand over to the move that gets him onto it.
-    if (atTop && climb > 0.2) {
-      const previous = this.ladder;
-      this.ladder = null;
-      if (this.tryCatchLedge()) return;
-
-      // Nothing to take hold of. Rather than leave him pinned at the top of
-      // a ladder with the stick pushed up and nothing happening, let go and
-      // give him the height — he can see where he is and come down.
-      this.ladder = previous;
-      this.leaveLadder();
-      const over = this.forwardVector(this.scratchMove);
-      this.velocity.set(over.x * 1.2, TUNING.jumpVelocity * 0.55, over.z * 1.2);
-      this.jumpHeld = false;
-      return;
-    }
+    // Still asking to go up with no ladder left: step off the top onto
+    // whatever is up there. This used to hand over to the ledge hang, which
+    // is a move for catching an edge in mid-air and has no idea what a
+    // ladder is — it settled him onto a hang below the edge and then waited
+    // for a button he had no reason to think of pressing.
+    if (next >= highest && climb > 0.2 && this.startLadderTop(ladder)) return;
 
     // Off the bottom.
     if (this.object.position.y <= ladder.bounds.min.y - 0.19) this.leaveLadder();
+  }
+
+  /**
+   * The step from the top of a ladder onto the platform it leads to.
+   *
+   * It looks for the surface rather than assuming one: a ladder that leads
+   * nowhere simply has a top, and he stays on it rather than being thrown
+   * into the air by a move that cannot finish.
+   */
+  private startLadderTop(ladder: LadderVolume): boolean {
+    const into = this.scratchMove.set(Math.sin(ladder.facing), 0, Math.cos(ladder.facing));
+    const feet = this.object.position.y;
+
+    let surface: number | null = null;
+    let hitReach = 0;
+    for (const reach of [
+      TUNING.ladderStandOff + 0.35,
+      TUNING.ladderStandOff + 0.8,
+      TUNING.ladderStandOff + 1.25,
+    ]) {
+      const from = this.scratchProbe.set(
+        this.object.position.x + into.x * reach,
+        ladder.topY + 1.2,
+        this.object.position.z + into.z * reach,
+      );
+      const ground = this.world.groundProbe(from, 1.2 + TUNING.ladderTopFeet + 0.9);
+      if (!ground || ground.normal.y < MAX_WALKABLE_NORMAL_Y) continue;
+      if (ground.y < feet - 0.25) continue;
+      surface = ground.y;
+      hitReach = reach;
+      break;
+    }
+    if (surface === null) return false;
+
+    this.ladder = null;
+    this.pendingLadder = null;
+    this.climbMove = 'ladder-top';
+    this.ledgeWide = true;
+    this.ledgeVault = false;
+    this.ledgeHanging = false;
+    this.ledgeFrom.copy(this.object.position);
+    this.ledgeTo.set(
+      this.object.position.x + into.x * (hitReach + TUNING.ladderTopStand),
+      surface,
+      this.object.position.z + into.z * (hitReach + TUNING.ladderTopStand),
+    );
+    this.ledgeFacingFrom = this.facing;
+    this.facing = ladder.facing;
+    this.ledgeLift = surface - feet;
+    this.ledgeSeconds = TUNING.ladderTopSeconds;
+    this.ledgeTimer = 0;
+    this.ledgeCooldown = 0;
+    this.ladderCooldown = TUNING.ladderCooldown;
+    this.velocity.set(0, 0, 0);
+    this.state = 'ledge';
+    return true;
+  }
+
+  /**
+   * The ladder he could climb down from where he is standing, or null.
+   *
+   * This is offered, not taken. An edge with a ladder below it that grabs
+   * anyone who walks near it is worse than no ladder at all, so the prompt
+   * asks and the button answers.
+   */
+  ladderToClimbDown(): LadderVolume | null {
+    if (this.state !== 'ground' || !this.onGround) return null;
+    const feet = this.object.position.y;
+    for (const ladder of this.world.ladders) {
+      if (Math.abs(ladder.topY - feet) > TUNING.ladderMountDrop) continue;
+      const flat = Math.hypot(
+        this.object.position.x - ladder.anchor.x,
+        this.object.position.z - ladder.anchor.z,
+      );
+      if (flat > TUNING.ladderMountReach) continue;
+      return ladder;
+    }
+    return null;
+  }
+
+  /** Turns him round, steps him out over the drop and lowers him onto it. */
+  private startLadderMount(ladder: LadderVolume): void {
+    const into = this.scratchMove.set(Math.sin(ladder.facing), 0, Math.cos(ladder.facing));
+    this.ledgeFrom.copy(this.object.position);
+    this.ledgeTo.set(
+      ladder.anchor.x - into.x * TUNING.ladderStandOff,
+      ladder.topY - TUNING.ladderTopFeet,
+      ladder.anchor.z - into.z * TUNING.ladderStandOff,
+    );
+    this.climbMove = 'ladder-mount';
+    this.ledgeWide = false;
+    this.ledgeVault = false;
+    this.ledgeHanging = false;
+    this.ledgeFacingFrom = this.facing;
+    this.facing = ladder.facing;
+    this.pendingLadder = ladder;
+    this.ledgeSeconds = TUNING.ladderMountSeconds;
+    this.ledgeTimer = 0;
+    this.ledgeLift = ladder.topY - this.ledgeTo.y;
+    this.ledgeCooldown = 0;
+    this.ladderCooldown = 0;
+    this.velocity.set(0, 0, 0);
+    this.onGround = false;
+    this.crouching = false;
+    this.state = 'ledge';
   }
 
   /** Lets go of the ladder and hands control back to the air. */
@@ -898,7 +1169,7 @@ export class Player {
 
   private updateSwim(delta: number, input: Input, wish: Vector3, strength: number): void {
     this.skidding = false;
-    const water = this.world.waterAt(this.capsuleCentre(this.scratchB));
+    const water = this.waterVolume;
     if (!water) {
       this.state = 'air';
       return;
@@ -926,15 +1197,11 @@ export class Player {
       this.velocity.y += Math.max(-TUNING.swimGravity, toFloatLine * 5) * delta;
     }
 
-    // At the surface, jump first looks for an edge to climb out by. Without
-    // this there is no way out of a pool with vertical sides: a stroke
-    // pushes him forward into the wall, and the float line then pulls him
-    // straight back down, which reads as diving rather than climbing.
-    if (input.wasPressed('jump') && this.atSurface && this.tryCatchLedge()) {
-      this.submerged = false;
-      this.diving = false;
-      return;
-    }
+    // At the surface, jump first looks for a poolside to climb out onto.
+    // Without this there is no way out of a pool with vertical sides: a
+    // stroke pushes him into the wall and the float line pulls him straight
+    // back down.
+    if (input.wasPressed('jump') && this.atSurface && this.tryClimbOutOfWater()) return;
 
     // Strokes give the swimming its rhythm: a press is a push, not a hold.
     if (input.wasPressed('jump') && this.strokeTimer <= 0) {
@@ -959,6 +1226,62 @@ export class Player {
       this.velocity.z *= scale;
     }
 
+  }
+
+  /**
+   * Climbs out of the water onto the poolside.
+   *
+   * Deliberately not the ledge hang, which is what it used to be. That move
+   * settles him onto a fixed drop below the edge before it begins, so from
+   * the surface of a pool it started by pulling him three quarters of a
+   * metre downward and putting his head under — pressing jump looked exactly
+   * like pressing dive. This one starts from wherever he is floating and
+   * only ever goes up: reach, plant, lift, and out.
+   */
+  private tryClimbOutOfWater(): boolean {
+    const forward = this.forwardVector(this.scratchMove);
+    const feet = this.object.position.y;
+
+    let surface: number | null = null;
+    let hitReach = 0;
+    for (const reach of [TUNING.waterExitReach, TUNING.waterExitReach + 0.5]) {
+      const from = this.scratchProbe.set(
+        this.object.position.x + forward.x * reach,
+        feet + TUNING.waterExitHigh + 0.4,
+        this.object.position.z + forward.z * reach,
+      );
+      const ground = this.world.groundProbe(from, TUNING.waterExitHigh + 0.4);
+      if (!ground || ground.normal.y < MAX_WALKABLE_NORMAL_Y) continue;
+      const lift = ground.y - feet;
+      if (lift < TUNING.waterExitLow || lift > TUNING.waterExitHigh) continue;
+      surface = ground.y;
+      hitReach = reach;
+      break;
+    }
+    if (surface === null) return false;
+
+    this.climbMove = 'water-exit';
+    this.ledgeWide = true;
+    this.ledgeVault = false;
+    this.ledgeHanging = false;
+    this.pendingLadder = null;
+    this.ledgeFrom.copy(this.object.position);
+    this.ledgeTo.set(
+      this.object.position.x + forward.x * (hitReach + TUNING.waterExitStand),
+      surface,
+      this.object.position.z + forward.z * (hitReach + TUNING.waterExitStand),
+    );
+    this.ledgeFacingFrom = this.facing;
+    this.ledgeLift = surface - feet;
+    this.ledgeSeconds = TUNING.waterExitSeconds;
+    this.ledgeTimer = 0;
+    this.ledgeCooldown = 0;
+    this.velocity.set(0, 0, 0);
+    this.submerged = false;
+    this.atSurface = false;
+    this.diving = false;
+    this.state = 'ledge';
+    return true;
   }
 
   // -------------------------------------------------------------------------
@@ -1444,6 +1767,7 @@ export class Player {
       this.object.position.z,
     );
     const water = this.world.waterAt(probe);
+    this.waterVolume = water;
 
     if (water && !wasSwimming) {
       const entrySpeed = -this.velocity.y;
@@ -1697,6 +2021,7 @@ export class Player {
       ledgeProgress:
         this.ledgeTimer < 0 ? 0 : Math.min(1, this.ledgeTimer / this.ledgeSeconds),
       ledgeWide: this.ledgeWide,
+      ledgeMove: this.climbMove,
       ledgeHanging: this.ledgeHanging,
       ledgeLift: this.ledgeLift,
       inputStrength,

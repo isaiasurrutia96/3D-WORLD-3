@@ -156,7 +156,17 @@ class Game {
     this.course.water.update(this.engine.clock.elapsedTime);
     this.effects.update(delta);
     this.engine.focusShadowsOn(this.player.position);
+
+    // What the screen looks like follows the camera, not the character. He
+    // can be treading water with his head out while the camera sits below
+    // the surface behind him, and it is the camera that has to be underwater
+    // for the scene to look like it.
+    this.engine.setUnderwater(
+      this.collision.waterAt(this.engine.camera.position) !== null,
+    );
     this.engine.render(delta);
+
+    this.hud.setPrompt(this.currentPrompt());
 
     this.hud.update({
       fps: this.engine.fps,
@@ -175,6 +185,19 @@ class Game {
       cameraYaw: this.cameraRig.yawDegrees,
     });
   };
+
+  /**
+   * The one thing a button would do here, if there is one.
+   *
+   * Only ever an offer. The ladder below an edge is the case that needs it:
+   * attaching him to it because he walked near the top would make the edge
+   * beside a ladder impossible to simply walk off.
+   */
+  private currentPrompt(): string | null {
+    if (this.player.ladderToClimbDown()) return 'G — Climb down';
+    if (this.player.findCarryTarget()) return 'R — Pick up';
+    return null;
+  }
 
   /** Read-only handles, plus capture helpers, for the verification pass. */
   get debug() {
@@ -735,9 +758,10 @@ class Game {
           for (let i = 0; i < frames(0.5); i += 1) step();
           const stayed = player.stateName === 'hanging' && Math.abs(player.position.y - hangY) < 0.01;
 
-          tap('jump');
+          // Forward pulls up. Jump used to, and now jumps off instead.
+          tap('forward');
           for (let i = 0; i < frames(0.2); i += 1) step();
-          held.delete('jump');
+          held.delete('forward');
           for (let i = 0; i < frames(after); i += 1) {
             step();
             note();
@@ -1198,30 +1222,82 @@ class Game {
         }
         held.delete('dive');
         stick.x = 0;
-        // Surface, then swim to the near wall and climb out.
-        for (let i = 0; i < frames(3); i += 1) step();
+        for (let i = 0; i < frames(3.5); i += 1) step();
         const surfaced = player.stateName === 'swim-surface';
-        stick.y = 1;
-        for (let i = 0; i < frames(3); i += 1) step();
-        let out = false;
-        for (let attempt = 0; attempt < 6 && !out; attempt += 1) {
-          tap('jump');
-          for (let i = 0; i < frames(0.4); i += 1) step();
+
+        // Out along the pool first, clear of the diving tower, which stands
+        // in the water at z 28 to 32 and whose roof is six metres up: a
+        // swimmer under it has nothing to climb out onto, correctly.
+        stick.x = 0;
+        stick.y = -1;
+        for (let i = 0; i < frames(4); i += 1) {
+          step();
+          if (player.position.z < 22) break;
+        }
+        // Then to the east wall and out of it. What is being measured is
+        // that he never goes *down* on the way: the old way out ran the
+        // ledge hang, which settles onto a fixed drop below the edge and so
+        // began by pulling him under.
+        stick.y = 0;
+        stick.x = 1;
+        for (let i = 0; i < frames(8); i += 1) {
+          step();
+          if (player.position.x > -21.3) break;
+        }
+        stick.x = 0;
+        for (let i = 0; i < frames(0.5); i += 1) step();
+        const floatedAt = player.position.y;
+        const pressedAt = round(player.position.x);
+        const pressedFacing = round(player.facing);
+        const pressedState = player.stateName;
+        let lowest = floatedAt;
+        let usedWaterExit = false;
+        const outStates: string[] = [];
+        tap('jump');
+        for (let i = 0; i < frames(2.4); i += 1) {
+          step();
           held.delete('jump');
-          if (player.stateName === 'hanging') {
-            tap('jump');
-            for (let i = 0; i < frames(0.2); i += 1) step();
-            held.delete('jump');
-            for (let i = 0; i < frames(1.6); i += 1) step();
-            out = player.position.y > -0.1;
-          }
+          lowest = Math.min(lowest, player.position.y);
+          const name = player.stateName;
+          if (outStates[outStates.length - 1] !== name) outStates.push(name);
+          if (name === 'water-exit') usedWaterExit = true;
         }
         stick.x = 0;
         stick.y = 0;
-        results.pool = { deepest: round(deepest), surfaced, out, ...where() };
+        results.pool = {
+          deepest: round(deepest),
+          surfaced,
+          floatedAt: round(floatedAt),
+          dippedTo: round(lowest),
+          neverDucked: lowest > floatedAt - 0.06,
+          usedWaterExit,
+          pressedAt,
+          pressedFacing,
+          pressedState,
+          outStates,
+          out: player.position.y > -0.1,
+          ...where(),
+        };
 
-        // The ladder, four ways: climb it, jump off partway, climb over the
-        // top, and come back down.
+        // Treading water with nothing pressed, having come up from the
+        // bottom. Rising fast used to throw him out of the swimming state
+        // for a frame, and the ledge search caught the poolside and pulled
+        // him down onto a hang a metre under the surface.
+        place(-35, -7.5, 12, 0);
+        for (let i = 0; i < frames(6); i += 1) step();
+        const floatState = player.stateName;
+        const floatY2 = round(player.position.y);
+        for (let i = 0; i < frames(3); i += 1) step();
+        results.floating = {
+          state: floatState,
+          at: floatY2,
+          stayed: player.stateName,
+          treads: floatState === 'swim-surface' && player.stateName === 'swim-surface',
+        };
+
+        // The ladder, every way on and off it: climb it, jump off partway
+        // without being caught again, climb over the top onto the roof, and
+        // get back onto it from above with G.
         {
           const toLadder = () => {
             place(23.5, 0.6, 43, Math.PI / 2);
@@ -1241,39 +1317,82 @@ class Game {
           const climbedTo = round(player.position.y);
           stick.y = 0;
 
-          // Jump off from halfway, which must hand control back.
+          // Jump off from halfway. It has to hand control back and it has to
+          // stay handed back: the ladder used to take him again on the way
+          // down, which is indistinguishable from never having let go.
           tap('jump');
           for (let i = 0; i < frames(0.25); i += 1) step();
           held.delete('jump');
           const afterJump = player.stateName;
-          for (let i = 0; i < frames(2); i += 1) step();
+          let reattached = false;
+          for (let i = 0; i < frames(2.2); i += 1) {
+            step();
+            if (player.stateName === 'climb') reattached = true;
+          }
           const landedAfterJump = player.stateName;
 
-          // And again, all the way to the top and over it.
+          // All the way to the top and over it, with nothing pressed but up.
           toLadder();
           stick.y = -1;
           const topStates: string[] = [];
-          for (let i = 0; i < frames(9); i += 1) {
+          for (let i = 0; i < frames(11); i += 1) {
             step();
             const name = player.stateName;
             if (topStates[topStates.length - 1] !== name) topStates.push(name);
-            if (name === 'hanging') break;
-          }
-          const hung = player.stateName === 'hanging';
-          const overStates: string[] = [];
-          if (hung) {
-            tap('jump');
-            stick.y = 0;
-            for (let i = 0; i < frames(0.25); i += 1) step();
-            held.delete('jump');
-            for (let i = 0; i < frames(2.4); i += 1) {
-              step();
-              const name = player.stateName;
-              if (overStates[overStates.length - 1] !== name) overStates.push(name);
-            }
+            if (name === 'idle' && player.position.y > 11) break;
           }
           stick.y = 0;
+          const onTop = round(player.position.y);
+          const gotOver = player.position.y > 11.4 && player.position.x > 27;
+
+          // Pausing at the top and pressing back must still climb down,
+          // rather than the top being a one-way door.
+          toLadder();
+          stick.y = -1;
+          for (let i = 0; i < frames(5.5); i += 1) {
+            step();
+            if (player.position.y > 10.4) break;
+          }
+          stick.y = 0;
+          for (let i = 0; i < frames(0.3); i += 1) step();
+          const pausedAt = round(player.position.y);
+          const pausedOn = player.stateName;
+          stick.y = 1;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          const backedDownTo = round(player.position.y);
+          stick.y = 0;
+
+          // And onto it from the roof above, by the prompt rather than by
+          // walking near the edge.
+          place(27.9, 11.6, 43, Math.PI / 2);
+          for (let i = 0; i < frames(0.5); i += 1) step();
+          const offered = player.ladderToClimbDown() !== null;
+          const offeredAway = (() => {
+            const saved = player.position.clone();
+            player.teleport(new Vector3(31.4, 11.6, 43), Math.PI / 2);
+            for (let i = 0; i < frames(0.3); i += 1) step();
+            const far = player.ladderToClimbDown() !== null;
+            player.teleport(saved, Math.PI / 2);
+            for (let i = 0; i < frames(0.3); i += 1) step();
+            return far;
+          })();
+          tap('climbDown');
+          const downStates: string[] = [];
+          for (let i = 0; i < frames(1.4); i += 1) {
+            step();
+            held.delete('climbDown');
+            const name = player.stateName;
+            if (downStates[downStates.length - 1] !== name) downStates.push(name);
+          }
+          const mountedAt = round(player.position.y);
+          const backOn = player.stateName === 'climb';
+          stick.y = 1;
+          for (let i = 0; i < frames(1.5); i += 1) step();
+          const descendedTo = round(player.position.y);
+          stick.y = 0;
           stick.x = 0;
+          held.clear();
+
           results.ladderWork = {
             caughtAt,
             climbedTo,
@@ -1281,34 +1400,134 @@ class Game {
             afterJump,
             landedAfterJump,
             releasedByJump: afterJump !== 'climb',
+            reattached,
             topStates,
-            hung,
-            overStates,
-            onTop: round(player.position.y),
-            gotOver: player.position.y > 11,
+            onTop,
+            gotOver,
+            pausedAt,
+            pausedOn,
+            backedDownTo,
+            canStillDescend: backedDownTo < pausedAt - 1,
+            offered,
+            offeredAway,
+            downStates,
+            mountedAt,
+            backOn,
+            descendedTo,
+            climbedDown: descendedTo < mountedAt - 1.5,
           };
         }
 
-        // Q dives in water and crouches on land.
+        // Hanging off an edge: along it, up off it, and away from it.
+        {
+          const catchTheRoof = (z: number) => {
+            place(26.25, 9.95, z, Math.PI / 2);
+            for (let i = 0; i < frames(1.4); i += 1) {
+              step();
+              if (player.stateName === 'hanging') break;
+            }
+            return player.stateName === 'hanging';
+          };
+
+          const hung = catchTheRoof(40);
+          const caughtZ = round(player.position.z);
+          // Along the edge, away from its near corner. Facing the wall at
+          // x = 26.9, his right runs toward +z, where the roof carries on.
+          stick.x = 1;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          stick.x = 0;
+          const shimmiedZ = round(player.position.z);
+          const stillHanging = player.stateName === 'hanging';
+
+          // Holding forward must not pull him up; only a fresh press does.
+          held.add('forward');
+          for (let i = 0; i < frames(0.6); i += 1) step();
+          const heldForwardDidNothing = player.stateName === 'hanging';
+          held.delete('forward');
+          tap('forward');
+          for (let i = 0; i < frames(1.6); i += 1) step();
+          held.delete('forward');
+          const pulledUp = player.position.y > 11.4;
+
+          // And off it: jump pushes him away rather than up.
+          const hung2 = catchTheRoof(41);
+          const fromY = player.position.y;
+          const fromX = player.position.x;
+          tap('jump');
+          for (let i = 0; i < frames(0.35); i += 1) step();
+          held.delete('jump');
+          const afterLedgeJump = player.stateName;
+          for (let i = 0; i < frames(2.2); i += 1) step();
+          const pushedBack = player.position.x < fromX - 0.8;
+          stick.x = 0;
+          held.clear();
+
+          results.ledgeWork = {
+            hung,
+            caughtZ,
+            shimmiedZ,
+            movedAlong: Math.abs(shimmiedZ - caughtZ) > 0.6,
+            stillHanging,
+            heldForwardDidNothing,
+            pulledUp,
+            hung2,
+            fromY: round(fromY),
+            afterLedgeJump,
+            jumpedOff: afterLedgeJump !== 'hanging',
+            pushedBack,
+            endedAt: round(player.position.y),
+          };
+        }
+
+        // C crouches on land. Q dives in water, where there is nothing to
+        // crouch for.
         place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
         held.add('crouch');
         for (let i = 0; i < frames(0.4); i += 1) step();
-        const qOnLand = player.stateName;
+        const crouchOnLand = player.stateName;
         held.clear();
 
-        place(-34, 0, 10, Math.PI);
+        place(-35, 0, 12, Math.PI);
         for (let i = 0; i < frames(2); i += 1) step();
         const floatY = player.position.y;
-        held.add('crouch');
+        held.add('dive');
         for (let i = 0; i < frames(2); i += 1) step();
-        const qInWater = round(player.position.y);
+        const divedTo = round(player.position.y);
         held.clear();
         results.crouchKey = {
-          onLand: qOnLand,
+          onLand: crouchOnLand,
           floatedAt: round(floatY),
-          divedTo: qInWater,
-          dives: qInWater < floatY - 1,
+          divedTo,
+          dives: divedTo < floatY - 1,
         };
+
+        // The boost: a jump on its own against the same jump with a second
+        // press of the button at the top of it.
+        {
+          const peakOf = (boost: boolean) => {
+            place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+            const hold = frames(0.32);
+            tap('jump');
+            let peak = 0;
+            let boosted = false;
+            for (let i = 0; i < frames(2.6); i += 1) {
+              step();
+              peak = Math.max(peak, player.position.y);
+              if (i === hold) held.delete('jump');
+              // Boosted at the top of the rise, and held through it, which
+              // is what a player does: a tapped boost is cut like any other.
+              if (boost && !boosted && i > hold && player.velocity.y < 0.5) {
+                tap('jump');
+                boosted = true;
+              }
+            }
+            held.clear();
+            return round(peak);
+          };
+          const plain = peakOf(false);
+          const boosted = peakOf(true);
+          results.airBoost = { plain, boosted, gain: round(boosted - plain), lifts: boosted > plain + 0.7 };
+        }
 
         // Kicks beyond the old limit of four, in the sixteen metre shaft.
         place(31.4, 0, -8, Math.PI / 2);
@@ -1350,6 +1569,35 @@ class Game {
 
         place(0, 0, 54, Math.PI);
         return results;
+      },
+
+      /**
+       * Steps the controller with a fixed stick and a set of buttons held,
+       * so a pose can be driven to a known point and photographed. Only for
+       * the verification pass: the game itself never calls it.
+       */
+      drive: (
+        seconds: number,
+        stick: { x: number; y: number } = { x: 0, y: 0 },
+        keys: string[] = [],
+        dt = 1 / 60,
+      ) => {
+        const held = new Set(keys);
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: (a: string) => held.has(a),
+          wasPressed: () => false,
+          wasReleased: () => false,
+        } as unknown as Input;
+        for (let i = 0; i < Math.max(1, Math.round(seconds / dt)); i += 1) {
+          this.player.update(dt, stub, 0);
+        }
+        return {
+          state: this.player.stateName,
+          y: Math.round(this.player.position.y * 100) / 100,
+          speed: Math.round(this.player.speed * 100) / 100,
+        };
       },
 
       /** Looks straight down from a point, for checking where surfaces are. */
