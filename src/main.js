@@ -1,3 +1,5 @@
+import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,RACE_START} from './time-trial.js';
+import {createTimeTrialView} from './time-trial-view.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {createAvatar} from './avatar.js';
@@ -29,6 +31,8 @@ kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
 const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,kart);
 let driving=false;
+let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
+const trial=createTimeTrial(trialStorage),applyTrial=createTimeTrialView(scene,trial);
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y);
  const parked=resolveParkedKart(road.x,road.z,y,kartState);
@@ -140,11 +144,23 @@ function toggleVehicle(){
  }else{
   const exit=findExitPosition(kartState,worldPhysics);
   if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return;}
+  invalidateTimeTrial(trial,'Left the kart — restart lap');
   driving=false;kartState.speed=0;kartState.boostTime=0;kartState.spinTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
  }
  jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();
 }
+function startTrial(){
+ keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;
+ Object.assign(kartState,createVehicleState(),RACE_START);previousKart={...kartState};
+ animation.reset();kart.add(avatar);seatAvatar();driving=true;
+ for(const box of itemSystem.boxes)box.cooldown=0;
+ itemSystem.shells=[];itemSystem.time=0;
+ armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();reset();canvas.focus({preventScroll:true});
+}
+document.getElementById('trial-start').addEventListener('click',startTrial);
+document.getElementById('trial-ghost').addEventListener('change',event=>{trial.showGhost=event.target.checked;canvas.focus({preventScroll:true});});
+window.addEventListener('keydown',event=>{if(event.code==='KeyT'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();startTrial();}});
 document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
 renderer.setAnimationLoop(time=>{
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
@@ -155,7 +171,9 @@ renderer.setAnimationLoop(time=>{
     previousKart={...kartState};jumpQueued=false;
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
     const axes=readMoveAxes(keys);
-    stepVehicle(kartState,{throttle:axes.forward,steer:axes.right,brake:keys.has('Space')},STEP,worldPhysics);
+    const brake=keys.has('Space'),startForward=axes.forward>0&&!brake;
+    if(trial.status!=='ready'||startForward)stepVehicle(kartState,{throttle:axes.forward,steer:axes.right,brake},STEP,worldPhysics);
+    stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
    stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics);
    accumulator-=STEP;
@@ -165,7 +183,7 @@ renderer.setAnimationLoop(time=>{
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);applyItems(kartPose,driving);
+  applyKart(kartPose);applyItems(kartPose,driving);applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -185,6 +203,7 @@ renderer.setAnimationLoop(time=>{
   const itemLabel=document.querySelector('#held-item');
   if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
   controls.update();render();
+  canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);canvas.dataset.shells=String(itemSystem.shells.length);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);

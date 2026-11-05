@@ -4,6 +4,8 @@ The original plain gray skinned avatar on the charcoal 260 × 460 slab, connecte
 
 ## Controls
 
+- Click **Start in kart** or press **T** to spawn seated on the start/finish line. The clock stays at zero until **E** first accelerates. T restarts an attempt.
+
 - E: run forward; D: run backward; S: run left; F: run right, relative to the camera.
 - Running is the default. Hold either Shift key with E, D, S or F to walk. Diagonal movement is normalized; Shift alone does not move.
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
@@ -58,7 +60,7 @@ Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a co
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive bicycle steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s (previously 32), with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 60 m/s. Space brakes. There are no races, CPU opponents, drifting or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive bicycle steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s (previously 32), with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 60 m/s. Space brakes. There are no CPU opponents, drifting or vehicle jumps.
 
 `src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. The chase camera follows the kart's heading, while mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
@@ -80,3 +82,13 @@ Camera views: press **V** or tap the camera button in the bottom control chart t
 ### Backflip animation review (separate page)
 
 Open [`backflip.html`](./backflip.html) for synchronized front/side previews using the existing avatar, normal and quarter-speed playback, pause/restart, a timeline scrubber and inspectable pose buttons. A source-data skeleton and reference/limitation notes appear below. The revised clip is shared with gameplay: its physical root arc is handled by the fixed-step controller, while the skeleton supplies the planted-foot preparation, tuck and landing. See `public/references/backflip-study.md` for the pinned SM64 sources and adaptation decisions. The original SM64 skeleton remains an inspectable reference, clearly distinguished from the authored single-turn move.
+
+## Time trial and best-lap ghost
+
+The start button (or **T**) places the player in the existing kart on the circuit's checkered start/finish line, facing the correct direction. **E** starts the clock on the first forward acceleration. Waiting, steering or pressing reverse before starting does not run the clock or move the kart. Existing steering, brake and item controls remain available during the trial.
+
+Pass all **12 ordered checkpoints**, then cross the finish line forward. The next lap begins immediately when crossing the line. Leaving the course or the kart invalidates that attempt; restart with the button or T. Moving back and forth across the line, reversing around the course or skipping portions cannot set a valid lap. Progress queries account for height so the overpass and road underneath remain distinct.
+
+The fastest valid lap saves its time and a 30 Hz kart pose trace in this browser's local storage, under `letsgo.best-lap.v1`, with a versioned course identifier. A slower lap preserves the previous best; a faster lap replaces it. The translucent cyan ghost replays that best lap in sync with the current timer, including steering, wheel rotation and road pitch/bank. It cannot collide with the player or interact with items. Toggle **Best ghost** to show/hide it. The record survives restarts and reloads in the same browser; if browser storage is unavailable, a session best still works.
+
+`src/time-trial.js` owns ordered-gate validation, timing, trace sampling, interpolation and storage. `src/time-trial-view.js` owns the line/markers, compact HUD and separate ghost model. Tests cover complete laps with actual kart physics, rolling laps, fastest-record replacement, persistence/failure handling, wrong-way and shortcut rejection, overpass separation and replay interpolation.
