@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {createBackflipClip} from './backflip-clip.js';
 import { RUN_SPEED } from '../running-controller.js';
 import { createRunClip, RUN_DURATION, RUN_STRIDE } from './run-clip.js';
 import { createSprintClip,SPRINT_DURATION } from './sprint-clip.js';
@@ -6,6 +7,10 @@ import { createJumpClip } from './jump-clip.js';
 import { FOOT_PROFILE } from '../avatar.js';
 
 export function createRunningAnimator(avatar) {
+  const flipMixer=new THREE.AnimationMixer(avatar);
+  const flip=flipMixer.clipAction(createBackflipClip(avatar,{includeFlight:false}));
+  flip.setLoop(THREE.LoopOnce,1);flip.clampWhenFinished=true;
+  let flipping=false;
   const rest=avatar.skeleton.bones.map(bone=>({bone,position:bone.position.clone(),quaternion:bone.quaternion.clone()}));
   const mixer=new THREE.AnimationMixer(avatar);
   const action=mixer.clipAction(createRunClip(avatar));
@@ -15,10 +20,15 @@ export function createRunningAnimator(avatar) {
   const feet=['left','right'].map(side=>avatar.skeleton.bones.find(bone=>bone.name===`${side}_foot`));
   let weight=0,sprintBlend=0,jumpBlend=0;
   function reset() {
-    action.stop(); sprint.stop(); jump.stop(); weight=0; sprintBlend=0; jumpBlend=0;
+    flip.stop();flipping=false;action.stop(); sprint.stop(); jump.stop(); weight=0; sprintBlend=0; jumpBlend=0;
     for (const item of rest) {item.bone.position.copy(item.position);item.bone.quaternion.copy(item.quaternion);}
   }
   function update(state,dt) {
+    if(state.backflipPoseTime>=0){
+      if(!flipping){action.stop();sprint.stop();jump.stop();flip.reset().play();flipping=true;}
+      flip.reset().play();flipMixer.setTime(state.backflipPoseTime);avatar.updateMatrixWorld(true);avatar.skeleton.update();return true;
+    }
+    if(flipping)reset();
     const airborne=state.grounded===false;
     weight=THREE.MathUtils.damp(weight,airborne?1:Math.min(1,state.speed/RUN_SPEED),22,dt);
     if (state.speed===0 && weight<.001 && !airborne) {reset();return false;}

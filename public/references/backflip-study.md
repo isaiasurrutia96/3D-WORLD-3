@@ -1,30 +1,29 @@
-# Backflip review: reference and adaptation
+# Athletic backflip: reference and revised authoring
 
-This page is isolated from the game. No controller, gameplay camera, world, avatar geometry, gait, or gameplay jump file is changed.
+The main game now uses the revised one-turn athletic backflip: stand still and press Q + Space. The review page shows that same pose clip from front and side, with a stationary copy of the controller's air arc for inspection. Running, ordinary jumping, driving and the circuit remain available.
 
 ## Inspectable sources
 
 - SM64 decompilation, revision 9921382a68bb0c865e5e45eb594d9c64db59b1af: src/game/mario_actions_airborne.c, act_backflip (line 509); src/game/mario.c, ACT_BACKFLIP (line 790). Backward velocity -16, initial vertical velocity 62; dedicated MARIO_ANIM_BACKFLIP.
-- SM64 JavaScript port, revision 04c1a984117ebb8d0e7b0d5d2e3424367f69b92d: src/actors/mario/marioAnimData.js, gMarioAnimData[4]. 33 pose frames. Joint channels extracted to references/sm64-backflip.json for inspection, not the entire animation library.
-- Same port, src/actors/mario/geo.inc.js: mario_geo_body supplies the source skeleton offsets and hierarchy for the cyan line reference. No original Mario mesh or textures are included.
+- SM64 JavaScript port, revision 04c1a984117ebb8d0e7b0d5d2e3424367f69b92d: src/actors/mario/marioAnimData.js, gMarioAnimData[4]. 33 pose frames. The cyan reference skeleton uses those source channels and the body hierarchy from src/actors/mario/geo.inc.js. No original Mario mesh or textures are included.
 
 https://github.com/n64decomp/sm64/blob/9921382a68bb0c865e5e45eb594d9c64db59b1af/src/game/mario.c#L790
 https://github.com/sm64js/sm64js/blob/04c1a984117ebb8d0e7b0d5d2e3424367f69b92d/src/actors/mario/marioAnimData.js
 
-## Observations before authoring
+## Why the move was reauthored
 
-The source body channel must be unwrapped: it moves from about +68 degrees to -649 degrees, approximately two backward turns. A shortest-path quaternion between the endpoints would lose those turns. The knees progressively fold from about 45 degrees to over 110 degrees. The source's arms sweep over a large range; copying its local Euler angles into our different joint axes would not reproduce the same pose.
+The earlier preview inherited a two-turn source rotation and looked like a pose being spun. The new move is hand-authored for the taller athlete. It keeps the soles planted through a loading crouch, swings the arms forward as both legs extend, rolls contact toward the forefeet, and leaves the ground only at the defined takeoff event. The pelvis then follows a ballistic controller arc. During flight, one backward rotation accelerates through a compact tuck and slows as the legs open. Landing compresses before returning to exact stillness.
 
-## Preview timing (seconds)
+The source animation is retained for comparison, not claimed as an exact match. Its roughly two backward turns differ from the new single turn. Joint proportions, clothing and full gameplay physics also differ. Passing checks establishes continuity/contact and controller behavior, not visual accuracy.
 
-0.00–0.10: exact neutral hold, no idle bob.
-0.10–0.26: authored crouch, arms move back.
-0.26–0.40: extend knees, sweep arms up, push off.
-0.40–1.50: source body rotation and sagittal leg timing adapted to the current avatar, with extra hip/knee folding for the longer limbs; stationary preview air arc, with final extension blended for contact.
-1.50–1.60: authored landing compression.
-1.60–1.85: authored recovery to neutral.
-1.85–2.25: hold neutral before replay.
+## Timing (seconds)
 
-## Limits and review criteria
+0.00–0.20: load into a crouch; feet remain planted and arms swing back.
+0.20–0.32: leg extension and forward/upward arm swing; contact rolls to the forefoot.
+0.32: physical takeoff event.
+0.32–1.16: backward flight and one tucked rotation; open before touchdown.
+1.16–1.25: absorb the landing with bent knees and controlled arm recovery.
+1.25–1.46: stand back up.
+1.46–1.65: neutral hold before the review repeats.
 
-This is a source-data reference and an adapted keyframed study, not a recorded side-by-side gameplay capture. Original-game camera, mesh proportions, floor movement and full physics are not reproduced. The cyan reference displays source bone data using the stated hierarchy; the preview air arc is added to make the airborne poses readable. Preparation, arm sweep, landing and the stationary arc are authored, not extracted from footage. The original stationary backflip has backward travel; this review stays centered as requested. Both normal and quarter-speed playback use the same clip. Scrub to inspect the soles, tuck, hand/head clearance and landing continuity. Passing tests cannot establish visual accuracy. Gameplay integration is deliberately deferred for review.
+The controller and clip share timing constants. Gameplay uses the collision/support system and a backward launch; the stationary review adds the same vertical arc to the clip instead. Pose curves use continuous, shape-preserving cubic interpolation so angular velocity does not stop at every key pose. Grounded pelvis placement is derived from the skinned soles, not an arbitrary bob. The original source-data skeleton continues to display its independent two-turn reference, normalized to the review's airborne interval.

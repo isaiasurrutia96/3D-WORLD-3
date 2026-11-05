@@ -191,3 +191,25 @@ test('faster default run keeps the planted ankle fixed through the longer stride
   }
   assert.ok(contacts>30);assert.ok(Math.abs(SPRINT_SPEED-3/.23)<1e-10);assert.equal(SPRINT_DURATION,.46);assert.equal(SPRINT_STRIDE,6);
 });
+
+test('standing Q plus Space loads feet before a backward airborne flip and lands once',()=>{
+ const state=createRunner(),avatar=createAvatar(),animation=createRunningAnimator(avatar),dt=1/120;
+ let peak=0,leftGround=false,contactCount=0,landed=false;const vector=new THREE.Vector3();
+ for(let frame=0;frame<270;frame++){
+  stepRunner(state,{x:0,z:0,jump:true,backflip:true},dt);
+  avatar.position.set(state.x,state.y,state.z);avatar.rotation.y=state.yaw;animation.update(state,dt);avatar.updateMatrixWorld(true);avatar.skeleton.update();
+  peak=Math.max(peak,state.y);
+  if(frame<37){assert.equal(state.y,0);assert.equal(state.grounded,true);contactCount++;}
+  if(!state.grounded)leftGround=true;if(leftGround&&state.grounded)landed=true;
+  for(let i=0;i<avatar.geometry.attributes.position.count;i++){avatar.getVertexPosition(i,vector);assert.ok(vector.y+state.y>-.002,`Flip ground at ${frame}`);}
+ }
+ assert.ok(contactCount>30);assert.ok(leftGround&&landed);assert.ok(peak>1.8&&peak<2.1);assert.ok(state.z<-.9&&state.z> -1.2);
+ assert.equal(state.jumpCount,1);assert.equal(state.backflipTime,-1);assert.equal(state.mode,'idle');assert.equal(state.y,0);
+ // Holding the chord never restarts. Releasing permits another deliberate flip.
+ stepRunner(state,{x:0,z:0,jump:false},dt);stepRunner(state,{x:0,z:0,jump:true,backflip:true},dt);assert.equal(state.jumpCount,2);assert.equal(state.mode,'backflip');
+});
+
+test('backflip cannot start in midair and ordinary Space jumps remain single jumps',()=>{
+ const state=createRunner();stepRunner(state,{x:0,z:0,jump:true},1/120);assert.equal(state.mode,'jump');assert.equal(state.backflipTime,-1);
+ stepRunner(state,{x:0,z:0,jump:false},1/120);stepRunner(state,{x:0,z:0,jump:true,backflip:true},1/120);assert.equal(state.backflipTime,-1);assert.equal(state.jumpCount,1);
+});

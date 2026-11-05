@@ -53,7 +53,7 @@ let isometric=false;
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
+function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+(driving?1.2:1.65),focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
 function toggleCamera(){isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();document.querySelector('#view-toggle').textContent=isometric?'V Third person':'V Isometric';canvas.dataset.view=isometric?'isometric':'third-person';}
@@ -127,7 +127,7 @@ function input(){
   const {forward:vertical,right:horizontal}=readMoveAxes(keys);
   direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
   const jump=jumpQueued||keys.has('Space');jumpQueued=false;
-  return {x:direction.x,z:direction.z,sprint:wantsSprint(keys),jump};
+  return {x:direction.x,z:direction.z,sprint:wantsSprint(keys),jump,backflip:keys.has('KeyQ')};
 }
 function render(){renderer.render(scene,camera);}
 controls.enableDamping=false;
@@ -175,7 +175,7 @@ renderer.setAnimationLoop(time=>{
    animation.update({...runner,distance,phase},dt);
   }
   const focus=driving?kartPose:avatar.position;
-  const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
+  const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.65),10,dt),focus.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
   if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){
    const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));

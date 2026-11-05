@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createAvatar} from '../src/avatar.js';
 
-test('one plain skinned mesh with a symmetric neutral skeleton',()=>{
+test('athletic painted skinned mesh with a symmetric neutral skeleton',()=>{
   const avatar=createAvatar();
   assert.ok(avatar.isSkinnedMesh);
-  assert.equal(avatar.material.map,null);
+  assert.equal(avatar.material.map,null);assert.equal(avatar.material.vertexColors,true);
+  assert.ok(avatar.getObjectByName('Cuban link chain'));assert.ok(avatar.getObjectByName('Black watch strap'));assert.ok(avatar.getObjectByName('New Era fitted crown'));
   const bones=new Map(avatar.skeleton.bones.map(bone=>[bone.name,bone]));
   assert.equal(bones.size,19);
   avatar.updateMatrixWorld(true);
@@ -17,7 +18,7 @@ test('one plain skinned mesh with a symmetric neutral skeleton',()=>{
     assert.ok(Math.abs(a.y-b.y)<1e-12 && Math.abs(a.z-b.z)<1e-12);
   }
   assert.ok(Math.abs(avatar.geometry.boundingBox.min.y)<1e-6);
-  assert.ok(avatar.geometry.boundingBox.max.y>2.3 && avatar.geometry.boundingBox.max.y<2.5);
+  assert.ok(avatar.geometry.boundingBox.max.y>3.0 && avatar.geometry.boundingBox.max.y<3.2);
 });
 
 test('all vertices have finite geometry, valid indices and normalized skin weights',()=>{

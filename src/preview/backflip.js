@@ -38,13 +38,13 @@ function referencePose(time){
  document.getElementById('reference-frame').value=`Source frame ${frame.toFixed(1)} / 32${time<TAKEOFF||time>TOUCHDOWN?' · held outside air phase':''}`;
 }
 let playing=true,speed=1,time=0,last;
-const play=document.getElementById('play'),timeline=document.getElementById('timeline');
+const play=document.getElementById('play'),timeline=document.getElementById('timeline');timeline.max=String(BACKFLIP_DURATION);
 play.addEventListener('click',()=>{playing=!playing;play.textContent=playing?'Pause':'Play';});
 document.getElementById('restart').addEventListener('click',()=>{time=0;playing=true;play.textContent='Pause';});
 document.querySelectorAll('[data-speed]').forEach(button=>button.addEventListener('click',()=>{speed=Number(button.dataset.speed);document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));}));
 function seek(t){time=t;playing=false;play.textContent='Play';draw();}
 timeline.addEventListener('input',()=>seek(Number(timeline.value)));
-const inspectTimes=[0,.26,.36,.91,.66,1.43,1.60,1.85];
+const inspectTimes=[0,.20,.29,.66,.78,1.05,1.25,1.46];
 for(const [index,phase]of PHASES.entries()){const button=document.createElement('button');button.textContent=phase.label;button.addEventListener('click',()=>seek(inspectTimes[index]));document.getElementById('poses').append(button);}
 function draw(){
  for(const {mixer,action}of avatars){action.reset().play();mixer.setTime(time);}

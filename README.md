@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-One gray skinned avatar on the existing charcoal 260 × 460 slab, now connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. The avatar geometry and approved walking clip are unchanged; running has been refined separately. The previous SM64 retargeting, animation data and comparison viewer have been removed.
+A tall athletic skinned avatar on the charcoal 260 × 460 slab, connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. Outfit: white T-shirt, light-blue jeans, black watch, gold Cuban link chain, black fitted LA cap and white Blazer-style high-tops. Walking and running retain their speed/cadence; the clips are retargeted to the longer legs.
 
 ## Controls
 
@@ -9,6 +9,7 @@ One gray skinned avatar on the existing charcoal 260 × 460 slab, now connected 
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - H: enter the kart when nearby; H exits when stopped and a safe spot is available.
 - While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes, and a fresh Shift press uses the held item. The mouse changes the view without steering.
+- Q + Space while standing still: an athletic backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
 - Walking and sprinting are separate clips. The avatar returns to its exact neutral pose after stopping; there is no idle animation.
 
@@ -78,4 +79,4 @@ Camera views: press **V** or tap the camera button in the bottom control chart t
 
 ### Backflip animation review (separate page)
 
-Open [`backflip.html`](./backflip.html) for synchronized front/side previews using the existing avatar, normal and quarter-speed playback, pause/restart, a timeline scrubber and inspectable pose buttons. A source-data skeleton and reference/limitation notes appear below. This clip is **not imported by gameplay**: running, jumping, controls, cameras, avatar geometry and the world are unchanged. See `public/references/backflip-study.md` for the pinned SM64 sources and adaptation decisions. Review the visual result before connecting it to movement.
+Open [`backflip.html`](./backflip.html) for synchronized front/side previews using the existing avatar, normal and quarter-speed playback, pause/restart, a timeline scrubber and inspectable pose buttons. A source-data skeleton and reference/limitation notes appear below. The revised clip is shared with gameplay: its physical root arc is handled by the fixed-step controller, while the skeleton supplies the planted-foot preparation, tuck and landing. See `public/references/backflip-study.md` for the pinned SM64 sources and adaptation decisions. The original SM64 skeleton remains an inspectable reference, clearly distinguished from the authored single-turn move.

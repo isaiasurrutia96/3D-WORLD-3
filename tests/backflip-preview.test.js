@@ -18,7 +18,7 @@ test('preview returns to neutral without moving the avatar or modifying its geom
 });
 test('posed geometry clears the floor and takeoff/landing remain continuous',()=>{
  const p=setup(),v=new THREE.Vector3();let previous;
- for(let frame=0;frame<=270;frame++){
+ for(let frame=0;frame<=Math.round(BACKFLIP_DURATION*120);frame++){
   const time=frame/120;p.at(time);let low=Infinity;
   for(let i=0;i<p.avatar.geometry.attributes.position.count;i++){p.avatar.getVertexPosition(i,v);assert.ok(Number.isFinite(v.y));low=Math.min(low,v.y);}
   assert.ok(low>-.0001,`Floor penetration at ${time}: ${low}`);

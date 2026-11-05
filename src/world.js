@@ -1,3 +1,4 @@
+import {AVATAR_HEIGHT,AVATAR_RADIUS} from './avatar.js';
 import * as THREE from 'three';
 import {createKartFrame,KART_POSITION} from './kart.js';
 import {createTrack,trackSegments,railSegments,access,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
@@ -40,7 +41,7 @@ export function supportHeight(x,z,maximum=Infinity){
  }
  return height;
 }
-export function resolveHorizontal(x,z,nextX,nextZ,feetY,radius=.48,height=2.3){
+export function resolveHorizontal(x,z,nextX,nextZ,feetY,radius=AVATAR_RADIUS,height=AVATAR_HEIGHT){
  for(let iteration=0;iteration<3;iteration++)for(const segment of nearbyRails(nextX,nextZ)){
   const p=projection(segment,nextX,nextZ);
   if(feetY>=p.y+1.2||feetY+height<p.y||p.distance>=radius)continue;

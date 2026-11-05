@@ -69,21 +69,31 @@ export function bakeGaitClip(avatar, profile) {
   const samples=profile.samples??120;
   for (let frame=0; frame<=samples; frame++) {
     const phase=frame/samples;
-    const bob=curve(profile.compression,(phase % .5));
+    const legScale=(legs[0].upper+legs[0].lower)/.71;
+    const pushRise=profile.retargetSprint ? .20*Math.max(0,legScale-1)*curve([[0,0,0],[.12,1,0],[.28,0,0],[.5,0,0]],phase%.5) : 0;
+    let bob=curve(profile.compression,(phase % .5))+pushRise;
+    if(profile.retargetSprint)for(let i=0;i<legs.length;i++){
+      const leg=legs[i],pose=profile.footPose(wrap(phase+i*.5));
+      const hipZ=leg.hipOffset.y*leanSin+leg.hipOffset.z*leanCos;
+      const dz=pose.forward-hipZ,reach=leg.upper+leg.lower-.001;
+      const maximumY=ankleSupport(pose.pitch)+pose.lift*legScale+Math.sqrt(Math.max(.001,reach*reach-dz*dz))-(leg.hipOffset.y*leanCos-leg.hipOffset.z*leanSin);
+      bob=Math.min(bob,maximumY-pelvis.position.y);
+    }
     times.push(phase*profile.duration); pelvisHeights.push(pelvis.position.y+bob);
     rotation('pelvis',wholeLean); rotation('spine',profile.lean);
     const torsoTwist=.035*Math.cos(phase*Math.PI*2);
     rotation('chest',0,torsoTwist); rotation('neck',profile.neck); rotation('head');
     legs.forEach((leg,index) => {
       const p=wrap(phase+index*.5), pose=profile.footPose(p);
-      let down=ankleSupport(pose.pitch)+pose.lift-(leg.hipHeight+bob);
+      const recoveryLift=pose.lift*(profile.retargetSprint?legScale:1);
+      let down=ankleSupport(pose.pitch)+recoveryLift-(leg.hipHeight+bob);
       let forward=pose.forward;
       if(wholeLean){
         // Lean the pelvis/chest together. Convert floor-space ankle targets
         // back into pelvis space so the legs compensate without curling the waist.
         const hipY=pelvis.position.y+bob+leg.hipOffset.y*leanCos-leg.hipOffset.z*leanSin;
         const hipZ=leg.hipOffset.y*leanSin+leg.hipOffset.z*leanCos;
-        const dy=ankleSupport(pose.pitch)+pose.lift-hipY,dz=pose.forward-hipZ;
+        const dy=ankleSupport(pose.pitch)+recoveryLift-hipY,dz=pose.forward-hipZ;
         down=dy*leanCos+dz*leanSin;forward=dz*leanCos-dy*leanSin;
       }
       const distance=THREE.MathUtils.clamp(Math.hypot(down,forward),.05,leg.upper+leg.lower-.001);
