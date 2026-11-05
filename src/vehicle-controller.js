@@ -17,31 +17,40 @@ export function stepVehicle(state,input,dt,world){
  state.boostTime=Math.max(0,state.boostTime-dt);
  if(spinning){const spinStep=Math.min(dt,state.spinTime);state.yaw+=spinStep*Math.PI*2/.75;state.spinTime=Math.max(0,state.spinTime-dt);}
  const rawThrottle=clamp(input.throttle??0,-1,1);
- const throttle=boosting&&rawThrottle>=0&&!input.brake?1:rawThrottle;
  const steer=spinning?0:clamp(input.steer??0,-1,1);
+ // Space is the shared e-brake/drift input. Establish the slide before
+ // deciding whether to brake, so holding Space + E does not fight the motor.
+ const driftHeld=input.drift===true;
+ if(!driftHeld)state.driftBlocked=false;
+ const canDrift=state.grounded&&!spinning&&!input.brake&&rawThrottle>=0&&state.speed>8;
+ if(!driftHeld||!canDrift)state.drifting=false;
+ if(canDrift&&driftHeld&&!state.drifting&&!state.driftBlocked&&state.speed>=DRIFT_MIN_SPEED&&Math.abs(steer)>.15){
+  state.drifting=true;state.driftDirection=Math.sign(steer);
+ }
+ // Outside a slide, Space alone is an e-brake. E + Space can accelerate
+ // normally before a slide starts, and an established slide may coast.
+ const braking=input.brake||(driftHeld&&!state.drifting&&rawThrottle<=0&&state.grounded);
+ const throttle=boosting&&rawThrottle>=0&&!braking?1:rawThrottle;
  const topSpeed=boosting?NITRO_TOP_SPEED:VEHICLE_TOP_SPEED;
  if(spinning)state.speed=approach(state.speed,0,20*dt);
- else if(input.brake)state.speed=approach(state.speed,0,36*dt);
+ else if(braking)state.speed=approach(state.speed,0,36*dt);
  else if(throttle>0){
   state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?36:16))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
  else state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
- // Holding A commits a moving kart to one slide direction. Countersteering
- // opens the arc; steering into it tightens it. Release A to regain grip.
+ // A stronger slide when steering into the corner, a small residual curve
+ // with neutral steering, and enough countersteering authority to straighten.
+ // Both slip and front-wheel angle ease continuously through these targets.
  // Body heading and travel heading differ during the slide; ordinary driving
  // remains the original bicycle model when the slip angle is zero.
- if(!input.drift)state.driftBlocked=false;
- const canDrift=state.grounded&&!spinning&&!input.brake&&rawThrottle>=0&&state.speed>8;
- if(!input.drift||!canDrift)state.drifting=false;
- if(canDrift&&input.drift&&!state.drifting&&!state.driftBlocked&&state.speed>=DRIFT_MIN_SPEED&&Math.abs(steer)>.15){
-  state.drifting=true;state.driftDirection=Math.sign(steer);
- }
  const balance=steer*state.driftDirection;
- const slip=state.drifting?state.driftDirection*(.28+.16*balance):0;
+ const slide=balance>=0?.14+.42*balance:.14+.12*balance;
+ const slip=state.drifting?state.driftDirection*slide:0;
  state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?5:7)*dt));
  if(Math.abs(state.driftAngle)<1e-5)state.driftAngle=0;
  if(!canDrift&&(spinning||!state.grounded)){state.driftAngle=0;state.driftBlocked=!!input.drift;}
- const steeringInput=state.drifting?state.driftDirection*(.55+.45*balance):steer;
+ const driftSteer=balance>=0?.08+.92*balance:.08+.65*balance;
+ const steeringInput=state.drifting?state.driftDirection*driftSteer:steer;
  const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
  state.steering+=(steeringInput*maxSteer-state.steering)*(1-Math.exp(-9*dt));
  if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*(state.drifting?1.15:1)*dt;

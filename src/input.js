@@ -8,6 +8,11 @@ export function readMoveAxes(keys) {
   };
 }
 
+export function readDrivingInput(keys) {
+  const axes=readMoveAxes(keys);
+  return {throttle:axes.forward,steer:axes.right,drift:keys.has('Space')};
+}
+
 export function wantsSprint(keys) {
   const axes=readMoveAxes(keys);
   return (axes.forward!==0 || axes.right!==0) && !keys.has('ShiftLeft') && !keys.has('ShiftRight');

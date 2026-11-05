@@ -7,6 +7,7 @@ import {createOnFootState,stepOnFoot,STEP} from '../src/on-foot/controller.js';
 import {createOnFootAnimator} from '../src/on-foot/animation.js';
 import {RUN_SPEED} from '../src/on-foot/ground-movement.js';
 import {createVehicleState,stepVehicle,VEHICLE_TOP_SPEED} from '../src/vehicle-controller.js';
+import {readDrivingInput} from '../src/input.js';
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 function advance(kart,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/STEP);i++)stepVehicle(kart,input,STEP,world);}
 const angle=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -72,6 +73,49 @@ test('countersteering opens a held drift without flipping its direction',()=>{
  advance(tight,.5,{throttle:1,steer:1,drift:true});advance(open,.5,{throttle:1,steer:-1,drift:true});
  assert.equal(open.driftDirection,1);assert.ok(open.driftAngle>0&&open.driftAngle<tight.driftAngle);
  assert.ok(Math.abs(open.yaw-startYaw)<Math.abs(tight.yaw-startYaw)*.6);
+ assert.ok(open.steering*tight.driftDirection<0,'countersteering can correct past the neutral curve');
+});
+
+test('Space is the kart e-brake/drift input and A no longer activates it',()=>{
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyS','Space'])),{throttle:1,steer:-1,drift:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyF','KeyA'])),{throttle:1,steer:1,drift:false});
+ assert.deepEqual(readDrivingInput(new Set(['KeyD','Space'])),{throttle:-1,steer:0,drift:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','Space'])),{throttle:1,steer:0,drift:true});
+});
+
+test('releasing steering opens a sustained Space drift into a small smooth curve',()=>{
+ for(const direction of [-1,1]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:VEHICLE_TOP_SPEED};
+  advance(kart,.8,{throttle:1,steer:direction,drift:true});
+  assert.ok(Math.abs(kart.driftAngle)>.54,'stronger full-steer slide than the previous 0.44 rad maximum');
+  const fullSteering=Math.abs(kart.steering),fullSlip=Math.abs(kart.driftAngle);
+  stepVehicle(kart,{throttle:1,drift:true},STEP,flat);
+  assert.ok(Math.abs(kart.driftAngle-fullSlip*direction)<.03,'no abrupt grip change when steering is released');
+  advance(kart,1.2,{throttle:1,drift:true});
+  assert.equal(kart.drifting,true);assert.equal(kart.driftDirection,direction);
+  assert.ok(Math.abs(kart.driftAngle)>.13&&Math.abs(kart.driftAngle)<.15,'small residual sideways slide');
+  assert.ok(Math.abs(kart.steering)>0&&Math.abs(kart.steering)<fullSteering*.1,'gentle remaining turn');
+  const yaw=kart.yaw;advance(kart,.5,{throttle:1,drift:true});
+  assert.ok(Math.abs(kart.yaw-yaw)>.03&&Math.abs(kart.yaw-yaw)<.1,'mostly forward with a slight curve');
+ }
+});
+
+test('E plus Space preserves speed through sustained, neutral and repeatedly tapped drifts',()=>{
+ const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:VEHICLE_TOP_SPEED};
+ advance(kart,.5,{throttle:1,steer:1,drift:true});
+ for(let i=0;i<1200;i++){
+  stepVehicle(kart,{throttle:1,steer:i<240?1:0,drift:i<600||i%6<3},STEP,flat);
+  assert.equal(kart.speed,VEHICLE_TOP_SPEED);assert.equal(kart.boostTime,0);
+ }
+ const boosted={...createVehicleState(),speed:42,boostTime:2};
+ advance(boosted,1,{throttle:1,steer:1,drift:true});assert.equal(boosted.speed,66);assert.equal(boosted.drifting,true);
+});
+
+test('Space alone outside a slide brakes, while E plus Space can accelerate from rest',()=>{
+ const braking={...createVehicleState(),speed:30},coasting={...braking};
+ advance(braking,.5,{drift:true});advance(coasting,.5,{});
+ assert.ok(braking.speed<13&&coasting.speed>27);advance(braking,.5,{drift:true});assert.equal(braking.speed,0);
+ const launch=createVehicleState();advance(launch,1,{throttle:1,drift:true});assert.ok(launch.speed>15);assert.equal(launch.drifting,false);
 });
 
 test('a drifting rail contact cancels the slide and keeps moving along the barrier',()=>{
@@ -80,7 +124,7 @@ test('a drifting rail contact cancels the slide and keeps moving along the barri
  for(let i=0;i<180;i++){
   const previous={...kart};stepVehicle(kart,{throttle:1,steer:1,drift:true},STEP,wall);
   if(!contact&&kart.railContactTime>0){contact=true;contactZ=kart.z;assert.ok(kart.speed>previous.speed*.93);assert.equal(kart.drifting,false);assert.equal(kart.driftAngle,0);}
-  if(contact)assert.equal(kart.drifting,false,'holding A against a rail does not repeatedly re-enter drift');
+  if(contact)assert.equal(kart.drifting,false,'holding Space against a rail does not repeatedly re-enter drift');
  }
  assert.ok(contact);assert.ok(kart.x<=8);assert.ok(Math.abs(kart.z-contactZ)>15);assert.ok(kart.speed>30);
  stepVehicle(kart,{throttle:1},STEP,flat);stepVehicle(kart,{throttle:1,steer:-1,drift:true},STEP,flat);assert.equal(kart.drifting,true);

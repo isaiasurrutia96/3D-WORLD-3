@@ -11,7 +11,7 @@ import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveP
 import {createItemSystem,useHeldItem,stepItems} from './items.js';
 import {createItemView} from './item-view.js';
 import {createVehicleView,createSeatedPose} from './vehicle-view.js';
-import {MOVEMENT_KEYS,readMoveAxes,wantsSprint} from './input.js';
+import {MOVEMENT_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
 
 const canvas=document.querySelector('canvas');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,logarithmicDepthBuffer:true});
@@ -42,9 +42,9 @@ const walkingChart=document.querySelector('.movement-keys').innerHTML;
 const walkingLabel=canvas.getAttribute('aria-label');
 function setDrivingChart(){
  document.querySelector('.movement-keys').innerHTML=driving
-  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S</kbd>Steer left</span><span><kbd>F</kbd>Steer right</span><span class="drift-key"><kbd>A</kbd>Hold to drift</span><span><kbd>SPACE</kbd>Brake</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
+  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S</kbd>Steer left</span><span><kbd>F</kbd>Steer right</span><span class="drift-key"><kbd>SPACE</kbd>E-brake / drift</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
   : walkingChart;
- canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F. Hold A while steering to drift. Space brakes, Shift uses the held item; H exits when stopped.':walkingLabel);
+ canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F. Hold Space while steering to drift; keep E held to accelerate. Release steering to open the curve, or countersteer to straighten. Space alone outside a drift applies the e-brake. Shift uses the held item; H exits when stopped.':walkingLabel);
 }
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
@@ -118,7 +118,6 @@ const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
   if(event.target.closest('input,textarea,select'))return;
   if(directionKeys.has(event.code)){event.preventDefault();keys.add(event.code);}
-  if(driving&&event.code==='KeyA'){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
   if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
   if(driving&&(event.code==='ShiftLeft'||event.code==='ShiftRight')&&!event.repeat)itemQueued=true;
@@ -171,9 +170,8 @@ renderer.setAnimationLoop(time=>{
    if(driving){
     previousKart={...kartState};jumpQueued=false;
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
-    const axes=readMoveAxes(keys);
-    const brake=keys.has('Space'),startForward=axes.forward>0&&!brake;
-    if(trial.status!=='ready'||startForward)stepVehicle(kartState,{throttle:axes.forward,steer:axes.right,brake,drift:keys.has('KeyA')},STEP,worldPhysics);
+    const drivingInput=readDrivingInput(keys),startForward=drivingInput.throttle>0;
+    if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
    stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics);
