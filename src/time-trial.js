@@ -1,7 +1,9 @@
 import {trackSamples,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
 
 export const COURSE_ID='letsgo-circuit-d4a711d-start95-v1';
-export const STORAGE_KEY='letsgo.best-lap.v1';
+export const STORAGE_KEY='letsgo.top-laps.v2';
+export const LEGACY_STORAGE_KEY='letsgo.best-lap.v1';
+export const MAX_GHOSTS=4;
 export const START_INDEX=95,CHECKPOINT_COUNT=12,GHOST_HZ=30,MAX_LAP_SECONDS=1800;
 export const COURSE_LENGTH=trackSamples.at(-1).distance;
 const COUNT=trackSamples.length-1,START_DISTANCE=trackSamples[START_INDEX].distance;
@@ -51,12 +53,34 @@ function validBest(data){
  for(const row of data.frames){if(!Array.isArray(row)||row.length!==9||!row.every(Number.isFinite)||row[0]<=previous||row[0]>data.duration+.001)return false;previous=row[0];}
  return data.frames[0][0]===0&&Math.abs(data.frames.at(-1)[0]-data.duration)<.001;
 }
+function saveRecords(state){
+ if(!state.storage)return false;
+ try{
+  state.storage.setItem(STORAGE_KEY,JSON.stringify({version:2,course:COURSE_ID,laps:state.records}));
+  // Only retire the old single-best entry after the new table is safely saved.
+  try{state.storage.removeItem?.(LEGACY_STORAGE_KEY);}catch{}
+  return true;
+ }catch{return false;}
+}
 export function createTimeTrial(storage=null){
- let best=null;try{const raw=storage?.getItem(STORAGE_KEY);if(raw&&raw.length<8000000){const parsed=JSON.parse(raw);if(validBest(parsed))best=parsed;}}catch{}
- return{storage,best,status:'idle',elapsed:0,completed:0,lastLap:null,lastWasBest:false,passed:0,progress:0,previousProgress:0,frames:[],nextSample:1/GHOST_HZ,ghostBest:best,showGhost:true,reason:'',persisted:!!best};
+ let records=[],migrated=false;
+ try{
+  const raw=storage?.getItem(STORAGE_KEY);
+  if(raw&&raw.length<16000000){
+   const data=JSON.parse(raw);
+   if(data.version===2&&data.course===COURSE_ID&&Array.isArray(data.laps)&&data.laps.length<=MAX_GHOSTS)records=data.laps.filter(validBest).sort((a,b)=>a.duration-b.duration);
+  }
+ }catch{}
+ if(!records.length)try{
+  const raw=storage?.getItem(LEGACY_STORAGE_KEY);
+  if(raw&&raw.length<8000000){const legacy=JSON.parse(raw);if(validBest(legacy)){records=[legacy];migrated=true;}}
+ }catch{}
+ const state={storage,records,best:records[0]??null,status:'idle',elapsed:0,completed:0,lastLap:null,lastWasBest:false,lastRank:null,passed:0,progress:0,previousProgress:0,frames:[],nextSample:1/GHOST_HZ,ghostBest:records[0]??null,ghostRecords:records.slice(),showGhost:true,reason:'',persisted:!!records.length};
+ if(migrated)saveRecords(state);
+ return state;
 }
 export function armTimeTrial(state){
- Object.assign(state,{status:'ready',elapsed:0,completed:0,lastLap:null,lastWasBest:false,passed:0,progress:0,previousProgress:0,frames:[],nextSample:1/GHOST_HZ,ghostBest:state.best,reason:''});
+ Object.assign(state,{status:'ready',elapsed:0,completed:0,lastLap:null,lastWasBest:false,lastRank:null,passed:0,progress:0,previousProgress:0,frames:[],nextSample:1/GHOST_HZ,ghostBest:state.best,ghostRecords:state.records.slice(),reason:''});
 }
 export function invalidateTimeTrial(state,reason='Off course — restart lap'){
  if(state.status==='running'||state.status==='ready'){state.status='invalid';state.reason=reason;state.frames=[];}
@@ -67,11 +91,12 @@ function record(state,start,end,a,b,step){
 function complete(state,duration,finish){
  if(state.frames.at(-1)[0]<duration-1e-8)state.frames.push(frame(duration,finish));else state.frames[state.frames.length-1]=frame(duration,finish);
  state.lastLap=duration;state.lastWasBest=!state.best||duration<state.best.duration;
- if(state.lastWasBest){
-  state.best={course:COURSE_ID,duration,frames:state.frames};state.persisted=false;
-  try{if(state.storage){state.storage.setItem(STORAGE_KEY,JSON.stringify(state.best));state.persisted=true;}}catch{}
+ const entry={course:COURSE_ID,duration,frames:state.frames},ranked=[...state.records,entry].sort((a,b)=>a.duration-b.duration),rank=ranked.indexOf(entry);
+ state.lastRank=rank<MAX_GHOSTS?rank+1:null;
+ if(state.lastRank!==null){
+  state.records=ranked.slice(0,MAX_GHOSTS);state.best=state.records[0];state.persisted=saveRecords(state);
  }
- state.completed++;state.ghostBest=state.best;state.frames=[frame(0,finish)];state.nextSample=1/GHOST_HZ;state.passed=0;
+ state.completed++;state.ghostBest=state.best;state.ghostRecords=state.records.slice();state.frames=[frame(0,finish)];state.nextSample=1/GHOST_HZ;state.passed=0;
 }
 export function stepTimeTrial(state,previous,current,forward,dt){
  if(state.status==='ready'&&forward){state.status='running';state.frames=[frame(0,previous)];state.previousProgress=projectCourse(previous)?.progress??0;}

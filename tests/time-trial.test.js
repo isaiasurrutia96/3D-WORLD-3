@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {trackSamples} from '../src/track.js';
 import {createVehicleState,stepVehicle} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
-import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,sampleGhost,formatTime,RACE_START,START_INDEX,GATES,CHECKPOINT_COUNT,projectCourse} from '../src/time-trial.js';
+import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,sampleGhost,formatTime,RACE_START,START_INDEX,STORAGE_KEY,LEGACY_STORAGE_KEY,MAX_GHOSTS,GATES,CHECKPOINT_COUNT,projectCourse} from '../src/time-trial.js';
 const count=trackSamples.length-1;
-function storage(){const data=new Map();return{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value)};}
+function storage(){const data=new Map();return{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value),removeItem:key=>data.delete(key)};}
 function pose(index){const n=((index%count)+count)%count,p=trackSamples[n].point,next=trackSamples[n+1].point;return{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(next.x-p.x,next.z-p.z),pitch:0,bank:0,steering:0,wheelRotation:index*.2,grounded:true};}
 function lap(state,dt=.1){let previous=pose(START_INDEX);armTimeTrial(state);for(let i=1;i<=count+1;i++){const current=pose(START_INDEX+i);stepTimeTrial(state,previous,current,true,dt);assert.equal(state.status,'running',state.reason);previous=current;}assert.equal(state.completed,1);}
 
@@ -67,4 +67,23 @@ test('rolling laps restart the clock at the finish without losing checkpoint ord
  const state=createTimeTrial();armTimeTrial(state);let previous=pose(START_INDEX);
  for(let i=1;i<=count*2+1;i++){const current=pose(START_INDEX+i);stepTimeTrial(state,previous,current,true,.1);assert.equal(state.status,'running');previous=current;}
  assert.equal(state.completed,2);assert.ok(Math.abs(state.lastLap-120)<.01);assert.ok(state.elapsed<.11);assert.ok(state.best);
+});
+
+
+test('four fastest distinct completed laps are sorted, replayed and persisted',()=>{
+ const memory=storage(),state=createTimeTrial(memory);
+ for(const dt of [.1,.12,.095,.105])lap(state,dt);
+ assert.equal(state.records.length,MAX_GHOSTS);const prior=state.records.slice();
+ lap(state,.13);assert.deepEqual(state.records,prior);assert.equal(state.lastRank,null);
+ lap(state,.11);assert.equal(state.lastRank,4);assert.equal(state.records.length,4);
+ state.records.forEach((record,i)=>assert.ok(Math.abs(record.duration-[114,120,126,132][i])<.01));
+ armTimeTrial(state);assert.deepEqual(state.ghostRecords,state.records);for(const record of state.ghostRecords)assert.ok(sampleGhost(record,10));
+ const loaded=createTimeTrial(memory);assert.deepEqual(loaded.records,state.records);assert.equal(loaded.best,loaded.records[0]);assert.equal(JSON.parse(memory.getItem(STORAGE_KEY)).version,2);
+});
+
+test('existing single-best ghost migrates without losing its replay or creating duplicates',()=>{
+ const old=createTimeTrial();lap(old);const memory=storage();memory.setItem(LEGACY_STORAGE_KEY,JSON.stringify(old.best));
+ const migrated=createTimeTrial(memory);assert.equal(migrated.records.length,1);assert.deepEqual(migrated.best,old.best);assert.ok(memory.getItem(STORAGE_KEY));assert.equal(memory.getItem(LEGACY_STORAGE_KEY),null);
+ assert.equal(createTimeTrial(memory).records.length,1);
+ const failed=createTimeTrial({getItem:key=>key===LEGACY_STORAGE_KEY?JSON.stringify(old.best):null,setItem:()=>{throw Error('quota');}});assert.equal(failed.records.length,1);assert.deepEqual(failed.best,old.best);
 });

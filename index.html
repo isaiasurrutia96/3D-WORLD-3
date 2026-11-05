@@ -13,11 +13,16 @@
       <section class="trial-panel" aria-label="Time trial">
         <div class="trial-heading"><span>TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
         <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
-        <div class="trial-best">BEST <output id="trial-best" aria-label="Best lap time">--:--.---</output></div>
+        <div class="trial-best"><span class="ghost-rank ghost-rank-1">#1 BEST</span> <output id="trial-best" aria-label="Best lap time">--:--.---</output></div>
+        <ol class="trial-records" start="2" aria-label="Second through fourth fastest laps">
+          <li><span class="ghost-rank ghost-rank-2">#2</span><output data-lap-rank="2">--:--.---</output></li>
+          <li><span class="ghost-rank ghost-rank-3">#3</span><output data-lap-rank="3">--:--.---</output></li>
+          <li><span class="ghost-rank ghost-rank-4">#4</span><output data-lap-rank="4">--:--.---</output></li>
+        </ol>
         <div id="trial-last"></div>
         <button id="trial-start" type="button">Start in kart · T</button>
-        <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Best ghost</label>
-        <p id="trial-status" role="status">Complete a lap to record your ghost</p>
+        <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
+        <p id="trial-status" role="status">Your top four laps become ghosts</p>
       </section>
       <aside class="key-chart" aria-label="Control chart">
         <div class="movement-keys">

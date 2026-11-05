@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED} from '../src/vehicle-controller.js';
+import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED,NITRO_TOP_SPEED,STEERING_LOCK} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
 import {trackSamples} from '../src/track.js';
 import {createAvatar} from '../src/avatar.js';
 import {createJumpClip} from '../src/animation/jump-clip.js';
 import {createSeatedPose,createVehicleView} from '../src/vehicle-view.js';
 import {createKartFrame} from '../src/kart.js';
+import {createGhostTemplate} from '../src/ghost-kart.js';
 const DT=1/120;
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 function advance(state,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/DT);i++)stepVehicle(state,input,DT,world);}
@@ -38,7 +39,7 @@ test('entry requires proximity and grounded states; exit requires a safe stopped
 test('kart crosses the access bridge, respects rails and uses elevated ramp surfaces',()=>{
  const kart=createVehicleState();let peak=kart.x,bounced=false;
  for(let i=0;i<720;i++){stepVehicle(kart,{throttle:1},DT,worldPhysics);peak=Math.max(peak,kart.x);if(kart.x>150&&Math.sin(kart.yaw)<0)bounced=true;assert.ok(kart.y>-.01);}
- assert.ok(peak>150&&peak<166);assert.ok(bounced,'Kart rebounds away from the outer rail');assert.ok(kart.x<peak-10,'Holding throttle continues away from the wall');assert.equal(kart.grounded,true);
+ assert.ok(peak>150&&peak<166);assert.ok(bounced,'Kart turns along the outer rail');assert.ok(Math.abs(kart.z+146.5)>20,'Holding throttle continues along the track');assert.equal(kart.grounded,true);
  const sample=trackSamples.find(s=>s.point.y>8&&s.point.z>60&&s.point.z<85).point;
  const above=Object.assign(createVehicleState(),{x:sample.x,y:sample.y,z:sample.z});advance(above,.5,{brake:true},worldPhysics);
  assert.ok(above.y>8);assert.equal(above.grounded,true);
@@ -74,11 +75,33 @@ test('a driven lap can traverse every curve and both overpass levels',()=>{
  assert.equal(index,trackSamples.length);assert.ok(peak>8);
 });
 
-test('head-on and oblique wall impacts rebound rather than pinning the kart',()=>{
+test('head-on and oblique wall hits slide along the rail with a small speed loss',()=>{
  const wall={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:Math.min(nx,8),z:nz})};
  for(const yaw of [Math.PI/2,Math.PI/3]){
-  const kart={...createVehicleState(),x:0,z:0,yaw,speed:25};let bounced=false;
-  for(let i=0;i<120;i++){stepVehicle(kart,{throttle:1},DT,wall);if(Math.sin(kart.yaw)<0)bounced=true;}
-  assert.ok(bounced);assert.ok(kart.x<5);assert.ok(kart.speed>5);
+  const kart={...createVehicleState(),x:0,z:0,yaw,speed:25};let contact=false,afterContactZ=0;
+  for(let i=0;i<180;i++){
+   const previous={...kart};stepVehicle(kart,{throttle:1},DT,wall);
+   if(!contact&&kart.railContactTime>0){contact=true;afterContactZ=kart.z;assert.ok(kart.speed>previous.speed*.93&&kart.speed<previous.speed*1.01);assert.ok(Math.abs(Math.sin(kart.yaw))<.03,'minimal outward deflection');}
+  }
+  assert.ok(contact);assert.ok(kart.x>6&&kart.x<=8,'no launch across the road');assert.ok(Math.abs(kart.z-afterContactZ)>15,'continues along the rail');assert.ok(kart.speed>30);
  }
+ const scraping={...createVehicleState(),x:7.5,z:0,yaw:0,speed:35};
+ for(let i=0;i<240;i++)stepVehicle(scraping,{throttle:1,steer:-1},DT,wall);
+ assert.ok(scraping.z>50,'holding into the rail does not pin the kart');assert.ok(scraping.speed>30);assert.ok(scraping.x<=8);
+});
+
+test('steering is slightly gentler while nitro reaches the increased cap',()=>{
+ const kart={...createVehicleState(),speed:30};advance(kart,.5,{throttle:1,steer:1});
+ assert.ok(STEERING_LOCK<.44&&STEERING_LOCK>.37);assert.ok(Math.abs(kart.steering)<.44/(1+Math.abs(kart.speed)/11));
+ const boosted={...createVehicleState(),speed:VEHICLE_TOP_SPEED,boostTime:2};advance(boosted,1,{throttle:1});assert.equal(boosted.speed,NITRO_TOP_SPEED);assert.equal(NITRO_TOP_SPEED,66);
+});
+
+
+test('four replay models can share a baked seated kart with six render meshes',()=>{
+ const template=createGhostTemplate(),source=createKartFrame(),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton.update();
+ const expected=new THREE.Box3().setFromObject(source,true),actual=new THREE.Box3().setFromObject(template,true);
+ assert.ok(expected.min.distanceTo(actual.min)<1e-5&&expected.max.distanceTo(actual.max)<1e-5,'baked pose matches the seated kart');
+ let meshes=0;template.traverse(node=>{if(node.isMesh){meshes++;assert.equal(node.isSkinnedMesh,undefined);for(const value of node.geometry.attributes.position.array)assert.ok(Number.isFinite(value));}});assert.equal(meshes,6);
+ const copy=template.clone();assert.equal(copy.children[0].geometry,template.children[0].geometry);
+ const apply=createVehicleView(copy);apply({...createVehicleState(),steering:.1,wheelRotation:2});assert.equal(copy.getObjectByName('front_axle_left_wheel').rotation.x,2);
 });

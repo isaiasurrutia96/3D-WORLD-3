@@ -1,15 +1,17 @@
 import {KART_POSITION} from './kart.js';
 import {GRAVITY} from './running-controller.js';
 
-export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=60;
+export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=66;
+export const STEERING_LOCK=.39;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0};
 }
 export function stepVehicle(state,input,dt,world){
  const previousYaw=state.yaw;
+ state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
  const boosting=state.boostTime>0,spinning=state.spinTime>0;
  state.boostTime=Math.max(0,state.boostTime-dt);
  if(spinning){const spinStep=Math.min(dt,state.spinTime);state.yaw+=spinStep*Math.PI*2/.75;state.spinTime=Math.max(0,state.spinTime-dt);}
@@ -20,11 +22,11 @@ export function stepVehicle(state,input,dt,world){
  if(spinning)state.speed=approach(state.speed,0,20*dt);
  else if(input.brake)state.speed=approach(state.speed,0,36*dt);
  else if(throttle>0){
-  state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?32:16))*dt);
+  state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?36:16))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
  else state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
- const maxSteer=.44/(1+Math.abs(state.speed)/11);
- state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-10*dt));
+ const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
+ state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-9*dt));
  if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);
  let x=oldX+sin*state.speed*dt,z=oldZ+cos*state.speed*dt;
@@ -37,18 +39,20 @@ export function stepVehicle(state,input,dt,world){
   x+=resolved.x-targetX;z+=resolved.z-targetZ;
  }
  if(Math.hypot(x-proposedX,z-proposedZ)>.001){
-  // Reflect velocity about the contact normal, retaining motion along the rail.
+  // Remove inward motion and guide the kart along the rail, with only a
+  // tiny outward bias. Reflection made glancing hits fling it across the road.
   const correctionX=x-proposedX,correctionZ=z-proposedZ,length=Math.hypot(correctionX,correctionZ);
-  const nx=correctionX/length,nz=correctionZ/length;
-  let vx=sin*state.speed,vz=cos*state.speed;
-  const into=vx*nx+vz*nz;
-  if(into<0){
-   vx-=1.65*into*nx;vz-=1.65*into*nz;
-   const sign=Math.sign(state.speed)||1;
-   state.speed=Math.hypot(vx,vz)*sign;
-   state.yaw=Math.atan2(vx*sign,vz*sign);
-   // Leave a small separation so holding the accelerator cannot pin the tires.
-   x+=nx*.08;z+=nz*.08;state.steering*=.3;
+  const nx=correctionX/length,nz=correctionZ/length,vx=sin*state.speed,vz=cos*state.speed;
+  if(vx*nx+vz*nz<0){
+   const tx=-nz,tz=nx,incoming=Math.abs(state.speed),along=vx*tx+vz*tz;
+   // A direct hit has no meaningful tangent. Use the requested turn (or a
+   // consistent default) so holding forward cannot pin the nose to the wall.
+   const direction=Math.abs(along)>incoming*.08?Math.sign(along):-(Math.sign(steer)||1);
+   const loss=state.railContactTime>0?Math.exp(-.10*dt):.96;
+   const speed=incoming*loss,away=.018,sign=Math.sign(state.speed)||1;
+   const dx=tx*direction+nx*away,dz=tz*direction+nz*away;
+   state.speed=speed*sign;state.yaw=Math.atan2(dx*sign,dz*sign);
+   x+=nx*.015;z+=nz*.015;state.steering*=.7;state.railContactTime=.22;
   }
  }
  state.x=x;state.z=z;

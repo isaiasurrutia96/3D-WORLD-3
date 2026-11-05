@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import {createKartFrame} from './kart.js';
-import {createAvatar} from './avatar.js';
-import {createVehicleView,createSeatedPose} from './vehicle-view.js';
-import {GATES,CHECKPOINT_COUNT,sampleGhost,formatTime} from './time-trial.js';
+import {createGhostTemplate} from './ghost-kart.js';
+import {createVehicleView} from './vehicle-view.js';
+import {GATES,CHECKPOINT_COUNT,MAX_GHOSTS,sampleGhost,formatTime} from './time-trial.js';
 import {TRACK_HALF_WIDTH} from './track.js';
 
 export function createTimeTrialView(scene,state){
@@ -34,20 +33,26 @@ export function createTimeTrialView(scene,state){
    gateNodes.push({node,highlights,index:gate.index});
   }
  }
- const ghost=createKartFrame();ghost.name='Best lap ghost';const driver=createAvatar();ghost.add(driver);createSeatedPose(driver)();
- const ghostMaterial=new THREE.MeshBasicMaterial({color:'#8deafa',transparent:true,opacity:.28,depthWrite:false});
- ghost.traverse(node=>{if(node.isMesh){node.material=ghostMaterial;node.castShadow=false;node.receiveShadow=false;}});scene.add(ghost);ghost.visible=false;
- const applyGhost=createVehicleView(ghost),timer=document.getElementById('trial-time'),best=document.getElementById('trial-best'),lap=document.getElementById('trial-lap'),status=document.getElementById('trial-status'),last=document.getElementById('trial-last'),button=document.getElementById('trial-start'),toggle=document.getElementById('trial-ghost');
+ const colors=['#8deafa','#d7a2ff','#ffc578','#8cf0a3'],template=createGhostTemplate();
+ const ghosts=Array.from({length:MAX_GHOSTS},(_,index)=>{
+  const model=template.clone();model.name=index===0?'Best lap ghost':`Lap ghost ${index+1}`;model.userData.rank=index+1;
+  const material=new THREE.MeshBasicMaterial({color:colors[index],transparent:true,opacity:.26,depthWrite:false});
+  model.traverse(node=>{if(node.isMesh){node.material=material;node.castShadow=false;node.receiveShadow=false;}});scene.add(model);model.visible=false;
+  return{model,material,apply:createVehicleView(model)};
+ });
+ const timer=document.getElementById('trial-time'),best=document.getElementById('trial-best'),lap=document.getElementById('trial-lap'),status=document.getElementById('trial-status'),last=document.getElementById('trial-last'),button=document.getElementById('trial-start'),toggle=document.getElementById('trial-ghost');
+ const ranks=[...document.querySelectorAll('[data-lap-rank]')];
  let message='';
  return function update(alpha,step){
   const active=state.status==='ready'||state.status==='running';
   for(const gate of gateNodes){const expected=state.passed<CHECKPOINT_COUNT?state.passed+1:0;gate.node.visible=active&&gate.index===expected;for(const part of gate.highlights)part.visible=gate.index===expected;}
   const time=state.status==='running'?Math.max(0,state.elapsed-(1-alpha)*step):0;
-  const pose=active&&state.showGhost?sampleGhost(state.ghostBest,time):null;ghost.visible=!!pose;if(pose)applyGhost(pose);
+  ghosts.forEach(({model,material,apply},index)=>{material.opacity=.26*Math.min(1,time/.5);const pose=state.status==='running'&&state.showGhost?sampleGhost(state.ghostRecords[index],time):null;model.visible=!!pose;if(pose)apply(pose);});
+  for(const rank of ranks)rank.value=formatTime(state.records[Number(rank.dataset.lapRank)-1]?.duration);
   timer.value=formatTime(state.elapsed);best.value=formatTime(state.best?.duration);lap.textContent=`Lap ${state.completed+1}`;
-  last.textContent=state.lastLap==null?'':`${state.lastWasBest?'New best':'Last lap'} ${formatTime(state.lastLap)}`;
+  last.textContent=state.lastLap==null?'':`${state.lastWasBest?'New best':state.lastRank?`New #${state.lastRank}`:'Last lap'} ${formatTime(state.lastLap)}`;
   button.textContent=state.status==='idle'?'Start in kart · T':'Restart lap · T';toggle.disabled=!state.best;toggle.checked=state.showGhost;
-  const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Complete a lap to record your ghost';
+  const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Your top four laps become ghosts';
   if(text!==message){status.textContent=text;message=text;}
  };
 }
