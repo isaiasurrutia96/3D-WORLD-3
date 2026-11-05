@@ -4,6 +4,7 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 
 ## Controls
 
+- The home screen contains only the LetsGo logo and **Play**. Play starts a fresh attempt seated at the start/finish line. **Home** returns to that screen, clears held input and stops the render/simulation loop. Saved top-four laps are retained.
 - Click **Start in kart** or press **T** to spawn seated on the start/finish line. The clock stays at zero until **E** first accelerates. T restarts an attempt.
 
 - E: run forward; D: run backward; S: run left; F: run right, relative to the camera.
@@ -14,6 +15,19 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 - Q + Space while standing still: a standing backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
 - Walking, running and normal jumping use Claude’s native rig and pose animation. Idle remains still.
+
+## Phone controls
+
+Touch devices use a layout based on the mobile racing reference, in portrait or landscape:
+
+- The bottom-left **Steer** pad provides analog steering. The kart accelerates automatically while driving; a physical E/D key overrides that accelerator when used.
+- Hold the bottom-right **Drift / E-brake** button while steering to drift. It uses the existing Space handling, including countersteering. Holding it without a drift strongly brakes. **Reverse** brakes and reverses while held.
+- The upper-right item button shows **Boost** or **Shell** after collecting a box. One tap uses the held item, including while other fingers hold steering and drift. Holding the button cannot automatically consume a later pickup.
+- **View** changes between the existing third-person and isometric cameras. The **Laps & ghosts** disclosure keeps times, replay toggle and restart accessible without covering the driving controls; it opens beside the HUD on short landscape screens.
+- **Exit** brakes to a stop before using the existing safe kart exit. On foot, the left pad becomes **Move** (small movements walk, larger movements run), the right button becomes **Jump**, and the secondary button becomes a standing **Flip**. **Kart** re-enters when nearby.
+- Returning Home, cancelling a touch, changing orientation, losing focus or hiding the page clears held fingers. Background/home simulation does not advance. Play starts another attempt without deleting records.
+
+`src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture so fingers can release independently. The touch input merges into the existing keyboard/vehicle interfaces, and the driving/animation/track implementations are unchanged. `tests/mobile-input.test.js` covers stick limits, finger ownership, cancellation, queued taps, input precedence and combined steering/drift.
 
 ## Development
 
@@ -48,7 +62,7 @@ Tests cover input mapping, diagonal normalization, acceleration/braking, loop cl
 
 ## Floating circuit and jumping
 
-The character starts near the slab's right-hand bridge, facing the circuit. Walk or sprint forward onto the circuit. Guardrails block movement at road level and may be cleared by a jump. The overpass has clearance for the character and a full jump on the lower road. Its upper road is reached through the ramps, with no snapping between levels. Falling into the void returns the character to the bridge approach. Scroll out and orbit to inspect the whole layout; R returns to the close view.
+Play starts in the kart on the circuit. Exit to explore the world on foot; the original on-foot fallback spawn remains near the slab's right-hand bridge. Guardrails block movement at road level and may be cleared by a jump. The overpass has clearance for the character and a full jump on the lower road. Its upper road is reached through the ramps, with no snapping between levels. Falling into the void returns the character to the bridge approach. Scroll out and orbit to inspect the whole layout; R resets the view.
 
 The normal jump uses Claude’s 9.6 m/s takeoff and 27 m/s² rising gravity, with 1.42 times gravity on descent. It rises about 1.67 m in the fixed-step simulation, roughly 25% higher than the previous jump. Claude’s native ascent pose swings both arms up and tucks the legs; the falling pose opens the arms and extends the feet. A tap is queued until the next simulation step so quick Space presses are not missed. Holding Space does not repeat the jump, and airborne presses do not add extra moves. Surface support is sampled against the same triangles rendered by the road mesh. Rail collision is indexed spatially and accounts for the character's elevation.
 

@@ -12,8 +12,11 @@ import {createItemSystem,useHeldItem,stepItems} from './items.js';
 import {createItemView} from './item-view.js';
 import {createVehicleView,createSeatedPose,speedToMph} from './vehicle-view.js';
 import {MOVEMENT_KEYS,DRIVING_STEERING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
+import {createMobileControls,bindPress} from './mobile-controls.js';
 
 const canvas=document.querySelector('canvas');
+const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
+let playing=false,touchMode=false,touchAutoDrive=false,mobileExitPending=false,gameFocused=true;
 const speedometer=document.getElementById('kart-speed');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,logarithmicDepthBuffer:true});
 renderer.setPixelRatio(1);
@@ -61,11 +64,12 @@ controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
 function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
-function toggleCamera(){isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();document.querySelector('#view-toggle').textContent=isometric?'V Third person':'V Isometric';canvas.dataset.view=isometric?'isometric':'third-person';}
-document.querySelector('#view-toggle').addEventListener('click',toggleCamera);
-window.addEventListener('keydown',event=>{if(event.code==='KeyV'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();toggleCamera();}});
+function toggleCamera(){if(!playing)return;isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();const button=document.querySelector('#view-toggle');button.setAttribute('aria-pressed',String(isometric));button.setAttribute('aria-label',isometric?'Switch to third-person view':'Switch to isometric view');canvas.dataset.view=isometric?'isometric':'third-person';canvas.focus({preventScroll:true});}
+bindPress(document.querySelector('#view-toggle'),toggleCamera);
+window.addEventListener('keydown',event=>{if(playing&&event.code==='KeyV'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();toggleCamera();}});
 function resize(){
  const width=canvas.clientWidth,height=canvas.clientHeight,scale=Math.min(1,480/height);
+ if(!width||!height)return;
  renderer.setSize(Math.round(width*scale),Math.round(height*scale),false);
  thirdPersonCamera.aspect=width/height;thirdPersonCamera.fov=width<700?55:45;thirdPersonCamera.updateProjectionMatrix();
  isoCamera.left=-18*width/height;isoCamera.right=18*width/height;isoCamera.updateProjectionMatrix();
@@ -76,7 +80,7 @@ const orbit = new THREE.Spherical();
 const mouseOffset = new THREE.Vector3();
 const controlHint = document.querySelector('#camera-hint');
 window.addEventListener('keydown', async event => {
-  if (event.code !== 'KeyL' || event.repeat || event.target.closest('input,textarea,select')) return;
+  if (!playing || event.code !== 'KeyL' || event.repeat || event.target.closest('input,textarea,select')) return;
   event.preventDefault();
   if (document.pointerLockElement === canvas) { document.exitPointerLock(); return; }
   try {
@@ -88,7 +92,7 @@ window.addEventListener('keydown', async event => {
 });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  controls.enabled = !locked;
+  controls.enabled = playing && !locked;
   canvas.dataset.mouseLocked = String(locked);
   controlHint.textContent = locked
     ? 'Mouse locked · L / Esc to release'
@@ -98,7 +102,7 @@ document.addEventListener('pointerlockerror', () => {
   controlHint.textContent = 'Mouse lock blocked · Click the game and press L again';
 });
 document.addEventListener('mousemove', event => {
-  if (document.pointerLockElement !== canvas || isometric) return;
+  if (!playing || document.pointerLockElement !== canvas || isometric) return;
   mouseOffset.subVectors(camera.position,controls.target);
   orbit.setFromVector3(mouseOffset);
   orbit.theta -= event.movementX*0.0025;
@@ -112,27 +116,49 @@ document.addEventListener('mousemove', event => {
 
 const keys=new Set();
 let jumpQueued=false,interactionQueued=false,itemQueued=false;
+const mobile=createMobileControls({
+ onTouch:()=>setTouchMode(true),
+ onDriveIntent:()=>{if(playing&&driving){touchAutoDrive=true;mobileExitPending=false;}},
+ onItem:()=>{if(playing&&driving&&kartState.heldItem)itemQueued=true;canvas.focus({preventScroll:true});},
+ onInteract:()=>{
+  if(!playing)return;
+  if(driving){touchAutoDrive=false;mobileExitPending=true;}else interactionQueued=true;
+  canvas.focus({preventScroll:true});
+ },
+});
+function clearInputs(){keys.clear();mobile.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;}
+function setTouchMode(enabled){
+ if(touchMode===enabled)return;
+ touchMode=enabled;app.classList.toggle('touch-mode',enabled);document.getElementById('trial-details').open=!enabled;
+ touchAutoDrive=enabled&&driving;
+}
+window.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')setTouchMode(true);if(playing&&!gameFocused){gameFocused=true;previousTime=undefined;}},{capture:true,passive:true});
+window.addEventListener('orientationchange',()=>mobile.clear());
 let orbiting=false,manualCameraUntil=0;
 controls.addEventListener('start',()=>{orbiting=true;});
 controls.addEventListener('end',()=>{orbiting=false;manualCameraUntil=performance.now()+1800;});
 const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
-  if(event.target.closest('input,textarea,select'))return;
+  if(!playing||event.target.closest('input,textarea,select,button,summary,a'))return;
   if(directionKeys.has(event.code)||(driving&&DRIVING_STEERING_KEYS.has(event.code))){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
   if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
   if(driving&&(event.code==='ShiftLeft'||event.code==='ShiftRight')&&!event.repeat)itemQueued=true;
 });
 window.addEventListener('keyup',event=>keys.delete(event.code));
-window.addEventListener('blur',()=>{keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;});
+window.addEventListener('blur',()=>{gameFocused=false;clearInputs();previousTime=undefined;accumulator=0;});
+window.addEventListener('focus',()=>{gameFocused=true;previousTime=undefined;});
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
   right.crossVectors(forward,camera.up).normalize();
-  const {forward:vertical,right:horizontal}=readMoveAxes(keys);
+  const virtual=mobile.consume(),axes=readMoveAxes(keys);
+  const vertical=Math.max(-1,Math.min(1,axes.forward+virtual.forward)),horizontal=Math.max(-1,Math.min(1,axes.right+virtual.right));
   direction.copy(forward).multiplyScalar(vertical).addScaledVector(right,horizontal);
-  const jump=jumpQueued||keys.has('Space');jumpQueued=false;
-  return {x:direction.x,z:direction.z,sprint:wantsSprint(keys),jump,backflip:keys.has('KeyQ')};
+  const touchFlip=virtual.secondaryPressed&&runner.grounded&&runner.speed<.65;
+  const jump=jumpQueued||keys.has('Space')||virtual.primary||virtual.primaryPressed||touchFlip;jumpQueued=false;
+  const sprint=axes.forward||axes.right?wantsSprint(keys):Math.hypot(virtual.forward,virtual.right)>.55;
+  return {x:direction.x,z:direction.z,sprint,jump,backflip:keys.has('KeyQ')||touchFlip};
 }
 function render(){renderer.render(scene,camera);}
 controls.enableDamping=false;
@@ -140,30 +166,33 @@ let previousTime,accumulator=0,previous={...runner},previousKart={...kartState};
 function toggleVehicle(){
  const hint=document.querySelector('#kart-action');
  if(!driving){
-  if(!canEnterVehicle(runner,kartState)){hint.textContent=runner.grounded?'Move closer to kart':'Land before entering';return;}
+  if(!canEnterVehicle(runner,kartState)){hint.textContent=runner.grounded?'Move closer to kart':'Land before entering';return false;}
   animation.reset();driving=true;kart.add(avatar);seatAvatar();previousKart={...kartState};
  }else{
   const exit=findExitPosition(kartState,worldPhysics);
-  if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return;}
+  if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
   invalidateTimeTrial(trial,'Left the kart — restart lap');
   driving=false;kartState.speed=0;kartState.boostTime=0;kartState.spinTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
  }
- jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();
+ mobile.clear();mobileExitPending=false;touchAutoDrive=touchMode&&driving;
+ jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();return true;
 }
 function startTrial(){
- keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;
+ if(!playing)return;
+ clearInputs();mobileExitPending=false;touchAutoDrive=touchMode;
  Object.assign(kartState,createVehicleState(),RACE_START);previousKart={...kartState};
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
  itemSystem.shells=[];itemSystem.time=0;
  armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();reset();canvas.focus({preventScroll:true});
 }
-document.getElementById('trial-start').addEventListener('click',startTrial);
+bindPress(document.getElementById('trial-start'),startTrial);
 document.getElementById('trial-ghost').addEventListener('change',event=>{trial.showGhost=event.target.checked;canvas.focus({preventScroll:true});});
-window.addEventListener('keydown',event=>{if(event.code==='KeyT'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();startTrial();}});
-document.addEventListener('visibilitychange',()=>{keys.clear();jumpQueued=false;interactionQueued=false;itemQueued=false;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
-renderer.setAnimationLoop(time=>{
+window.addEventListener('keydown',event=>{if(playing&&event.code==='KeyT'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();startTrial();}});
+document.addEventListener('visibilitychange',()=>{clearInputs();if(!document.hidden)gameFocused=true;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
+function frame(time){
+  if(!playing||!gameFocused||document.hidden){previousTime=undefined;return;}
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
   previousTime=time;accumulator+=dt;
   while(accumulator>=STEP){
@@ -171,9 +200,12 @@ renderer.setAnimationLoop(time=>{
    if(driving){
     previousKart={...kartState};jumpQueued=false;
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
-    const drivingInput=readDrivingInput(keys),startForward=drivingInput.throttle>0&&!drivingInput.drift;
+    const drivingInput=readDrivingInput(keys,mobile.consume(),touchMode&&touchAutoDrive);
+    if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.drift=false;drivingInput.brake=true;}
+    const startForward=drivingInput.throttle>0&&!drivingInput.drift&&!drivingInput.brake;
     if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
+    if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
    stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics);
    accumulator-=STEP;
@@ -210,4 +242,22 @@ renderer.setAnimationLoop(time=>{
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
   canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;
   canvas.dataset.drifting=String(driving&&kartState.drifting);
-});
+  mobile.update({driving,heldItem:kartState.heldItem,boosting:kartState.boostTime>0,interactionText:driving?(mobileExitPending?'Stop…':'Exit'):'Kart',canInteract:driving||canEnterVehicle(runner,kartState),canFlip:runner.grounded&&runner.speed<.65});
+}
+
+function goHome(){
+ playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;touchAutoDrive=false;
+ invalidateTimeTrial(trial,'Returned home — restart lap');previousTime=undefined;accumulator=0;
+ if(document.pointerLockElement===canvas)document.exitPointerLock();
+ controls.enabled=false;gameScreen.hidden=true;gameScreen.inert=true;homeScreen.hidden=false;app.dataset.screen='home';document.title='LetsGo';playButton.focus({preventScroll:true});
+}
+function playGame(){
+ homeScreen.hidden=true;gameScreen.hidden=false;gameScreen.inert=false;playing=true;gameFocused=true;controls.enabled=true;app.dataset.screen='game';document.title='LetsGo · Race';
+ startTrial();resize();renderer.setAnimationLoop(frame);
+}
+bindPress(document.getElementById('home-button'),goHome);
+bindPress(document.getElementById('home-logo-link'),goHome);
+bindPress(playButton,playGame);
+const trialDetails=document.getElementById('trial-details');bindPress(trialDetails.querySelector('summary'),()=>{trialDetails.open=!trialDetails.open;});
+setTouchMode(window.matchMedia('(pointer:coarse)').matches);
+app.dataset.screen='home';controls.enabled=false;playButton.disabled=false;

@@ -4,18 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#080e25" />
-    <title>LetsGo · Time trial</title>
+    <title>LetsGo</title>
   </head>
   <body>
     <div id="app">
+      <section id="home-screen" aria-label="LetsGo home">
+        <div class="home-logo">LetsGo<span>®</span></div>
+        <button id="play-button" type="button" disabled>Play</button>
+      </section>
+      <main id="game-screen" aria-label="LetsGo game" hidden inert>
       <canvas aria-label="Plain jointed avatar running with E/D/S/F and walking while Shift is held on a charcoal slab connected to a floating circuit. Space jumps; Q plus Space performs a standing backflip. Drag to rotate the view; scroll or pinch to zoom." tabindex="0"></canvas>
-      <header><a class="brand" href="./">LetsGo<span>®</span></a></header>
+      <header><a id="home-logo-link" class="brand" href="./">LetsGo<span>®</span></a></header>
+      <nav class="game-navigation" aria-label="Game navigation">
+        <button id="home-button" type="button" aria-label="Return to home">Home</button>
+        <button id="view-toggle" type="button" aria-label="Switch to isometric view" aria-pressed="false">View</button>
+        <button id="touch-kart" class="touch-only" type="button">Exit</button>
+      </nav>
+      <div class="race-tools">
       <section class="trial-panel" aria-label="Time trial">
         <div class="trial-heading"><span>TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
         <div class="trial-current">
           <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
           <span class="speed-readout"><output id="kart-speed" aria-label="Kart speed in miles per hour" aria-live="off">0</output><span>MPH</span></span>
         </div>
+        <details id="trial-details" class="trial-details" open>
+        <summary>Laps &amp; ghosts</summary>
+        <div class="trial-details-body">
         <div class="trial-best"><span class="ghost-rank ghost-rank-1">#1 BEST</span> <output id="trial-best" aria-label="Best lap time">--:--.---</output></div>
         <ol class="trial-records" start="2" aria-label="Second through fourth fastest laps">
           <li><span class="ghost-rank ghost-rank-2">#2</span><output data-lap-rank="2">--:--.---</output></li>
@@ -26,7 +40,15 @@
         <button id="trial-start" type="button">Start in kart · T</button>
         <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
         <p id="trial-status" role="status">Your top four laps become ghosts</p>
+        </div>
+        </details>
       </section>
+      <button id="touch-item" class="touch-only touch-item" type="button" data-item="none" aria-label="No item available" disabled>
+        <svg class="item-icon item-boost" viewBox="0 0 32 32" aria-hidden="true"><path d="M19 2 7 18h8l-2 12 12-17h-8z"/></svg>
+        <svg class="item-icon item-shell" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 22c0-10 4-17 11-17s11 7 11 17M3 23h26v4H3zM16 5v17M6 15l10 7 10-7M9 8l7 7 7-7"/></svg>
+        <span class="item-empty" aria-hidden="true">◇</span><span id="touch-item-label">Item</span>
+      </button>
+      </div>
       <aside class="key-chart" aria-label="Control chart">
         <div class="movement-keys">
           <span><kbd>E</kbd>Run forward</span>
@@ -38,8 +60,14 @@
           <span><kbd>Q</kbd>+<kbd>SPACE</kbd>Standing backflip</span>
           <span><kbd>H</kbd><span id="kart-action">Enter kart</span></span>
         </div>
-        <div class="camera-keys"><button id="view-toggle" type="button" aria-label="Toggle isometric and third-person camera">V Isometric</button><span id="camera-hint">Drag to rotate · Scroll / pinch to zoom</span><span><kbd>L</kbd>Mouse lock <kbd>ESC</kbd>Release <kbd>R</kbd>Reset view</span></div>
+        <div class="camera-keys"><span><kbd>V</kbd>Change view</span><span id="camera-hint">Drag to rotate · Scroll / pinch to zoom</span><span><kbd>L</kbd>Mouse lock <kbd>ESC</kbd>Release <kbd>R</kbd>Reset view</span></div>
       </aside>
+      <section id="touch-controls" class="touch-controls" aria-label="Touch controls">
+        <div id="touch-steer" role="group" aria-label="Touch steering joystick"><span id="touch-stick-thumb"></span><span id="touch-steer-label">Steer</span></div>
+        <button id="touch-secondary" type="button" aria-pressed="false"><span aria-hidden="true">↓</span><span id="touch-secondary-label">Reverse</span></button>
+        <button id="touch-primary" type="button" aria-pressed="false"><span id="touch-primary-label">Drift</span><small id="touch-primary-hint">E-brake</small></button>
+      </section>
+      </main>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>
