@@ -131,7 +131,16 @@ const FRAGMENT = /* glsl */ `
     // Crossing the waterline is a band rather than a line. Switched on the
     // sign alone, a camera sitting on the surface flips the whole plane
     // between two different-looking materials from one frame to the next.
-    float side = smoothstep(0.08, -0.08, cameraPosition.y - vWorldPosition.y);
+    //
+    // Written as a plain ramp, not as smoothstep. GLSL leaves smoothstep
+    // undefined when its first edge is above its second, which is how this
+    // was written to get a descending blend — and undefined is exactly what
+    // it gave: near the waterline the input fell between the two edges and
+    // the result looked right, but a camera well above the surface produced
+    // a value off the end that came back as nothing at all. The plane was
+    // drawn and painted no pixels, which is why the pool read as the bare
+    // basin underneath it from anywhere but a grazing angle.
+    float side = clamp((vWorldPosition.y - cameraPosition.y) / 0.16 + 0.5, 0.0, 1.0);
 
     // Deep water hides what is under it; shallow water does not. A single
     // flat 0.74 meant the middle of the pool was three quarters of a dark
