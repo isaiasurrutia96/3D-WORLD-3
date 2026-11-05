@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createKartFrame} from './kart.js';
-import {createAvatar} from './avatar.js';
+import {createOnFootAvatar as createAvatar} from './on-foot/avatar.js';
 import {createSeatedPose} from './vehicle-view.js';
 
 // Four replays share a baked chassis/driver and five moving assemblies instead
 // of rendering every frame tube and re-skinning four static seated avatars.
 export function createGhostTemplate(){
- const source=createKartFrame(),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton.update();
+ const source=createKartFrame(),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton?.update();
  const names=['front_axle_left_wheel','front_axle_right_wheel','rear_axle_left_wheel','rear_axle_right_wheel','steering_wheel'];
  const roots=new Set(names.map(name=>source.getObjectByName(name))),batches=new Map([[source,[]],...[...roots].map(root=>[root,[]])]);
  const point=new THREE.Vector3();
@@ -27,6 +27,6 @@ export function createGhostTemplate(){
   else{const group=new THREE.Group();group.name=root.name;root.matrixWorld.decompose(group.position,group.quaternion,group.scale);group.add(mesh);template.add(group);}
   geometries.forEach(g=>g.dispose());
  }
- const sourceGeometries=new Set(),sourceMaterials=new Set();source.traverse(node=>{if(node.isMesh){sourceGeometries.add(node.geometry);for(const m of Array.isArray(node.material)?node.material:[node.material])sourceMaterials.add(m);}});sourceGeometries.forEach(g=>g.dispose());sourceMaterials.forEach(m=>m.dispose());driver.skeleton.dispose();
+ const sourceGeometries=new Set(),sourceMaterials=new Set();source.traverse(node=>{if(node.isMesh){sourceGeometries.add(node.geometry);for(const m of Array.isArray(node.material)?node.material:[node.material])sourceMaterials.add(m);}});sourceGeometries.forEach(g=>g.dispose());sourceMaterials.forEach(m=>m.dispose());driver.skeleton?.dispose();
  return template;
 }

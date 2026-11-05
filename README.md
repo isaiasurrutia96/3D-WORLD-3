@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-The original plain gray skinned avatar on the charcoal 260 × 460 slab, connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. Original body proportions, foot dimensions, walking/running clips and kart seating are restored. The standing backflip remains available.
+Claude’s plain jointed avatar, walking and running are now connected to the existing slab and racing circuit. The kart handling, items, lap timing, saved top-four records and ghost playback remain the racing implementation. This is migration stage 1 only.
 
 ## Controls
 
@@ -28,9 +28,9 @@ npm run build
 
 `npm run preview` serves the production build.
 
-## Foundation
+## Legacy movement compatibility
 
-Input, planar movement, authored poses and animation playback are separate:
+The following legacy modules remain as compatibility sources for the existing single jump/backflip and comparison page. Current walking and running use the stage-1 adapter described below:
 
 - `src/input.js` preserves the E/D/S/F input contract.
 - `src/running-controller.js` runs at a fixed 120 Hz with normalized input, capped acceleration/braking, planar velocity and bounded facing changes. It has idle/walk/sprint/jump/fall states, vertical velocity, gravity, grounded checks and one jump per press. Fast-gait speed comes directly from stride length divided by cycle duration; Shift selects the existing walking speed.
@@ -42,7 +42,7 @@ Input, planar movement, authored poses and animation playback are separate:
 - `src/world.js` supplies exact road-triangle support heights, separate upper/lower crossing levels and guardrail collision. The existing slab remains 260 × 460.
 - `src/main.js` converts input into camera space, runs fixed simulation and interpolates presentation. Camera controls do not author animation poses.
 
-Walking keeps the accepted 0.58-second, 1.7 m cycle (about 2.93 m/s). Running now uses a 0.46-second, 6.0 m left/right cycle at the same 13.04 m/s travel speed. Consecutive footfalls are about 3 m apart rather than 1.5 m, and both arm and leg cadence are halved from the previous version. Wider front/rear extension and a longer flight phase replace the previous rapid cycling. Ground-contact ankle travel remains matched to root travel; denser baked sprint keys limit interpolation drift. These are stylized authored values for this short-legged avatar, not motion capture.
+The legacy walking clip keeps its 0.58-second, 1.7 m cycle (about 2.93 m/s). Running now uses a 0.46-second, 6.0 m left/right cycle at the same 13.04 m/s travel speed. Consecutive footfalls are about 3 m apart rather than 1.5 m, and both arm and leg cadence are halved from the previous version. Wider front/rear extension and a longer flight phase replace the previous rapid cycling. Ground-contact ankle travel remains matched to root travel; denser baked sprint keys limit interpolation drift. These are stylized authored values for this short-legged avatar, not motion capture.
 
 Tests cover input mapping, diagonal normalization, acceleration/braking, loop closure, opposing limb phases, stance-foot drift, floor clearance, reversals and exact rest-pose restoration. Browser checks cover walking, default E/D/S/F running and Shift walking, launch event count, return to walking, exact stillness after stopping, and single jumping. Technical checks support stability; visual quality still requires review in motion.
 
@@ -94,3 +94,16 @@ The four fastest valid laps save their times and 30 Hz kart pose traces in this 
 Up to four translucent ghosts replay together against the current timer: cyan #1, purple #2, amber #3 and green #4. Their steering, wheel rotation, road pitch/bank and exact recorded paths are retained. Ghosts cannot collide or interact with items. Toggle **Top 4 ghosts** to show/hide the group. They fade in after the clock starts. Records survive restarts and reloads in the same browser; unavailable storage still permits session records. The seated ghost geometry is baked once and shared, with only six render meshes per kart so four ghosts do not require four live skeletons.
 
 `src/time-trial.js` owns ordered-gate validation, timing, trace sampling, interpolation and storage. `src/time-trial-view.js` owns the line/markers, compact HUD and separate ghost models. Tests cover complete laps with actual kart physics, rolling laps, top-four sorting/replacement, single-best migration, persistence/failure handling, wrong-way and shortcut rejection, overpass separation and replay interpolation.
+
+
+## Stage 1: Claude avatar, walking and running
+
+Source: `isaiasurrutia96/3D-WORLD-3`, branch `chatgpt-work`, pinned commit `b60e295cd836f830c93e9ddc28ae61e157ef2b3f`. That repository is not modified. See `src/claude/README.md` for provenance and adapter boundaries.
+
+- `src/claude/player/PlayerModel.ts` and `Tuning.ts` are copied from that source unchanged. The model is the plain clay variant with named joint groups.
+- `src/claude/player/PlayerAnimation.ts` retains the original pose equations. Its accumulated state is isolated per rig and resettable for mounting/exiting. Only ground inputs are enabled through this migration adapter. Idle is sampled at time zero to preserve stillness.
+- `src/on-foot/ground-movement.js` ports the source’s normal-ground acceleration, speed-sensitive turning, reversal skid, momentum and stopping behavior. E/D/S/F runs at 8.6 units/s; Shift uses the original keyboard scaling, about 2.536 units/s.
+- `src/on-foot/controller.js` connects that motor to the existing track support/collision API and fixed simulation. `src/on-foot/animation.js` applies the native ground animation. The old single jump/backflip remains available through a temporary pose adapter; Claude’s advanced jumps, ladders, ledges, pool and obstacle course are not enabled in this stage.
+- `src/vehicle-view.js` seats the imported rig. `src/ghost-kart.js` bakes that seated model into the existing shared ghost geometry. Recorded kart coordinates and storage keys are unchanged, so saved lap traces still replay.
+
+`tests/fixtures/claude-ground-b60e295.json` contains ground-pose and motor snapshots generated from the original source, not from this adapter. `tests/stage1.test.js` compares against them and checks source proportions, input speeds, state isolation, mount/reset, retained aerial moves and traversal of both circuit levels. Browser checks cover the visible figure, run/Shift-walk, jump/backflip, kart entry/exit and trial startup.

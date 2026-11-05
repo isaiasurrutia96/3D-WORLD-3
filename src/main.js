@@ -2,11 +2,11 @@ import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,RACE_STAR
 import {createTimeTrialView} from './time-trial-view.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import {createAvatar} from './avatar.js';
+import {createOnFootAvatar as createAvatar,CHARACTER_HEIGHT,CHARACTER_RADIUS} from './on-foot/avatar.js';
 import {createWorld,worldPhysics,SPAWN} from './world.js';
 import './style.css';
-import {createRunner,stepRunner,STEP} from './running-controller.js';
-import {createRunningAnimator} from './animation/running.js';
+import {createOnFootState as createRunner,stepOnFoot as stepRunner,STEP} from './on-foot/controller.js';
+import {createOnFootAnimator as createRunningAnimator} from './on-foot/animation.js';
 import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart} from './vehicle-controller.js';
 import {createItemSystem,useHeldItem,stepItems} from './items.js';
 import {createItemView} from './item-view.js';
@@ -33,10 +33,10 @@ const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,k
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
 const trial=createTimeTrial(trialStorage),applyTrial=createTimeTrialView(scene,trial);
-const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y)=>{
- const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y);
- const parked=resolveParkedKart(road.x,road.z,y,kartState);
- return worldPhysics.resolveHorizontal(x,z,parked.x,parked.z,y);
+const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y,radius=CHARACTER_RADIUS,height=CHARACTER_HEIGHT)=>{
+ const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y,radius,height);
+ const parked=resolveParkedKart(road.x,road.z,y,kartState,radius,height);
+ return worldPhysics.resolveHorizontal(x,z,parked.x,parked.z,y,radius,height);
 }};
 const walkingChart=document.querySelector('.movement-keys').innerHTML;
 const walkingLabel=canvas.getAttribute('aria-label');

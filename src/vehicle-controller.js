@@ -93,16 +93,16 @@ export function findExitPosition(kart,world){
  return null;
 }
 // A parked kart also occupies space for the on-foot character.
-export function resolveParkedKart(x,z,feetY,kart){
- if(feetY>kart.y+1.2||feetY+2.3<kart.y)return{x,z};
+export function resolveParkedKart(x,z,feetY,kart,radius=.42,height=2.3){
+ if(feetY>kart.y+1.2||feetY+height<kart.y)return{x,z};
  const sin=Math.sin(kart.yaw),cos=Math.cos(kart.yaw),dx=x-kart.x,dz=z-kart.z;
  let localX=dx*cos-dz*sin,localZ=dx*sin+dz*cos;
  const nearestX=clamp(localX,-1.18,1.18),nearestZ=clamp(localZ,-1.5,1.5);
  let nx=localX-nearestX,nz=localZ-nearestZ,length=Math.hypot(nx,nz);
- if(length>=.42)return{x,z};
+ if(length>=radius)return{x,z};
  if(length<1e-6){
-  if(1.18-Math.abs(localX)<1.5-Math.abs(localZ)){localX=Math.sign(localX||1)*1.60;}
-  else localZ=Math.sign(localZ||1)*1.92;
- }else{localX=nearestX+nx/length*.42;localZ=nearestZ+nz/length*.42;}
+  if(1.18-Math.abs(localX)<1.5-Math.abs(localZ)){localX=Math.sign(localX||1)*(1.18+radius);}
+  else localZ=Math.sign(localZ||1)*(1.5+radius);
+ }else{localX=nearestX+nx/length*radius;localZ=nearestZ+nz/length*radius;}
  return{x:kart.x+localX*cos+localZ*sin,z:kart.z-localX*sin+localZ*cos};
 }

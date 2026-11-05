@@ -5,6 +5,7 @@ import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveP
 import {worldPhysics} from '../src/world.js';
 import {trackSamples} from '../src/track.js';
 import {createAvatar} from '../src/avatar.js';
+import {createOnFootAvatar} from '../src/on-foot/avatar.js';
 import {createJumpClip} from '../src/animation/jump-clip.js';
 import {createSeatedPose,createVehicleView} from '../src/vehicle-view.js';
 import {createKartFrame} from '../src/kart.js';
@@ -98,7 +99,7 @@ test('steering is slightly gentler while nitro reaches the increased cap',()=>{
 
 
 test('four replay models can share a baked seated kart with six render meshes',()=>{
- const template=createGhostTemplate(),source=createKartFrame(),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton.update();
+ const template=createGhostTemplate(),source=createKartFrame(),driver=createOnFootAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton?.update();
  const expected=new THREE.Box3().setFromObject(source,true),actual=new THREE.Box3().setFromObject(template,true);
  assert.ok(expected.min.distanceTo(actual.min)<1e-5&&expected.max.distanceTo(actual.max)<1e-5,'baked pose matches the seated kart');
  let meshes=0;template.traverse(node=>{if(node.isMesh){meshes++;assert.equal(node.isSkinnedMesh,undefined);for(const value of node.geometry.attributes.position.array)assert.ok(Number.isFinite(value));}});assert.equal(meshes,6);

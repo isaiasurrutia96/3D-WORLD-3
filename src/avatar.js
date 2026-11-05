@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Legacy skinned pose source for the existing aerial moves and comparison
+// page. The playable on-foot figure is now created in on-foot/avatar.js.
+
 // Authoring coordinates: meters, +Y up, +Z forward. These landmarks define
 // the neutral model independently of any animation, controller, or game data.
 const ARM_DROP = 0.05;

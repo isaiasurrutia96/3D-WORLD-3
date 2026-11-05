@@ -1,3 +1,4 @@
+import {resetRig,HIP_HEIGHT} from './on-foot/avatar.js';
 import * as THREE from 'three';
 
 export function createVehicleView(model){
@@ -12,6 +13,16 @@ export function createVehicleView(model){
  };
 }
 export function createSeatedPose(avatar){
+ const rig=avatar.userData.characterRig;
+ if(rig)return function apply(){
+  resetRig(rig);rig.torso.rotation.x=.05;
+  for(const [side,sign]of [['Left',-1],['Right',1]]){
+   rig[`hip${side}`].rotation.x=-1.60;rig[`knee${side}`].rotation.x=.22;rig[`ankle${side}`].rotation.x=1.38;
+   rig[`shoulder${side}`].rotation.set(-.95,0,-sign*.25);rig[`elbow${side}`].rotation.x=-1.30;
+  }
+  avatar.position.set(0,.59-HIP_HEIGHT,-.45);avatar.rotation.set(0,0,0);avatar.updateMatrixWorld(true);
+ };
+
  const bones=new Map(avatar.skeleton.bones.map(bone=>[bone.name,bone]));
  const rest=avatar.skeleton.bones.map(bone=>({bone,position:bone.position.clone(),quaternion:bone.quaternion.clone()}));
  return function apply(){
