@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-A tall athletic skinned avatar on the charcoal 260 × 460 slab, connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. Outfit: white T-shirt, light-blue jeans, black watch, gold Cuban link chain, black fitted LA cap and white Blazer-style high-tops. Walking and running retain their speed/cadence; the clips are retargeted to the longer legs.
+The original plain gray skinned avatar on the charcoal 260 × 460 slab, connected to a floating winding circuit with red/white curbs, guardrails and a raised crossing. Original body proportions, foot dimensions, walking/running clips and kart seating are restored. The standing backflip remains available.
 
 ## Controls
 
@@ -9,7 +9,7 @@ A tall athletic skinned avatar on the charcoal 260 × 460 slab, connected to a f
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - H: enter the kart when nearby; H exits when stopped and a safe spot is available.
 - While driving: E accelerates, D brakes/reverses, S/F steer, Space brakes, and a fresh Shift press uses the held item. The mouse changes the view without steering.
-- Q + Space while standing still: an athletic backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
+- Q + Space while standing still: a standing backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
 - Walking and sprinting are separate clips. The avatar returns to its exact neutral pose after stopping; there is no idle animation.
 

@@ -24,6 +24,6 @@ export function sprintFootPose(phase){
     lift:Math.max(0,sampleCurve(lift,p)),pitch:sampleCurve(pitch,p),contact:p<=CONTACT_END};
 }
 export function createSprintClip(avatar){
-  return bakeGaitClip(avatar,{retargetSprint:true,name:'Sprint',duration:SPRINT_DURATION,samples:480,compression,
+  return bakeGaitClip(avatar,{name:'Sprint',duration:SPRINT_DURATION,samples:480,compression,
     wholeLean:.20,lean:0,neck:0,footPose:sprintFootPose,armSwingAt:sprintArmSwing,elbow});
 }

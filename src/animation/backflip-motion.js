@@ -1,4 +1,4 @@
-// One athletic backflip. Timing is shared by the controller and the authored
+// One standing backflip. Timing is shared by the controller and the authored
 // pose clip: the feet leave only after extension, and recover after contact.
 export const BACKFLIP_DURATION=1.65;
 export const TAKEOFF=.32,TOUCHDOWN=1.16;

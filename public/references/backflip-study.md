@@ -1,6 +1,6 @@
-# Athletic backflip: reference and revised authoring
+# Standing backflip: reference and revised authoring
 
-The main game now uses the revised one-turn athletic backflip: stand still and press Q + Space. The review page shows that same pose clip from front and side, with a stationary copy of the controller's air arc for inspection. Running, ordinary jumping, driving and the circuit remain available.
+The main game now uses the revised one-turn standing backflip: stand still and press Q + Space. The review page shows that same pose clip from front and side, with a stationary copy of the controller's air arc for inspection. Running, ordinary jumping, driving and the circuit remain available.
 
 ## Inspectable sources
 
@@ -12,7 +12,7 @@ https://github.com/sm64js/sm64js/blob/04c1a984117ebb8d0e7b0d5d2e3424367f69b92d/s
 
 ## Why the move was reauthored
 
-The earlier preview inherited a two-turn source rotation and looked like a pose being spun. The new move is hand-authored for the taller athlete. It keeps the soles planted through a loading crouch, swings the arms forward as both legs extend, rolls contact toward the forefeet, and leaves the ground only at the defined takeoff event. The pelvis then follows a ballistic controller arc. During flight, one backward rotation accelerates through a compact tuck and slows as the legs open. Landing compresses before returning to exact stillness.
+The earlier preview inherited a two-turn source rotation and looked like a pose being spun. The new move is hand-authored and now uses the restored original gray avatar. It keeps the soles planted through a loading crouch, swings the arms forward as both legs extend, rolls contact toward the forefeet, and leaves the ground only at the defined takeoff event. The pelvis then follows a ballistic controller arc. During flight, one backward rotation accelerates through a compact tuck and slows as the legs open. Landing compresses before returning to exact stillness.
 
 The source animation is retained for comparison, not claimed as an exact match. Its roughly two backward turns differ from the new single turn. Joint proportions, clothing and full gameplay physics also differ. Passing checks establishes continuity/contact and controller behavior, not visual accuracy.
 

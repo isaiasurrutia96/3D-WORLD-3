@@ -18,13 +18,13 @@ export function createSeatedPose(avatar){
   for(const item of rest){item.bone.position.copy(item.position);item.bone.quaternion.copy(item.quaternion);}
   bones.get('spine').rotation.x=.05;
   for(const [side,sign]of [['left',-1],['right',1]]){
-   bones.get(`${side}_thigh`).rotation.x=-1.40;
-   bones.get(`${side}_calf`).rotation.x=.45;
-   bones.get(`${side}_foot`).rotation.x=.95;
-   bones.get(`${side}_upper_arm`).rotation.set(-.40,0,-sign*.45);
-   bones.get(`${side}_forearm`).rotation.x=-.45;
+   bones.get(`${side}_thigh`).rotation.x=-1.60;
+   bones.get(`${side}_calf`).rotation.x=.22;
+   bones.get(`${side}_foot`).rotation.x=1.38;
+   bones.get(`${side}_upper_arm`).rotation.set(-.80,0,-sign*.45);
+   bones.get(`${side}_forearm`).rotation.x=-1.15;
    bones.get(`${side}_hand`).rotation.x=-.1;
   }
-  avatar.position.set(0,.80-bones.get('pelvis').position.y,-.45);avatar.rotation.set(0,0,0);avatar.updateMatrixWorld(true);avatar.skeleton.update();
+  avatar.position.set(0,-.32,-.45);avatar.rotation.set(0,0,0);avatar.updateMatrixWorld(true);avatar.skeleton.update();
  };
 }

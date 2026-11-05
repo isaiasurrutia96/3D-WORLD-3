@@ -39,5 +39,5 @@ export function createBackflipClip(avatar,{includeFlight=true}={}){
  }
  bones.forEach((b,i)=>{b.position.copy(rest[i].position);b.quaternion.copy(rest[i].quaternion);});avatar.updateMatrixWorld(true);avatar.skeleton.update();
  const tracks=[new THREE.VectorKeyframeTrack('pelvis.position',times,positions)];for(const [name,values]of rotations)tracks.push(new THREE.QuaternionKeyframeTrack(`${name}.quaternion`,times,values));
- return new THREE.AnimationClip(includeFlight?'Athletic backflip preview':'Athletic backflip',BACKFLIP_DURATION,tracks);
+ return new THREE.AnimationClip(includeFlight?'Standing backflip preview':'Standing backflip',BACKFLIP_DURATION,tracks);
 }
