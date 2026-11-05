@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMobileInput,stickDirection} from '../src/mobile-input.js';
+import {createMobileInput,stickDirection,GAS_DRIFT_SWIPE} from '../src/mobile-input.js';
 import {readDrivingInput} from '../src/input.js';
 import {createVehicleState,stepVehicle} from '../src/vehicle-controller.js';
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
@@ -43,24 +43,50 @@ test('fast Jump or Flip taps survive until a simulation step and never repeat wh
 test('cancellation and home/blur reset clear held fingers and queued actions',()=>{
  const input=createMobileInput();input.hold(2,'primary');input.release(2,true);assert.equal(input.consume().primaryPressed,false);
  input.beginStick(1);input.moveStick(1,{right:1,forward:1});input.hold(2,'primary');input.hold(3,'secondary');input.reset();
- assert.deepEqual(input.consume(),{right:0,forward:0,primary:false,primaryPressed:false,secondary:false,secondaryPressed:false});
+ assert.deepEqual(input.consume(),{right:0,forward:0,primary:false,primaryPressed:false,secondary:false,secondaryPressed:false,gas:false,drift:false});
 });
-test('mobile auto acceleration allows keyboard braking and reverse overrides the accelerator',()=>{
- assert.equal(readDrivingInput(new Set(),{},true).throttle,1);
- assert.equal(readDrivingInput(new Set(['KeyD']),{},true).throttle,-1);
- assert.equal(readDrivingInput(new Set(['KeyE','KeyD']),{},true).throttle,0);
- assert.equal(readDrivingInput(new Set(['KeyE']),{secondary:true},true).throttle,-1);
+test('mobile gas requires a held finger and respects keyboard braking and reverse',()=>{
+ assert.equal(readDrivingInput(new Set(),{gas:true}).throttle,1);
+ assert.equal(readDrivingInput(new Set(['KeyD']),{gas:true}).throttle,-1);
+ assert.equal(readDrivingInput(new Set(['KeyE','KeyD']),{gas:true}).throttle,0);
+ assert.equal(readDrivingInput(new Set(['KeyE']),{gas:true,secondary:true}).throttle,-1);
  assert.equal(readDrivingInput(new Set()).throttle,0);
+});
+test('gas swipe has separate drift entry/release thresholds and retains throttle',()=>{
+ const input=createMobileInput();assert.equal(input.beginGas(2,200),true);assert.equal(input.beginGas(3,200),false);
+ assert.equal(input.peek().gas,true);assert.equal(input.peek().drift,false);
+ input.moveGas(3,100);assert.equal(input.peek().drift,false,'another finger cannot move the pedal');
+ input.moveGas(2,200-GAS_DRIFT_SWIPE);assert.equal(input.consume().drift,true);
+ input.moveGas(2,177);assert.equal(input.consume().drift,true,'small jitter cannot disengage the slide');
+ input.moveGas(2,195);assert.equal(input.peek().drift,false);assert.equal(input.peek().gas,true);
+ input.moveGas(2,-100);assert.equal(input.peek().drift,true,'capture allows sliding outside the pad');
+ input.release(2);assert.equal(input.peek().gas,false);assert.equal(input.peek().drift,false);
+ assert.equal(input.consume().primaryPressed,false,'driving gestures cannot queue an on-foot jump');
+});
+test('releasing steering does not release the gas, and cancellation clears the pedal',()=>{
+ const input=createMobileInput();input.hold(1,'left');input.beginGas(2,200);input.moveGas(2,160);
+ input.release(1);assert.equal(input.peek().right,0);assert.equal(input.peek().gas,true);assert.equal(input.peek().drift,true);
+ input.release(2,true);assert.equal(input.peek().gas,false);assert.equal(input.peek().drift,false);
+ input.beginGas(3,200);input.moveGas(3,160);input.reset();
+ assert.equal(input.peek().gas,false);assert.equal(input.peek().drift,false);assert.equal(readDrivingInput(new Set(),input.consume()).throttle,0);
 });
 test('touch steering and queued drift combine with keyboard input without exceeding steering limits',()=>{
  assert.equal(readDrivingInput(new Set(['KeyF']),{right:1}).steer,1);
  assert.equal(readDrivingInput(new Set(['KeyS']),{right:1}).steer,0);
- assert.equal(readDrivingInput(new Set(),{primaryPressed:true}).drift,true);
+ assert.equal(readDrivingInput(new Set(),{gas:true,drift:true}).drift,true);
+ assert.equal(readDrivingInput(new Set(),{primaryPressed:true}).drift,false);
 });
 test('two-finger steering and drifting drive the existing kart controller together',()=>{
- const input=createMobileInput(),kart={...createVehicleState(),speed:42};input.beginStick(1);input.moveStick(1,{right:-1,forward:0});input.hold(2,'primary');
- for(let i=0;i<90;i++)stepVehicle(kart,readDrivingInput(new Set(),input.consume(),true),1/120,flat);
+ const input=createMobileInput(),kart={...createVehicleState(),speed:42};input.hold(1,'left');input.beginGas(2,200);input.moveGas(2,160);
+ for(let i=0;i<90;i++)stepVehicle(kart,readDrivingInput(new Set(),input.consume()),1/120,flat);
  assert.equal(kart.drifting,true);assert.equal(kart.speed,42);assert.ok(kart.driftAngle<-.5);
- input.release(1);assert.equal(input.peek().primary,true);
- input.release(2);stepVehicle(kart,readDrivingInput(new Set(),input.consume(),true),1/120,flat);assert.equal(kart.drifting,false);
+ input.release(1);assert.equal(input.peek().gas,true);
+ input.release(2);stepVehicle(kart,readDrivingInput(new Set(),input.consume()),1/120,flat);assert.equal(kart.drifting,false);
+});
+test('an upward swipe before steering arms drift without applying the laptop e-brake',()=>{
+ const input=createMobileInput(),kart=createVehicleState();input.beginGas(2,200);input.moveGas(2,160);
+ for(let i=0;i<180;i++)stepVehicle(kart,readDrivingInput(new Set(),input.consume()),1/120,flat);
+ assert.ok(kart.speed>20);assert.equal(kart.drifting,false);
+ input.hold(1,'right');stepVehicle(kart,readDrivingInput(new Set(),input.consume()),1/120,flat);assert.equal(kart.drifting,true);
+ assert.equal(readDrivingInput(new Set(['Space']),input.peek()).eBrake,true,'Space retains its laptop e-brake behavior');
 });

@@ -9,11 +9,11 @@ export function readMoveAxes(keys) {
   };
 }
 
-export function readDrivingInput(keys,touch={},autoAccelerate=false) {
+export function readDrivingInput(keys,touch={}) {
   const axes=readMoveAxes(keys);
   const left=keys.has('KeyS')||keys.has('ArrowLeft'),right=keys.has('KeyF')||keys.has('ArrowRight');
   const keyboardThrottle=keys.has('KeyE')||keys.has('KeyD');
-  return {throttle:touch.secondary||touch.secondaryPressed?-1:keyboardThrottle?axes.forward:autoAccelerate?1:0,steer:Math.max(-1,Math.min(1,Number(right)-Number(left)+(touch.right??0))),drift:keys.has('Space')||!!touch.primary||!!touch.primaryPressed};
+  return {throttle:touch.secondary||touch.secondaryPressed?-1:keyboardThrottle?axes.forward:touch.gas?1:0,steer:Math.max(-1,Math.min(1,Number(right)-Number(left)+(touch.right??0))),drift:keys.has('Space')||!!touch.drift,eBrake:keys.has('Space')};
 }
 
 export function wantsSprint(keys) {

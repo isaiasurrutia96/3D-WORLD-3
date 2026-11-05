@@ -16,7 +16,7 @@ import {createMobileControls,bindPress} from './mobile-controls.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
-let playing=false,touchMode=false,touchAutoDrive=false,mobileExitPending=false,gameFocused=true;
+let playing=false,touchMode=false,mobileExitPending=false,gameFocused=true;
 const speedometer=document.getElementById('kart-speed');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,logarithmicDepthBuffer:true});
 renderer.setPixelRatio(1);
@@ -118,11 +118,11 @@ const keys=new Set();
 let jumpQueued=false,interactionQueued=false,itemQueued=false;
 const mobile=createMobileControls({
  onTouch:()=>setTouchMode(true),
- onDriveIntent:()=>{if(playing&&driving){touchAutoDrive=true;mobileExitPending=false;}},
+ onDriveIntent:()=>{if(playing&&driving)mobileExitPending=false;},
  onItem:()=>{if(playing&&driving&&kartState.heldItem)itemQueued=true;canvas.focus({preventScroll:true});},
  onInteract:()=>{
   if(!playing)return;
-  if(driving){touchAutoDrive=false;mobileExitPending=true;}else interactionQueued=true;
+  if(driving)mobileExitPending=true;else interactionQueued=true;
   canvas.focus({preventScroll:true});
  },
 });
@@ -130,7 +130,6 @@ function clearInputs(){keys.clear();mobile.clear();jumpQueued=false;interactionQ
 function setTouchMode(enabled){
  if(touchMode===enabled)return;
  touchMode=enabled;app.classList.toggle('touch-mode',enabled);document.getElementById('trial-details').open=!enabled;
- touchAutoDrive=enabled&&driving;
 }
 window.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')setTouchMode(true);if(playing&&!gameFocused){gameFocused=true;previousTime=undefined;}},{capture:true,passive:true});
 window.addEventListener('orientationchange',()=>mobile.clear());
@@ -175,12 +174,12 @@ function toggleVehicle(){
   driving=false;kartState.speed=0;kartState.boostTime=0;kartState.spinTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
  }
- mobile.clear();mobileExitPending=false;touchAutoDrive=touchMode&&driving;
+ mobile.clear();mobileExitPending=false;
  jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();return true;
 }
 function startTrial(){
  if(!playing)return;
- clearInputs();mobileExitPending=false;touchAutoDrive=touchMode;
+ clearInputs();mobileExitPending=false;
  Object.assign(kartState,createVehicleState(),RACE_START);previousKart={...kartState};
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
@@ -200,9 +199,9 @@ function frame(time){
    if(driving){
     previousKart={...kartState};jumpQueued=false;
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
-    const drivingInput=readDrivingInput(keys,mobile.consume(),touchMode&&touchAutoDrive);
+    const drivingInput=readDrivingInput(keys,mobile.consume());
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.drift=false;drivingInput.brake=true;}
-    const startForward=drivingInput.throttle>0&&!drivingInput.drift&&!drivingInput.brake;
+    const startForward=drivingInput.throttle>0&&!drivingInput.eBrake&&!drivingInput.brake;
     if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
@@ -246,7 +245,7 @@ function frame(time){
 }
 
 function goHome(){
- playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;touchAutoDrive=false;
+ playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
  invalidateTimeTrial(trial,'Returned home — restart lap');previousTime=undefined;accumulator=0;
  if(document.pointerLockElement===canvas)document.exitPointerLock();
  controls.enabled=false;gameScreen.hidden=true;gameScreen.inert=true;homeScreen.hidden=false;app.dataset.screen='home';document.title='LetsGo';playButton.focus({preventScroll:true});

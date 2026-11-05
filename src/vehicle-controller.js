@@ -6,11 +6,12 @@ export const STEERING_LOCK=.39;
 export const DRIFT_MIN_SPEED=12;
 export const E_BRAKE_DECELERATION=48;
 export const DRIFT_EXIT_DURATION=.55;
+const DRIFT_COUNTER_DELAY=.35,DRIFT_COUNTER_BLEND=.35,DRIFT_ALIGNMENT_RATE=1.15;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftTurn:0,driftAngle:0,driftBlocked:false,driftExitTime:-1,driftExitAngle:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,drifting:false,driftDirection:0,driftTurn:0,driftAngle:0,driftBlocked:false,driftExitTime:-1,driftExitAngle:0,driftCounterTime:0};
 }
 export function stepVehicle(state,input,dt,world){
  const previousYaw=state.yaw,previousDriftAngle=state.driftAngle,wasDrifting=state.drifting;
@@ -27,13 +28,15 @@ export function stepVehicle(state,input,dt,world){
  const canDrift=state.grounded&&!spinning&&!input.brake&&rawThrottle>=0&&state.speed>8;
  if(!driftHeld||!canDrift)state.drifting=false;
  if(canDrift&&driftHeld&&!state.drifting&&!state.driftBlocked&&state.speed>=DRIFT_MIN_SPEED&&Math.abs(steer)>.15){
-  state.drifting=true;state.driftDirection=Math.sign(steer);state.driftTurn=Math.abs(steer);
+  state.drifting=true;state.driftDirection=Math.sign(steer);state.driftTurn=Math.abs(steer);state.driftCounterTime=0;
  }
  if(wasDrifting&&!driftHeld&&state.grounded&&!spinning){state.driftExitTime=0;state.driftExitAngle=state.driftAngle;}
  if(state.drifting||spinning||!state.grounded)state.driftExitTime=-1;
  // Outside an established slide, Space overrides acceleration, including
  // nitro. Neutral steering inside a slide instead retains its current arc.
- const eBraking=driftHeld&&!state.drifting&&state.grounded;
+ // An upward mobile swipe arms a drift while keeping the gas on, even before
+ // steering. Space remains a dedicated e-brake when no slide is established.
+ const eBraking=(input.eBrake??driftHeld)&&!state.drifting&&state.grounded;
  const braking=input.brake||eBraking;
  const throttle=boosting&&rawThrottle>=0&&!braking?1:rawThrottle;
  const topSpeed=boosting?NITRO_TOP_SPEED:VEHICLE_TOP_SPEED;
@@ -49,7 +52,8 @@ export function stepVehicle(state,input,dt,world){
  // Body heading and travel heading differ during the slide; ordinary driving
  // remains the original bicycle model when the slip angle is zero.
  const balance=steer*state.driftDirection;
- const countersteering=state.drifting&&balance<-.001;
+ const countersteering=canDrift&&balance<-.001&&(state.drifting||state.driftExitTime>=0||state.driftCounterTime>0);
+ state.driftCounterTime=countersteering?state.driftCounterTime+dt:0;
  if(state.drifting)state.driftTurn=clamp(state.driftTurn+balance*(countersteering?4:1.2)*dt,0,1);
  const slip=state.drifting?state.driftDirection*.56*state.driftTurn:0;
  const unwinding=state.drifting&&Math.abs(slip)<Math.abs(state.driftAngle);
@@ -60,16 +64,23 @@ export function stepVehicle(state,input,dt,world){
   const t=Math.min(1,state.driftExitTime/DRIFT_EXIT_DURATION),ease=t*t*t*(t*(t*6-15)+10);
   state.driftAngle=state.driftExitAngle*(1-ease);
   if(t===1){state.driftAngle=0;state.driftExitTime=-1;}
- }else state.driftAngle+=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?(unwinding?14:5):7)*dt));
+ }else{
+  const change=(slip-state.driftAngle)*(1-Math.exp(-(state.drifting?(unwinding?14:5):7)*dt));
+  state.driftAngle+=unwinding?clamp(change,-DRIFT_ALIGNMENT_RATE*dt,DRIFT_ALIGNMENT_RATE*dt):change;
+ }
  if(Math.abs(state.driftAngle)<1e-5)state.driftAngle=0;
  if(!canDrift&&(spinning||!state.grounded)){state.driftAngle=0;state.driftBlocked=!!input.drift;}
- // Opposite input must steer the path, not merely reduce a stored turn.
- // Neutral input carries a softer arc; it does not force a full-lock circle.
+ // A brief opposite press unwinds the existing arc toward straight. Feeding
+ // in the full opposite lock immediately reversed the path while the body
+ // was still aligning, creating the whip. Holding longer blends a new turn.
  const carry=Math.abs(steer)<.001?.45:.85;
- const steeringInput=state.drifting?(countersteering?steer*.85:state.driftDirection*state.driftTurn*carry):steer;
+ const counterBlend=clamp((state.driftCounterTime-DRIFT_COUNTER_DELAY)/DRIFT_COUNTER_BLEND,0,1);
+ const counterGain=counterBlend*counterBlend*(3-2*counterBlend);
+ const steeringInput=countersteering?steer*(state.drifting?.65:1)*counterGain:state.drifting?state.driftDirection*state.driftTurn*carry:steer;
  const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
- const steeringRate=countersteering||(state.drifting&&state.driftTurn===0)?18:9;
- state.steering+=(steeringInput*maxSteer-state.steering)*(1-Math.exp(-steeringRate*dt));
+ const steeringTarget=steeringInput*maxSteer;
+ if(countersteering)state.steering=approach(state.steering,steeringTarget,maxSteer*5*dt);
+ else state.steering+=(steeringTarget-state.steering)*(1-Math.exp(-9*dt));
  // Changing the sideways body angle must not bend the travel path. Keep
  // travel yaw continuous, then let the steering change its direction.
  state.yaw+=previousDriftAngle-state.driftAngle;
@@ -99,7 +110,7 @@ export function stepVehicle(state,input,dt,world){
    const speed=incoming*loss,away=.018,sign=Math.sign(state.speed)||1;
    const dx=tx*direction+nx*away,dz=tz*direction+nz*away;
    state.speed=speed*sign;state.yaw=Math.atan2(dx*sign,dz*sign);
-   state.drifting=false;state.driftAngle=0;state.driftExitTime=-1;state.driftBlocked=!!input.drift;
+   state.drifting=false;state.driftAngle=0;state.driftExitTime=-1;state.driftCounterTime=0;state.driftBlocked=!!input.drift;
    x+=nx*.015;z+=nz*.015;state.steering*=.7;state.railContactTime=.22;
   }
  }

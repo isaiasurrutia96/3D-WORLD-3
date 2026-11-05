@@ -77,17 +77,31 @@ test('drifting creates mirrored sideways travel and release restores grip withou
  advance(right,1.2,{throttle:1});assert.ok(Math.abs(right.driftAngle)<.001);assert.equal(right.speed,VEHICLE_TOP_SPEED);assert.equal(right.boostTime,0);
 });
 
-test('opposite steering corrects the actual travel path within 150 ms in both directions',()=>{
- for(const direction of [-1,1])for(const speed of [20,42,66]){
+test('a short countersteer straightens the slide without whipping into the opposite turn',()=>{
+ for(const direction of [-1,1])for(const speed of [20,42,66])for(const held of [true,false]){
   const kart={...createVehicleState(),x:0,z:0,yaw:0,speed,boostTime:speed>42?5:0};
   travelHeading(kart,.8,{throttle:1,steer:direction,drift:true});
   const before=travelHeading(kart,.3,{throttle:1,drift:true});assert.ok(before.rate*direction<0);
-  const corrected=travelHeading(kart,.15,{throttle:1,steer:-direction,drift:true});
-  assert.ok(corrected.rate*direction>.2,'opposite key steers the trajectory, rather than just reducing a stored value');
-  assert.ok(angle(corrected.heading,before.heading)*direction>0,'kart path has started correcting in the requested direction');
-  travelHeading(kart,.2,{throttle:1,steer:-direction,drift:true});
-  const straight=travelHeading(kart,.5,{throttle:1,drift:true});
-  assert.equal(kart.driftTurn,0);assert.ok(Math.abs(straight.rate)<.01&&Math.abs(kart.driftAngle)<.001,'releasing the correction leaves a straight trajectory');
+  let pathRate=before.rate;
+  for(let i=0;i<34;i++){
+   const yaw=kart.yaw,heading=kart.yaw+kart.driftAngle;stepVehicle(kart,{throttle:1,steer:-direction,drift:held},STEP,flat);
+   pathRate=angle(kart.yaw+kart.driftAngle,heading)/STEP;
+   assert.ok(pathRate*direction<=1e-9,'a straightening press cannot launch an opposite turn');
+   assert.ok(Math.abs(angle(kart.yaw,yaw)/STEP)<2.2,'body rotation stays below 126 degrees/second instead of whipping near 200');
+  }
+  assert.ok(Math.abs(pathRate)<.01,'the actual path reaches straight, not just a cosmetic change in the body angle');
+  const straight=travelHeading(kart,1,{throttle:1,drift:held});
+  assert.ok(Math.abs(straight.rate)<.01&&Math.abs(kart.driftAngle)<.001,'releasing the correction retains the straight trajectory');
+ }
+});
+
+test('holding opposite steering longer gradually establishes an intentional new turn',()=>{
+ for(const direction of [-1,1])for(const held of [true,false]){
+  const kart={...createVehicleState(),x:0,z:0,yaw:0,speed:42};
+  advance(kart,.8,{throttle:1,steer:direction,drift:true});
+  const early=travelHeading(kart,.3,{throttle:1,steer:-direction,drift:held});assert.ok(Math.abs(early.rate)<.01);
+  const start=travelHeading(kart,.1,{throttle:1,steer:-direction,drift:held});assert.ok(Math.abs(start.rate)<.1);
+  const later=travelHeading(kart,.5,{throttle:1,steer:-direction,drift:held});assert.ok(later.rate*direction>.5);
  }
 });
 
@@ -129,7 +143,7 @@ test('countersteering and re-entering a drift remain responsive during release r
   advance(kart,.8,{throttle:1,steer:direction,drift:true});
   advance(kart,.15,{throttle:1});assert.ok(Math.abs(kart.driftAngle)>.4);
   const corrected=travelHeading(kart,.15,{throttle:1,steer:-direction});
-  assert.ok(corrected.rate*direction>0,'ordinary steering remains available during recovery');
+  assert.ok(Math.abs(corrected.rate)<.01,'opposite steering unwinds toward straight during recovery');
   const before={...kart};stepVehicle(kart,{throttle:1,steer:-direction,drift:true},STEP,flat);
   assert.equal(kart.drifting,true);assert.equal(kart.driftDirection,-direction);assert.equal(kart.driftExitTime,-1);
   assert.ok(Math.hypot(kart.x-before.x,kart.z-before.z)<.36,'re-entry does not jump position');
@@ -138,14 +152,14 @@ test('countersteering and re-entering a drift remain responsive during release r
 });
 
 test('Space is the kart e-brake/drift input and A no longer activates it',()=>{
- assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyS','Space'])),{throttle:1,steer:-1,drift:true});
- assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyF','KeyA'])),{throttle:1,steer:1,drift:false});
- assert.deepEqual(readDrivingInput(new Set(['KeyD','Space'])),{throttle:-1,steer:0,drift:true});
- assert.deepEqual(readDrivingInput(new Set(['KeyE','Space'])),{throttle:1,steer:0,drift:true});
- assert.deepEqual(readDrivingInput(new Set(['KeyE','ArrowLeft','Space'])),{throttle:1,steer:-1,drift:true});
- assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyS','ArrowLeft'])),{throttle:1,steer:-1,drift:false});
- assert.deepEqual(readDrivingInput(new Set(['KeyE','ArrowRight'])),{throttle:1,steer:1,drift:false});
- assert.deepEqual(readDrivingInput(new Set(['KeyS','ArrowRight'])),{throttle:0,steer:0,drift:false});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyS','Space'])),{throttle:1,steer:-1,drift:true,eBrake:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyF','KeyA'])),{throttle:1,steer:1,drift:false,eBrake:false});
+ assert.deepEqual(readDrivingInput(new Set(['KeyD','Space'])),{throttle:-1,steer:0,drift:true,eBrake:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','Space'])),{throttle:1,steer:0,drift:true,eBrake:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','ArrowLeft','Space'])),{throttle:1,steer:-1,drift:true,eBrake:true});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','KeyS','ArrowLeft'])),{throttle:1,steer:-1,drift:false,eBrake:false});
+ assert.deepEqual(readDrivingInput(new Set(['KeyE','ArrowRight'])),{throttle:1,steer:1,drift:false,eBrake:false});
+ assert.deepEqual(readDrivingInput(new Set(['KeyS','ArrowRight'])),{throttle:0,steer:0,drift:false,eBrake:false});
 });
 
 test('neutral steering carries a softer drift instead of a full-lock circle',()=>{
