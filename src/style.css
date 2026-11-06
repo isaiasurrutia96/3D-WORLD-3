@@ -77,3 +77,12 @@ canvas[data-drifting="true"]~.key-chart .drift-key kbd{color:#b5f8ff;border-colo
  #home-screen{gap:24px}.home-logo{font-size:68px}
 }
 @media(orientation:landscape) and (max-height:350px){#touch-controls[data-mode="driving"] #touch-primary{height:108px;padding-bottom:14px}.touch-mode #touch-primary small{font-size:8px}#touch-controls[data-mode="driving"] .touch-drift-cue{top:12px}}
+
+.minimap{position:absolute;z-index:4;top:132px;left:max(40px,env(safe-area-inset-left));width:192px;height:160px;padding:8px;border:1px solid #65758d66;border-radius:14px;background:#101b35bb;pointer-events:none;user-select:none}
+.minimap svg{display:block;width:100%;height:100%}
+.touch-mode .minimap{top:max(76px,calc(env(safe-area-inset-top) + 60px));left:max(16px,env(safe-area-inset-left));width:144px;height:120px;padding:6px}
+@media(max-width:380px){.touch-mode .minimap{top:max(124px,calc(env(safe-area-inset-top) + 108px));width:128px;height:108px}}
+@media(orientation:landscape) and (max-height:550px){
+ .touch-mode .minimap{--map-top:max(76px,calc(env(safe-area-inset-top) + 60px));--map-cap:120px;--map-height:min(var(--map-cap),calc(100dvh - max(18px,env(safe-area-inset-bottom)) - var(--map-top) - 168px));top:var(--map-top);height:var(--map-height);width:calc(var(--map-height)*1.2)}
+}
+@media(orientation:landscape) and (max-height:350px){.touch-mode .minimap{--map-top:max(64px,calc(env(safe-area-inset-top) + 48px));--map-cap:72px;padding:4px}}

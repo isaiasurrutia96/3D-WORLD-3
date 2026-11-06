@@ -13,6 +13,7 @@ import {createItemView} from './item-view.js';
 import {createVehicleView,createSeatedPose,speedToMph} from './vehicle-view.js';
 import {MOVEMENT_KEYS,DRIVING_STEERING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
 import {createMobileControls,bindPress} from './mobile-controls.js';
+import {createMinimap} from './minimap.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -37,6 +38,7 @@ const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,k
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
 const trial=createTimeTrial(trialStorage),applyTrial=createTimeTrialView(scene,trial);
+const updateMinimap=createMinimap(document.getElementById('minimap'));
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y,radius=CHARACTER_RADIUS,height=CHARACTER_HEIGHT)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y,radius,height);
  const parked=resolveParkedKart(road.x,road.z,y,kartState,radius,height);
@@ -224,6 +226,7 @@ function frame(time){
    animation.update({...runner,distance,phase},dt);
   }
   const focus=driving?kartPose:avatar.position;
+  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y);
   const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
   if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){
