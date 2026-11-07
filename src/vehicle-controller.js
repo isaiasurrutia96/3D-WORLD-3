@@ -3,6 +3,7 @@ import {GRAVITY} from './running-controller.js';
 import {moveKartAgainstRails} from './vehicle-contact.js';
 
 export const VEHICLE_TOP_SPEED=120*.44704,REVERSE_SPEED=8,NITRO_TOP_SPEED=180*.44704;
+export const VEHICLE_ACCELERATION=24,NITRO_ACCELERATION=48;
 export const STEERING_LOCK=.415;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -28,7 +29,7 @@ export function stepVehicle(state,input,dt,world){
  if(spinning)state.speed=approach(state.speed,0,20*dt);
  else if(braking)state.speed=approach(state.speed,0,36*dt);
  else if(throttle>0&&state.impactRecovery<=0){
-  state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?36:16))*dt);
+  state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?NITRO_ACCELERATION:VEHICLE_ACCELERATION))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
  else if(state.impactRecovery<=0)state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
  // A slower build and quicker release soften short taps. Sustained steering

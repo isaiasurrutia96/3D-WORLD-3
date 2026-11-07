@@ -42,6 +42,7 @@ export function createTimeTrialView(scene,state){
  });
  const timer=document.getElementById('trial-time'),best=document.getElementById('trial-best'),lap=document.getElementById('trial-lap'),status=document.getElementById('trial-status'),last=document.getElementById('trial-last'),button=document.getElementById('trial-start'),toggle=document.getElementById('trial-ghost');
  const ranks=[...document.querySelectorAll('[data-lap-rank]')];
+ const exportButton=document.getElementById('ghost-export');
  let message='';
  return function update(alpha,step){
   const active=state.status==='ready'||state.status==='running';
@@ -59,6 +60,7 @@ export function createTimeTrialView(scene,state){
   timer.value=formatTime(state.elapsed);best.value=formatTime(state.best?.duration);lap.textContent=`Lap ${state.completed+1}`;
   last.textContent=state.lastLap==null?'':`${state.lastWasBest?'New best':state.lastRank?`New #${state.lastRank}`:'Last lap'} ${formatTime(state.lastLap)}`;
   button.textContent=state.status==='idle'?'Start in kart · T':'Restart lap · T';toggle.disabled=!state.best;toggle.checked=state.showGhost;
+  exportButton.disabled=!state.records.length;
   const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Your top four laps become ghosts';
   if(text!==message){status.textContent=text;message=text;}
   return ghostPoses;

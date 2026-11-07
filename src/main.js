@@ -1,4 +1,4 @@
-import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,RACE_START} from './time-trial.js';
+import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,RACE_START,exportGhosts,importGhosts,MAX_GHOST_FILE_BYTES} from './time-trial.js';
 import {createTimeTrialView} from './time-trial-view.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -195,6 +195,29 @@ function startTrial(){
 }
 bindPress(document.getElementById('trial-start'),startTrial);
 document.getElementById('trial-ghost').addEventListener('change',event=>{trial.showGhost=event.target.checked;canvas.focus({preventScroll:true});});
+const ghostFile=document.getElementById('ghost-file'),ghostMessage=document.getElementById('ghost-transfer-status'),importButton=document.getElementById('ghost-import');
+function ghostTransferMessage(text){ghostMessage.hidden=false;ghostMessage.textContent=text;}
+bindPress(document.getElementById('ghost-export'),()=>{
+ if(!trial.records.length)return;
+ clearInputs();
+ const url=URL.createObjectURL(new Blob([exportGhosts(trial)],{type:'application/json'}));
+ const link=document.createElement('a');link.href=url;link.download=`letsgo-ghosts-${new Date().toISOString().slice(0,10)}.json`;
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ ghostTransferMessage('Ghost file saved. Import it in your other browser.');
+ canvas.focus({preventScroll:true});
+});
+bindPress(importButton,()=>{clearInputs();ghostFile.value='';ghostFile.click();});
+ghostFile.addEventListener('change',async()=>{
+ const file=ghostFile.files?.[0];if(!file)return;
+ importButton.disabled=true;
+ try{
+  if(file.size>MAX_GHOST_FILE_BYTES)throw Error('This ghost file is too large.');
+  const result=importGhosts(trial,await file.text());
+  ghostTransferMessage(result.added?(result.persisted?`Imported ${result.added} ghost${result.added===1?'':'s'}. Your top four are ready.`:'Ghosts loaded for this session. Use Export to keep a copy.'):'Your saved top four are unchanged.');
+ }catch(error){ghostTransferMessage(error.message);}
+ finally{importButton.disabled=false;ghostFile.value='';if(playing)canvas.focus({preventScroll:true});}
+});
+ghostFile.addEventListener('cancel',()=>{if(playing)canvas.focus({preventScroll:true});});
 window.addEventListener('keydown',event=>{if(playing&&event.code==='KeyT'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();startTrial();}});
 document.addEventListener('visibilitychange',()=>{clearInputs();if(!document.hidden)gameFocused=true;previousTime=undefined;accumulator=0;previous={...runner};previousKart={...kartState};});
 function frame(time){

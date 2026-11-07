@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {trackSamples} from '../src/track.js';
 import {createVehicleState,stepVehicle,NITRO_TOP_SPEED} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
-import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,sampleGhost,formatTime,RACE_START,START_INDEX,STORAGE_KEY,LEGACY_STORAGE_KEY,MAX_GHOSTS,GATES,CHECKPOINT_COUNT,projectCourse} from '../src/time-trial.js';
+import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,sampleGhost,formatTime,RACE_START,START_INDEX,STORAGE_KEY,LEGACY_STORAGE_KEY,MAX_GHOSTS,GATES,CHECKPOINT_COUNT,projectCourse,exportGhosts,importGhosts,MAX_GHOST_FILE_BYTES} from '../src/time-trial.js';
 const count=trackSamples.length-1;
 function storage(){const data=new Map();return{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value),removeItem:key=>data.delete(key)};}
 function pose(index){const n=((index%count)+count)%count,p=trackSamples[n].point,next=trackSamples[n+1].point;return{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(next.x-p.x,next.z-p.z),pitch:0,bank:0,steering:0,wheelRotation:index*.2,grounded:true};}
@@ -113,4 +113,34 @@ test('existing single-best ghost migrates without losing its replay or creating 
  const migrated=createTimeTrial(memory);assert.equal(migrated.records.length,1);assert.deepEqual(migrated.best,old.best);assert.ok(memory.getItem(STORAGE_KEY));assert.equal(memory.getItem(LEGACY_STORAGE_KEY),null);
  assert.equal(createTimeTrial(memory).records.length,1);
  const failed=createTimeTrial({getItem:key=>key===LEGACY_STORAGE_KEY?JSON.stringify(old.best):null,setItem:()=>{throw Error('quota');}});assert.equal(failed.records.length,1);assert.deepEqual(failed.best,old.best);
+});
+
+test('ghost files move exact older times and poses into another browser without altering the source',()=>{
+ const firstMemory=storage(),source=createTimeTrial(firstMemory);lap(source,.1);lap(source,.12);
+ const saved=firstMemory.getItem(STORAGE_KEY),file=exportGhosts(source);
+ const secondMemory=storage(),destination=createTimeTrial(secondMemory);
+ const result=importGhosts(destination,file);assert.equal(result.added,2);assert.ok(result.persisted);
+ assert.deepEqual(destination.records,source.records);assert.deepEqual(createTimeTrial(secondMemory).records,source.records);
+ for(let i=0;i<source.records.length;i++)assert.deepEqual(sampleGhost(destination.records[i],20),sampleGhost(source.records[i],20));
+ assert.equal(firstMemory.getItem(STORAGE_KEY),saved);assert.equal(exportGhosts(source),file);
+});
+test('import merges the fastest four, preserves faster local laps and avoids duplicate ghosts',()=>{
+ const source=createTimeTrial();for(const dt of [.1,.12,.13,.14])lap(source,dt);
+ const memory=storage(),destination=createTimeTrial(memory);lap(destination,.095);const fastest=destination.best;
+ const imported=importGhosts(destination,exportGhosts(source));assert.equal(imported.added,3);assert.equal(destination.records.length,4);assert.equal(destination.best,fastest);
+ destination.records.forEach((record,i)=>assert.ok(Math.abs(record.duration-[114,120,144,156][i])<.01));
+ assert.deepEqual(destination.ghostRecords,destination.records);const saved=memory.getItem(STORAGE_KEY);
+ assert.equal(importGhosts(destination,exportGhosts(source)).added,0);assert.equal(memory.getItem(STORAGE_KEY),saved);
+});
+test('invalid ghost files leave existing recordings and storage untouched',()=>{
+ const memory=storage(),state=createTimeTrial(memory);lap(state);const original=state.records,saved=memory.getItem(STORAGE_KEY),data=JSON.parse(exportGhosts(state));
+ const broken=structuredClone(data);broken.laps[0].frames[1][1]=null;
+ for(const raw of ['bad json',JSON.stringify({...data,course:'another-course'}),JSON.stringify({...data,laps:[]}),JSON.stringify(broken),'x'.repeat(MAX_GHOST_FILE_BYTES+1)]){
+  assert.throws(()=>importGhosts(state,raw));assert.equal(state.records,original);assert.equal(memory.getItem(STORAGE_KEY),saved);
+ }
+});
+test('legacy ghost files and unavailable storage still allow accurate session playback',()=>{
+ const source=createTimeTrial();lap(source);const state=createTimeTrial({getItem:()=>null,setItem:()=>{throw Error('quota');}});
+ const result=importGhosts(state,JSON.stringify(source.best));assert.equal(result.added,1);assert.equal(result.persisted,false);
+ assert.deepEqual(state.best,source.best);assert.deepEqual(sampleGhost(state.ghostRecords[0],30),sampleGhost(source.best,30));assert.equal(exportGhosts(state),exportGhosts(source));
 });

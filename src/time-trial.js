@@ -5,6 +5,7 @@ export const COURSE_ID='letsgo-circuit-d4a711d-start95-v1';
 export const STORAGE_KEY='letsgo.top-laps.v2';
 export const LEGACY_STORAGE_KEY='letsgo.best-lap.v1';
 export const MAX_GHOSTS=4;
+export const MAX_GHOST_FILE_BYTES=16000000;
 export const GHOST_COLORS=Object.freeze(['#8deafa','#d7a2ff','#ffc578','#8cf0a3']);
 export const START_INDEX=95,CHECKPOINT_COUNT=12,GHOST_HZ=30,MAX_LAP_SECONDS=1800;
 export const COURSE_LENGTH=trackSamples.at(-1).distance;
@@ -64,6 +65,29 @@ function saveRecords(state){
   try{state.storage.removeItem?.(LEGACY_STORAGE_KEY);}catch{}
   return true;
  }catch{return false;}
+}
+export function exportGhosts(state){
+ return JSON.stringify({version:2,course:COURSE_ID,laps:state.records});
+}
+export function importGhosts(state,text){
+ if(typeof text!=='string'||text.length>MAX_GHOST_FILE_BYTES)throw Error('This ghost file is too large.');
+ let data;try{data=JSON.parse(text);}catch{throw Error('Choose a valid LetsGo ghost JSON file.');}
+ if(!data||data.course!==COURSE_ID)throw Error('This ghost file belongs to a different track.');
+ const laps=data.version===2?data.laps:[data];
+ if(!Array.isArray(laps)||!laps.length||laps.length>MAX_GHOSTS||!laps.every(validBest))throw Error('This ghost file is incomplete or damaged.');
+ // Exact pose traces and times are retained; importing never resimulates an
+ // older lap with the new physics or replaces a faster existing record.
+ const signature=lap=>JSON.stringify([lap.duration,lap.frames]);
+ const unique=new Map(state.records.map(lap=>[signature(lap),lap]));
+ const incoming=[];
+ for(const lap of laps){const key=signature(lap);if(!unique.has(key)){unique.set(key,lap);incoming.push(lap);}}
+ const records=[...unique.values()].sort((a,b)=>a.duration-b.duration).slice(0,MAX_GHOSTS);
+ const added=incoming.filter(lap=>records.includes(lap)).length;
+ if(added){
+  state.records=records;state.best=records[0];state.ghostBest=state.best;state.ghostRecords=records.slice();state.showGhost=true;
+  state.persisted=saveRecords(state);
+ }
+ return{added,total:state.records.length,persisted:state.persisted};
 }
 export function createTimeTrial(storage=null){
  let records=[],migrated=false;

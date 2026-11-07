@@ -40,6 +40,13 @@
         <div id="trial-last"></div>
         <button id="trial-start" type="button">Start in kart · T</button>
         <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
+        <div class="ghost-transfer" role="group" aria-label="Move saved ghosts between browsers">
+          <button id="ghost-export" type="button" disabled>Export ghosts</button>
+          <button id="ghost-import" type="button">Import ghosts</button>
+          <input id="ghost-file" type="file" accept=".json,application/json" aria-label="Choose a LetsGo ghost file" hidden>
+        </div>
+        <p class="ghost-transfer-note">Ghosts are saved in this browser.</p>
+        <p id="ghost-transfer-status" role="status" hidden></p>
         <p id="trial-status" role="status">Your top four laps become ghosts</p>
         </div>
         </details>

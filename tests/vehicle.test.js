@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED,NITRO_TOP_SPEED,STEERING_LOCK} from '../src/vehicle-controller.js';
+import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED,NITRO_TOP_SPEED,VEHICLE_ACCELERATION,NITRO_ACCELERATION,STEERING_LOCK} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
 import {trackSamples} from '../src/track.js';
 import {createAvatar} from '../src/avatar.js';
@@ -24,6 +24,17 @@ test('kart accelerates, coasts, brakes and reverses with bounded speed',()=>{
  advance(state,2,{brake:true});assert.equal(state.speed,0);
  advance(state,2,{throttle:-1});assert.equal(state.speed,-REVERSE_SPEED);
  const stopped=createVehicleState();advance(stopped,1,{steer:1});assert.equal(stopped.yaw,Math.PI/2);
+});
+test('stronger acceleration moves the kart farther and reaches both unchanged speed caps sooner',()=>{
+ const normal={...createVehicleState(),x:0,z:0},boosted={...normal,boostTime:2};
+ advance(normal,1,{throttle:1});advance(boosted,1,{throttle:1});
+ assert.ok(Math.abs(normal.speed-24)<1e-8);assert.ok(Math.abs(boosted.speed-48)<1e-8);
+ assert.ok(normal.x>12&&normal.x<12.2,'actual distance increases from about 8 m to 12 m in the first second');
+ assert.ok(boosted.x>24&&boosted.x<24.4);
+ advance(normal,1.25,{throttle:1});advance(boosted,.7,{throttle:1});
+ assert.ok(Math.abs(normal.speed-VEHICLE_TOP_SPEED)<1e-8);assert.ok(Math.abs(boosted.speed-NITRO_TOP_SPEED)<1e-8);
+ assert.equal(speedToMph(normal.speed),120);assert.equal(speedToMph(boosted.speed),180);
+ assert.equal(VEHICLE_ACCELERATION,24);assert.equal(NITRO_ACCELERATION,48);
 });
 test('left/right steering is mirrored, smooth and independent of camera',()=>{
  const left=createVehicleState(),right=createVehicleState();
@@ -122,7 +133,7 @@ test('coasting rail impacts do not create kinetic energy, even in a two-wall cor
  }
 });
 test('quick steering taps are softer while holding slightly improves handling',()=>{
- function legacyTurn(seconds,tap){let yaw=0,wheel=0;const speed=40+16*DT;for(let i=0;i<Math.round(seconds/DT);i++){const target=i*DT<tap?.39/(1+speed/11):0;wheel+=(target-wheel)*(1-Math.exp(-9*DT));yaw-=speed/2.03*Math.tan(wheel)*DT;}return Math.abs(yaw);}
+ function legacyTurn(seconds,tap){let yaw=0,wheel=0;const speed=40+VEHICLE_ACCELERATION*DT;for(let i=0;i<Math.round(seconds/DT);i++){const target=i*DT<tap?.39/(1+speed/11):0;wheel+=(target-wheel)*(1-Math.exp(-9*DT));yaw-=speed/2.03*Math.tan(wheel)*DT;}return Math.abs(yaw);}
  function newTurn(seconds,tap){const kart={...createVehicleState(),yaw:0,speed:40};for(let i=0;i<Math.round(seconds/DT);i++){kart.speed=40;stepVehicle(kart,{throttle:1,steer:i*DT<tap?1:0},DT,flat);}return Math.abs(kart.yaw);}
  for(const duration of [.025,.05,.1]){
   assert.ok(newTurn(.5,duration)<legacyTurn(.5,duration)*.8,'quick tap turns less than before at matching speed');
