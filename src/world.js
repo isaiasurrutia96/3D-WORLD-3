@@ -13,7 +13,7 @@ function spatialIndex(segments,padding){
  }
  return (x,z)=>cells.get(`${Math.floor(x/CELL)},${Math.floor(z/CELL)}`)??[];
 }
-const nearbyRoad=spatialIndex(trackSegments,TRACK_HALF_WIDTH+CURB_WIDTH+1),nearbyRails=spatialIndex(railSegments,1);
+const nearbyRoad=spatialIndex(trackSegments,TRACK_HALF_WIDTH+CURB_WIDTH+1),nearbyRails=spatialIndex(railSegments,2);
 function projection(segment,x,z){
  const dx=segment.b.x-segment.a.x,dz=segment.b.z-segment.a.z;
  const rawT=((x-segment.a.x)*dx+(z-segment.a.z)*dz)/(dx*dx+dz*dz);

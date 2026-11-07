@@ -187,7 +187,7 @@ function toggleVehicle(){
 function startTrial(){
  if(!playing)return;
  clearInputs();mobileExitPending=false;
- Object.assign(kartState,createVehicleState(),RACE_START);previousKart={...kartState};
+ Object.assign(kartState,createVehicleState(),RACE_START,{heldItem:'nitro'});previousKart={...kartState};
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
  itemSystem.shells=[];itemSystem.time=0;
@@ -245,7 +245,7 @@ function frame(time){
   canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);canvas.dataset.shells=String(itemSystem.shells.length);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
-  const mph=String(driving?speedToMph(kartState.speed):0);if(speedometer.value!==mph)speedometer.value=mph;
+  const mph=String(driving?speedToMph(Math.hypot(kartState.speed,kartState.lateralSpeed)):0);if(speedometer.value!==mph)speedometer.value=mph;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
   canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;
   mobile.update({driving,heldItem:kartState.heldItem,boosting:kartState.boostTime>0,interactionText:driving?(mobileExitPending?'Stop…':'Exit'):'Kart',canInteract:driving||canEnterVehicle(runner,kartState),canFlip:runner.grounded&&runner.speed<.65});

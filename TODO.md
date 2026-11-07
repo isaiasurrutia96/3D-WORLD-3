@@ -1,2 +1,2 @@
-- [ ] Review the isolated wall-contact animation before applying its response to the live track.
-- [ ] Then increase kart speed and improve handling, as requested.
+- [x] Apply the requested slight-rebound rail response directly to gameplay; no further preview requested.
+- [x] Increase normal/boosted limits to 120/180 MPH, soften steering taps, slightly strengthen held steering, and give fresh time-trial attempts one Nitro.

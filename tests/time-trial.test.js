@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {trackSamples} from '../src/track.js';
-import {createVehicleState,stepVehicle} from '../src/vehicle-controller.js';
+import {createVehicleState,stepVehicle,NITRO_TOP_SPEED} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
 import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,sampleGhost,formatTime,RACE_START,START_INDEX,STORAGE_KEY,LEGACY_STORAGE_KEY,MAX_GHOSTS,GATES,CHECKPOINT_COUNT,projectCourse} from '../src/time-trial.js';
 const count=trackSamples.length-1;
@@ -22,6 +22,14 @@ test('ordered complete lap records an interpolated finish and persists a replay'
  assert.ok(state.best.frames.length>3500);assert.equal(state.best.frames[0][0],0);assert.equal(state.best.frames.at(-1)[0],state.best.duration);
  const restored=createTimeTrial(memory);assert.equal(restored.best.duration,state.best.duration);assert.deepEqual(restored.best.frames,state.best.frames);
  const halfway=sampleGhost(restored.best,60);assert.ok(halfway&&Number.isFinite(halfway.x));assert.equal(sampleGhost(restored.best,121),null);
+});
+test('legal 180 MPH progress remains valid and its saved ghost reloads',()=>{
+ const memory=storage(),state=createTimeTrial(memory);armTimeTrial(state);let previous=pose(START_INDEX);
+ for(let i=1;i<=count+1;i++){
+  const current=pose(START_INDEX+i),dt=Math.hypot(current.x-previous.x,current.z-previous.z)/NITRO_TOP_SPEED;
+  stepTimeTrial(state,previous,current,true,dt);assert.equal(state.status,'running',state.reason);previous=current;
+ }
+ assert.equal(state.completed,1);assert.ok(state.persisted);assert.ok(state.best);const restored=createTimeTrial(memory);assert.deepEqual(restored.best,state.best);
 });
 test('slower laps preserve the ghost and faster laps replace it; restart preserves best',()=>{
  const state=createTimeTrial(storage());lap(state,.1);const first=state.best;

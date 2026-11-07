@@ -1,4 +1,5 @@
 import {trackSamples,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
+import {NITRO_TOP_SPEED} from './vehicle-controller.js';
 
 export const COURSE_ID='letsgo-circuit-d4a711d-start95-v1';
 export const STORAGE_KEY='letsgo.top-laps.v2';
@@ -8,6 +9,7 @@ export const GHOST_COLORS=Object.freeze(['#8deafa','#d7a2ff','#ffc578','#8cf0a3'
 export const START_INDEX=95,CHECKPOINT_COUNT=12,GHOST_HZ=30,MAX_LAP_SECONDS=1800;
 export const COURSE_LENGTH=trackSamples.at(-1).distance;
 const COUNT=trackSamples.length-1,START_DISTANCE=trackSamples[START_INDEX].distance;
+const MAX_LEGAL_SPEED=NITRO_TOP_SPEED+2;
 const wrap=value=>((value%COURSE_LENGTH)+COURSE_LENGTH)%COURSE_LENGTH;
 const angle=(a,b,t)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -49,7 +51,7 @@ export function interpolatePose(a,b,t){const p={};for(const key of fields)p[key]
 function frame(time,pose){return[time,...fields.map(key=>(Math.round((pose[key]??0)*10000)/10000)||0)];}
 function fromFrame(row){return Object.fromEntries(fields.map((key,i)=>[key,row[i+1]]));}
 function validBest(data){
- if(!data||data.course!==COURSE_ID||!Number.isFinite(data.duration)||data.duration<COURSE_LENGTH/80||data.duration>MAX_LAP_SECONDS||!Array.isArray(data.frames)||data.frames.length<2||data.frames.length>MAX_LAP_SECONDS*GHOST_HZ+3)return false;
+ if(!data||data.course!==COURSE_ID||!Number.isFinite(data.duration)||data.duration<COURSE_LENGTH/MAX_LEGAL_SPEED||data.duration>MAX_LAP_SECONDS||!Array.isArray(data.frames)||data.frames.length<2||data.frames.length>MAX_LAP_SECONDS*GHOST_HZ+3)return false;
  let previous=-1;
  for(const row of data.frames){if(!Array.isArray(row)||row.length!==9||!row.every(Number.isFinite)||row[0]<=previous||row[0]>data.duration+.001)return false;previous=row[0];}
  return data.frames[0][0]===0&&Math.abs(data.frames.at(-1)[0]-data.duration)<.001;
@@ -103,7 +105,7 @@ export function stepTimeTrial(state,previous,current,forward,dt){
  if(state.status==='ready'&&forward){state.status='running';state.frames=[frame(0,previous)];state.previousProgress=projectCourse(previous)?.progress??0;}
  if(state.status!=='running')return;
  const road=projectCourse(current),travel=Math.hypot(current.x-previous.x,current.z-previous.z);
- if(!road||road.distance>TRACK_HALF_WIDTH+CURB_WIDTH+.7||road.height>.85||current.grounded===false||travel>80*dt+.30){invalidateTimeTrial(state);return;}
+ if(!road||road.distance>TRACK_HALF_WIDTH+CURB_WIDTH+.7||road.height>.85||current.grounded===false||travel>MAX_LEGAL_SPEED*dt+.30){invalidateTimeTrial(state);return;}
  let delta=road.progress-state.previousProgress;
  if(delta>COURSE_LENGTH/2)delta-=COURSE_LENGTH;if(delta< -COURSE_LENGTH/2)delta+=COURSE_LENGTH;
  if(Math.abs(delta)>travel*2+2){invalidateTimeTrial(state,'Course skipped — restart lap');return;}

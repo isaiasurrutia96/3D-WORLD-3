@@ -13,7 +13,7 @@ import {createGhostTemplate} from '../src/ghost-kart.js';
 const DT=1/120;
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 test('MPH readout converts metres per second and shows reverse speed as a magnitude',()=>{
- for(const [speed,mph]of [[0,0],[25,56],[42,94],[66,148],[-8,18]])assert.equal(speedToMph(speed),mph);
+ for(const [speed,mph]of [[0,0],[25,56],[VEHICLE_TOP_SPEED,120],[NITRO_TOP_SPEED,180],[-8,18]])assert.equal(speedToMph(speed),mph);
 });
 function advance(state,seconds,input,world=flat){for(let i=0;i<Math.round(seconds/DT);i++)stepVehicle(state,input,DT,world);}
 
@@ -38,12 +38,13 @@ test('entry requires proximity and grounded states; exit requires a safe stopped
  assert.equal(canEnterVehicle({...runner,grounded:false},kart),false);
  const exit=findExitPosition(kart,worldPhysics);assert.ok(exit);assert.equal(exit.y,0);
  assert.equal(findExitPosition({...kart,speed:5},worldPhysics),null);
+ assert.equal(findExitPosition({...kart,speed:0,lateralSpeed:5},worldPhysics),null);
  const parked=resolveParkedKart(kart.x,kart.z,0,kart);assert.ok(Math.hypot(parked.x-kart.x,parked.z-kart.z)>1.5);
 });
 test('kart crosses the access bridge, respects rails and uses elevated ramp surfaces',()=>{
- const kart=createVehicleState();let peak=kart.x,bounced=false;
- for(let i=0;i<720;i++){stepVehicle(kart,{throttle:1},DT,worldPhysics);peak=Math.max(peak,kart.x);if(kart.x>150&&Math.sin(kart.yaw)<0)bounced=true;assert.ok(kart.y>-.01);}
- assert.ok(peak>150&&peak<166);assert.ok(bounced,'Kart turns along the outer rail');assert.ok(Math.abs(kart.z+146.5)>20,'Holding throttle continues along the track');assert.equal(kart.grounded,true);
+ const kart=createVehicleState();let peak=kart.x,rebounded=false,maxTurn=0,previousYaw=kart.yaw;
+ for(let i=0;i<720;i++){stepVehicle(kart,{throttle:1},DT,worldPhysics);peak=Math.max(peak,kart.x);if(kart.railContactTime>0&&kart.speed<-.1)rebounded=true;maxTurn=Math.max(maxTurn,Math.abs(kart.yaw-previousYaw));previousYaw=kart.yaw;assert.ok(kart.y>-.01);}
+ assert.ok(peak>150&&peak<166);assert.ok(rebounded,'small rebound at the actual outer rail');assert.ok(maxTurn<.01,'no instant heading change');assert.ok(Math.abs(kart.yaw-Math.PI/2)<.15,'near-head-on impact stays approximately facing the rail');assert.equal(kart.grounded,true);
  const sample=trackSamples.find(s=>s.point.y>8&&s.point.z>60&&s.point.z<85).point;
  const above=Object.assign(createVehicleState(),{x:sample.x,y:sample.y,z:sample.z});advance(above,.5,{brake:true},worldPhysics);
  assert.ok(above.y>8);assert.equal(above.grounded,true);
@@ -79,25 +80,67 @@ test('a driven lap can traverse every curve and both overpass levels',()=>{
  assert.equal(index,trackSamples.length);assert.ok(peak>8);
 });
 
-test('head-on and oblique wall hits slide along the rail with a small speed loss',()=>{
- const wall={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:Math.min(nx,8),z:nz})};
- for(const yaw of [Math.PI/2,Math.PI/3]){
-  const kart={...createVehicleState(),x:0,z:0,yaw,speed:25};let contact=false,afterContactZ=0;
-  for(let i=0;i<180;i++){
-   const previous={...kart};stepVehicle(kart,{throttle:1},DT,wall);
-   if(!contact&&kart.railContactTime>0){contact=true;afterContactZ=kart.z;assert.ok(kart.speed>previous.speed*.93&&kart.speed<previous.speed*1.01);assert.ok(Math.abs(Math.sin(kart.yaw))<.03,'minimal outward deflection');}
+const wall={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz,y,r)=>({x:Math.min(nx,10-r),z:nz})};
+test('head-on impacts rebound a little, settle without turning and stay still under Gas',()=>{
+ for(const speed of [8,40,NITRO_TOP_SPEED])for(const throttle of [0,1]){
+  const kart={...createVehicleState(),x:7,z:0,speed};let contactX=null,minX=Infinity,reboundStarts=0,wasBacking=false;
+  for(let i=0;i<600;i++){
+   stepVehicle(kart,{throttle},DT,wall);
+   assert.ok(kart.x<=8.470001);assert.ok(Math.abs(kart.yaw-Math.PI/2)<1e-9);
+   if(contactX===null&&kart.railContactTime>0){contactX=kart.x;assert.ok(kart.speed<-.1&&kart.speed>=-1.500001);}
+   if(contactX!==null){minX=Math.min(minX,kart.x);const backing=kart.speed<-.05;if(backing&&!wasBacking)reboundStarts++;wasBacking=backing;}
   }
-  assert.ok(contact);assert.ok(kart.x>6&&kart.x<=8,'no launch across the road');assert.ok(Math.abs(kart.z-afterContactZ)>15,'continues along the rail');assert.ok(kart.speed>30);
+  assert.ok(contactX!==null);assert.equal(reboundStarts,1);assert.ok(contactX-minX>.01&&contactX-minX<.5);assert.ok(Math.hypot(kart.speed,kart.lateralSpeed)<.001);
  }
- const scraping={...createVehicleState(),x:7.5,z:0,yaw:0,speed:35};
- for(let i=0;i<240;i++)stepVehicle(scraping,{throttle:1,steer:-1},DT,wall);
- assert.ok(scraping.z>50,'holding into the rail does not pin the kart');assert.ok(scraping.speed>30);assert.ok(scraping.x<=8);
+});
+test('oblique impacts preserve along-rail motion with a small rebound and gradual corner rotation',()=>{
+ const loss=[];
+ for(const degrees of [10,30,60]){
+  const yaw=degrees*Math.PI/180,kart={...createVehicleState(),x:7,z:0,yaw,speed:40};let impact=null,maxYawStep=0,previousYaw=yaw,stepsAfterContact=0;
+  for(let i=0;i<400&&stepsAfterContact<90;i++){
+   const before={...kart};stepVehicle(kart,{},DT,wall);maxYawStep=Math.max(maxYawStep,Math.abs(kart.yaw-previousYaw));previousYaw=kart.yaw;
+   if(kart.railContactTime>0&&!impact){impact={...kart};const vx=Math.sin(kart.yaw)*kart.speed+Math.cos(kart.yaw)*kart.lateralSpeed;assert.ok(vx<0&&vx>-2,'small outward rebound');assert.ok(Math.abs(kart.yaw-before.yaw)<.01,'no tangent snap');loss.push(1-Math.hypot(kart.speed,kart.lateralSpeed)/Math.hypot(before.speed,before.lateralSpeed));}
+   if(impact)stepsAfterContact++;
+   for(const offset of [-.35,.35])assert.ok(kart.x+Math.sin(kart.yaw)*offset<=8.82001,'capsule stays outside the rail');
+  }
+  assert.ok(impact);assert.ok(kart.z>impact.z+1);assert.ok(maxYawStep<.01);assert.ok(Math.abs(kart.yaw-yaw)<.3,'small, damped chassis rotation');
+ }
+ assert.ok(loss[0]<loss[1]&&loss[1]<loss[2],'steeper hits lose more speed');
+});
+test('player steering can leave a head-on rail contact in either direction',()=>{
+ for(const steer of [-1,1]){
+  const kart={...createVehicleState(),x:7,z:0,speed:40};advance(kart,3,{throttle:1},wall);assert.ok(kart.railContactTime>0);
+  advance(kart,4,{throttle:1,steer},wall);assert.ok(kart.x<7);assert.ok(Math.abs(kart.z)>5);assert.ok(kart.speed>5);assert.equal(kart.railContactTime,0);
+ }
+});
+test('coasting rail impacts do not create kinetic energy, even in a two-wall corner',()=>{
+ const corner={...wall,resolveHorizontal:(x,z,nx,nz,y,r)=>({x:Math.min(nx,10-r),z:Math.min(nz,10-r)})};
+ const energy=k=>k.speed*k.speed+k.lateralSpeed*k.lateralSpeed+k.impactYawRate*k.impactYawRate/.65;
+ for(const yaw of [Math.PI/2,Math.PI/3,Math.PI/4,Math.PI/6]){
+  const kart={...createVehicleState(),x:7,z:7,yaw,speed:NITRO_TOP_SPEED};let previous=energy(kart);
+  for(let i=0;i<360;i++){stepVehicle(kart,{},DT,corner);const next=energy(kart);assert.ok(next<=previous+1e-5,`energy increased: ${previous} -> ${next}`);previous=next;assert.ok(kart.x<8.83&&kart.z<8.83);}
+ }
+});
+test('quick steering taps are softer while holding slightly improves handling',()=>{
+ function legacyTurn(seconds,tap){let yaw=0,wheel=0;const speed=40+16*DT;for(let i=0;i<Math.round(seconds/DT);i++){const target=i*DT<tap?.39/(1+speed/11):0;wheel+=(target-wheel)*(1-Math.exp(-9*DT));yaw-=speed/2.03*Math.tan(wheel)*DT;}return Math.abs(yaw);}
+ function newTurn(seconds,tap){const kart={...createVehicleState(),yaw:0,speed:40};for(let i=0;i<Math.round(seconds/DT);i++){kart.speed=40;stepVehicle(kart,{throttle:1,steer:i*DT<tap?1:0},DT,flat);}return Math.abs(kart.yaw);}
+ for(const duration of [.025,.05,.1]){
+  assert.ok(newTurn(.5,duration)<legacyTurn(.5,duration)*.8,'quick tap turns less than before at matching speed');
+ }
+ const ratio=newTurn(1.5,1.5)/legacyTurn(1.5,1.5);assert.ok(ratio>1&&ratio<1.08,'held turn is only slightly stronger');assert.ok(STEERING_LOCK>.39&&STEERING_LOCK<.43);
+ const boosted={...createVehicleState(),speed:VEHICLE_TOP_SPEED,boostTime:2};advance(boosted,1,{throttle:1});assert.ok(Math.abs(boosted.speed-NITRO_TOP_SPEED)<1e-8);assert.equal(speedToMph(boosted.speed),180);
 });
 
-test('steering is slightly gentler while nitro reaches the increased cap',()=>{
- const kart={...createVehicleState(),speed:30};advance(kart,.5,{throttle:1,steer:1});
- assert.ok(STEERING_LOCK<.44&&STEERING_LOCK>.37);assert.ok(Math.abs(kart.steering)<.44/(1+Math.abs(kart.speed)/11));
- const boosted={...createVehicleState(),speed:VEHICLE_TOP_SPEED,boostTime:2};advance(boosted,1,{throttle:1});assert.equal(boosted.speed,NITRO_TOP_SPEED);assert.equal(NITRO_TOP_SPEED,66);
+test('boosted-speed impacts stay outside segmented curved rails on both road levels',()=>{
+ for(const index of [20,180,350,500,670,840,1040])for(const side of [-1,1]){
+  const sample=trackSamples[index],next=trackSamples[index+1].point,dx=next.x-sample.point.x,dz=next.z-sample.point.z,length=Math.hypot(dx,dz);
+  const kart={...createVehicleState(),...sample.point,yaw:Math.atan2(dx/length+side*sample.normal.x*.35,dz/length+side*sample.normal.z*.35),speed:NITRO_TOP_SPEED,boostTime:3};let contact=false;
+  for(let i=0;i<240;i++){
+   const previousYaw=kart.yaw;stepVehicle(kart,{throttle:1},DT,worldPhysics);contact||=kart.railContactTime>0;assert.equal(kart.grounded,true);assert.ok(Math.abs(kart.yaw-previousYaw)<.01);
+   for(const offset of [-.35,.35]){const x=kart.x+Math.sin(kart.yaw)*offset,z=kart.z+Math.cos(kart.yaw)*offset,resolved=worldPhysics.resolveHorizontal(x,z,x,z,kart.y,1.18,1.8);assert.ok(Math.hypot(resolved.x-x,resolved.z-z)<.001,'no unresolved penetration at rail joints');}
+  }
+  assert.ok(contact,'test reaches the rail');
+ }
 });
 
 

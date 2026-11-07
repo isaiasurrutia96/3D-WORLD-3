@@ -23,7 +23,7 @@ Touch devices use a layout based on the mobile racing reference, in portrait or 
 
 - The larger bottom-left **Left / Right** buttons steer the kart. Each finger releases independently; pressing both steering buttons gives neutral steering.
 - Hold the bottom-right **Gas** button to accelerate. Moving that finger does not activate another driving mode; lift to release Gas. The kart waits for Gas before starting the lap.
-- The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over Gas and Nitro. Speed and steering lock are unchanged in this update.
+- The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over Gas and Nitro. Normal speed is capped at 120 MPH, Nitro at 180 MPH. Quick steering taps are softer; sustained steering has slightly more lock.
 - During gameplay the full game surface prevents native pinch/double-tap webpage zoom, with Safari gesture-event guards. Intentional camera gestures on the canvas remain available; browser zoom on the home screen is unaffected.
 - The upper-right item button shows **Boost** or **Shell** after collecting a box. One tap uses the held item, including while other fingers hold steering and Gas. Holding the button cannot automatically consume a later pickup.
 - **View** changes between the existing third-person and isometric cameras. The **Laps & ghosts** disclosure keeps times, replay toggle and restart accessible without covering the driving controls; it opens beside the HUD on short landscape screens.
@@ -77,9 +77,11 @@ Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a co
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, slightly reduced speed-sensitive steering (0.39 low-speed lock), guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s, with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 66 m/s, with 36 m/s² boosted acceleration for the existing two-second burst. D or Down Arrow brakes/reverses; Space has no kart action. There are no CPU opponents or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 53.6448 m/s (120 MPH), with 16 m/s² acceleration; reverse is 8 m/s. Nitro raises the temporary cap to 80.4672 m/s (180 MPH), with 36 m/s² acceleration for the existing two-second burst. Steering lock increases from 0.39 to 0.415 radians; build/release rates of 6.5/14 per second soften brief taps while allowing slightly stronger held turns. D or Down Arrow brakes/reverses; Space has no kart action. There are no CPU opponents or vehicle jumps.
 
-The kart follows its facing direction with speed-sensitive grip steering and smooth wheel input. There is no drift state, slip-angle offset, gesture or key binding. Saved replay fields and course identifiers are unchanged, so existing lap records are preserved. The existing live rail response is unchanged pending review of the isolated wall-contact proposal below.
+The kart follows its facing direction with speed-sensitive grip steering and smooth wheel input. There is no player-activated drift state, gesture or key binding. Only collisions introduce brief lateral velocity and a damped angular response. Saved replay fields and course identifiers are unchanged, so existing lap records are preserved. Time-trial speed validation accommodates the new legal boosted cap.
+
+`src/vehicle-contact.js` substeps capsule motion in increments of at most 0.22 m and resolves rail contact without assigning a new heading. Fresh impacts rebound at 7.5% of normal approach speed, capped at 1.5 m/s; resting contact has zero restitution. A short recovery damps the rebound before forward drive resumes, and continued contact suppresses repeated bounces. Load-dependent friction reduces tangential momentum more in steeper hits. Contact-point impulses supply a small angular response, damped over time; tiny sustained drive forces do not keep rotating the chassis. Steering remains available when pushing against a rail. Safe entry/exit uses total planar speed, including rebound motion.
 
 The compact top-right lap/ghost panel also displays kart speed in **MPH**, converted from metres per second and rounded to a whole number. Reverse shows speed magnitude; on foot the kart readout is zero. The timer starts when E or Gas supplies forward input.
 
@@ -91,14 +93,14 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 `src/items.js` handles 48 boxes in 16 rows around the track, including elevated sections. Driving through an available box randomly awards Nitro or a green turtle shell, with one inventory slot. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass.
 
-While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. On foot, Shift continues to mean walking. The compact control chart shows the current item.
+While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. Each fresh time-trial attempt (Play or restart) begins with one Nitro in the normal item slot; rolling over the finish line does not grant another. The existing mobile item button also uses it. Activating this Nitro while waiting does not start the clock or consume boost time; E/Gas starts both the simulation and the lap. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 
-- Nitro lasts two seconds, accelerates to a 66 m/s cap, and shows blue exhaust. Braking still works, and boosted speed eases back toward the normal cap after expiry.
+- Nitro lasts two seconds, accelerates toward a 180 MPH cap, and shows blue exhaust. The cap is reached once sufficient speed has built; it does not instantly set speed. Braking still works, and boosted speed eases back toward the normal 120 MPH cap after expiry.
 - Green shells slide forward, follow the road, ricochet off guardrails and disappear after eight seconds or when leaving the road. Substeps prevent collision tunneling. A ricochet can hit the occupied kart after its initial launch grace period, slowing it into a brief spin-out.
 
 `src/item-view.js` renders the rotating multicolor question boxes, shell models and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover collection/respawn, inventory limits, separate road levels, nitro expiry/braking and shell reflection/hits/lifetime. Browser checks exercise actual box pickup and Shift activation.
 
-Camera views: press **V** or tap the camera button in the bottom control chart to switch between the wider third-person view and a fixed-angle orthographic isometric view. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart rail contacts guide velocity along the barrier with a tiny outward bias, a 4% initial speed loss and gentle sustained scrape drag. Direct hits choose a tangent so holding forward does not pin the kart.
+Camera views: press **V** or tap the camera button in the bottom control chart to switch between the wider third-person view and a fixed-angle orthographic isometric view. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart contacts use the damped rebound and scrape response described above; neither direct nor oblique hits choose a forced tangent heading.
 
 ### Backflip animation review (separate page)
 
@@ -133,6 +135,6 @@ Source: `isaiasurrutia96/3D-WORLD-3`, branch `chatgpt-work`, pinned commit `b60e
 
 Open [the wall-contact preview](wall-contact-preview.html) to compare head-on and shallow-angle impacts using the current kart and avatar. Replay, pause, slow playback and timeline seeking are available. A [short MP4](public/previews/wall-contact.mp4) is included.
 
-The proposed response is isolated in `src/preview/wall-contact.js` and is not connected to live track collisions yet. It uses zero-restitution contact impulses, friction and continuous angular motion. This is a low-speed motion study without damage simulation.
+This earlier zero-restitution study remains isolated in `src/preview/wall-contact.js`. The live track now uses the separately tuned slight-rebound response in `src/vehicle-contact.js`; the old preview is not an exact demonstration of the current live physics. Neither includes damage simulation.
 
 Next requested tuning, after reviewing wall contact: **increase kart speed and improve handling**. See [TODO.md](TODO.md).

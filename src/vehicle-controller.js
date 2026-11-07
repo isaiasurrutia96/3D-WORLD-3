@@ -1,17 +1,20 @@
 import {KART_POSITION} from './kart.js';
 import {GRAVITY} from './running-controller.js';
+import {moveKartAgainstRails} from './vehicle-contact.js';
 
-export const VEHICLE_TOP_SPEED=42,REVERSE_SPEED=8,NITRO_TOP_SPEED=66;
-export const STEERING_LOCK=.39;
+export const VEHICLE_TOP_SPEED=120*.44704,REVERSE_SPEED=8,NITRO_TOP_SPEED=180*.44704;
+export const STEERING_LOCK=.415;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
 }
 export function stepVehicle(state,input,dt,world){
- const previousYaw=state.yaw;
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
+ state.impactRecovery=Math.max(0,(state.impactRecovery??0)-dt);
+ state.impactYawRate=(state.impactYawRate??0)*Math.exp(-6*dt);
+ state.lateralSpeed=(state.lateralSpeed??0)*Math.exp(-7*dt);
  const boosting=state.boostTime>0,spinning=state.spinTime>0;
  state.boostTime=Math.max(0,state.boostTime-dt);
  if(spinning){const spinStep=Math.min(dt,state.spinTime);state.yaw+=spinStep*Math.PI*2/.75;state.spinTime=Math.max(0,state.spinTime-dt);}
@@ -21,45 +24,32 @@ export function stepVehicle(state,input,dt,world){
  const braking=!!input.brake;
  const throttle=boosting&&rawThrottle>=0&&!braking?1:rawThrottle;
  const topSpeed=boosting?NITRO_TOP_SPEED:VEHICLE_TOP_SPEED;
+ if(state.impactRecovery>0&&rawThrottle>=0)state.speed*=Math.exp(-6*dt);
  if(spinning)state.speed=approach(state.speed,0,20*dt);
  else if(braking)state.speed=approach(state.speed,0,36*dt);
- else if(throttle>0){
+ else if(throttle>0&&state.impactRecovery<=0){
   state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?36:16))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
- else state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
- // Grip steering follows the wheel input directly, with a smooth return.
+ else if(state.impactRecovery<=0)state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
+ // A slower build and quicker release soften short taps. Sustained steering
+ // reaches a slightly stronger lock without a separate tap/hold mode.
  const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
- state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-9*dt));
- if(state.grounded&&!spinning)state.yaw-=state.speed/WHEELBASE*Math.tan(state.steering)*dt;
+ const building=steer*state.steering>=0&&Math.abs(steer*maxSteer)>Math.abs(state.steering);
+ state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-(building?6.5:14)*dt));
+ // Driven wheels can still turn the nose away while pushing against a rail.
+ // This small steering response requires player input, never a forced yaw.
+ const turnSpeed=state.railContactTime>0&&throttle>0?Math.max(state.speed,2):state.speed;
+ const steeringTurn=state.grounded&&!spinning?-turnSpeed/WHEELBASE*Math.tan(state.steering)*dt:0;
+ const travelYaw=state.yaw+steeringTurn;
+ state.yaw=travelYaw+state.impactYawRate*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);
- const vx=sin*state.speed,vz=cos*state.speed;
- let x=oldX+vx*dt,z=oldZ+vz*dt;
- const proposedX=x,proposedZ=z;
- // A short capsule approximates the kart's width/length, including the tires.
- for(const offset of [-.35,.35]){
-  const oldPX=oldX+Math.sin(previousYaw)*offset,oldPZ=oldZ+Math.cos(previousYaw)*offset;
-  const targetX=x+sin*offset,targetZ=z+cos*offset;
-  const resolved=world.resolveHorizontal(oldPX,oldPZ,targetX,targetZ,state.y,1.18,1.8);
-  x+=resolved.x-targetX;z+=resolved.z-targetZ;
- }
- if(Math.hypot(x-proposedX,z-proposedZ)>.001){
-  // Remove inward motion and guide the kart along the rail, with only a
-  // tiny outward bias. Reflection made glancing hits fling it across the road.
-  const correctionX=x-proposedX,correctionZ=z-proposedZ,length=Math.hypot(correctionX,correctionZ);
-  const nx=correctionX/length,nz=correctionZ/length;
-  if(vx*nx+vz*nz<0){
-   const tx=-nz,tz=nx,incoming=Math.abs(state.speed),along=vx*tx+vz*tz;
-   // A direct hit has no meaningful tangent. Use the requested turn (or a
-   // consistent default) so holding forward cannot pin the nose to the wall.
-   const direction=Math.abs(along)>incoming*.08?Math.sign(along):-(Math.sign(steer)||1);
-   const loss=state.railContactTime>0?Math.exp(-.10*dt):.96;
-   const speed=incoming*loss,away=.018,sign=Math.sign(state.speed)||1;
-   const dx=tx*direction+nx*away,dz=tz*direction+nz*away;
-   state.speed=speed*sign;state.yaw=Math.atan2(dx*sign,dz*sign);
-   x+=nx*.015;z+=nz*.015;state.steering*=.7;state.railContactTime=.22;
-  }
- }
- state.x=x;state.z=z;
+ let vx=Math.sin(travelYaw)*state.speed+Math.cos(travelYaw)*state.lateralSpeed,vz=Math.cos(travelYaw)*state.speed-Math.sin(travelYaw)*state.lateralSpeed;
+ const magnitude=Math.hypot(vx,vz),limit=Math.max(topSpeed,Math.abs(state.speed));
+ if(magnitude>limit){vx*=limit/magnitude;vz*=limit/magnitude;}
+ const velocity=moveKartAgainstRails(state,vx,vz,dt,world);
+ state.speed=velocity.vx*sin+velocity.vz*cos;
+ state.lateralSpeed=velocity.vx*cos-velocity.vz*sin;
+ const x=state.x,z=state.z;
  const travel=(x-oldX)*sin+(z-oldZ)*cos;
  state.wheelRotation+=travel/WHEEL_RADIUS;
  const ground=world.supportHeight(x,z,state.y+.65);
@@ -82,10 +72,10 @@ export function stepVehicle(state,input,dt,world){
  }
 }
 export function canEnterVehicle(runner,kart){
- return runner.grounded&&kart.grounded&&Math.hypot(runner.x-kart.x,runner.z-kart.z)<4.5&&Math.abs(runner.y-kart.y)<.7&&Math.abs(kart.speed)<.75;
+ return runner.grounded&&kart.grounded&&Math.hypot(runner.x-kart.x,runner.z-kart.z)<4.5&&Math.abs(runner.y-kart.y)<.7&&Math.hypot(kart.speed,kart.lateralSpeed??0)<.75;
 }
 export function findExitPosition(kart,world){
- if(!kart.grounded||Math.abs(kart.speed)>.75)return null;
+ if(!kart.grounded||Math.hypot(kart.speed,kart.lateralSpeed??0)>.75)return null;
  for(const [side,forward]of [[1.95,-.2],[-1.95,-.2],[0,-2.3],[0,2.5]]){
   const x=kart.x+Math.cos(kart.yaw)*side+Math.sin(kart.yaw)*forward;
   const z=kart.z-Math.sin(kart.yaw)*side+Math.cos(kart.yaw)*forward;
