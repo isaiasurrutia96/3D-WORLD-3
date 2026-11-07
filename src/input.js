@@ -12,7 +12,7 @@ export function readMoveAxes(keys) {
 export function readDrivingInput(keys,touch={}) {
   const left=keys.has('KeyS')||keys.has('ArrowLeft'),right=keys.has('KeyF')||keys.has('ArrowRight');
   const brake=keys.has('KeyD')||keys.has('ArrowDown')||touch.secondary||touch.secondaryPressed;
-  return {throttle:brake?-1:keys.has('KeyE')||touch.gas?1:0,steer:Math.max(-1,Math.min(1,Number(right)-Number(left)+(touch.right??0))),drift:keys.has('Space')||!!touch.drift};
+  return {throttle:brake?-1:keys.has('KeyE')||touch.gas?1:0,steer:Math.max(-1,Math.min(1,Number(right)-Number(left)+(touch.right??0)))};
 }
 
 export function wantsSprint(keys) {

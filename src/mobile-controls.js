@@ -24,10 +24,9 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
   const value=input.peek();
   thumb.style.setProperty('--stick-x',`${value.right*32}px`);thumb.style.setProperty('--stick-y',`${-value.forward*32}px`);
   for(const [button,action]of buttons){const active=button===primary&&drivingMode?value.gas:input.isHeld(action);button.classList.toggle('is-held',active);button.setAttribute('aria-pressed',String(active));}
-  primary.classList.toggle('is-drifting',drivingMode&&value.drift);
-  text('touch-primary-label',drivingMode?(value.drift?'Drift':'Gas'):'Jump');
-  text('touch-primary-hint',drivingMode?(value.drift?'Slide down: gas':'Slide farther up'):'');
-  primary.setAttribute('aria-label',drivingMode?'Hold for gas; slide farther up to drift and down to return to gas':'Jump');
+  text('touch-primary-label',drivingMode?'Gas':'Jump');
+  text('touch-primary-hint',drivingMode?'Hold to accelerate':'');
+  primary.setAttribute('aria-label',drivingMode?'Hold to accelerate':'Jump');
  }
  function capture(element,event){
   try{element.setPointerCapture(event.pointerId);}catch{}
@@ -73,21 +72,17 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
  for(const [button,action]of buttons){
   button.addEventListener('pointerdown',event=>{
    if(!prepare(event))return;
-   if(button===primary&&drivingMode){if(!input.beginGas(event.pointerId,event.clientY))return;}
+   if(button===primary&&drivingMode){if(!input.beginGas(event.pointerId))return;}
    else input.hold(event.pointerId,action);
    capture(button,event);paint();
   });
   button.addEventListener('keydown',event=>{
    if(event.code!=='Space'&&event.code!=='Enter'||event.repeat)return;
    event.preventDefault();onDriveIntent();const id=`key-${action}-${event.code}`;
-   if(button===primary&&drivingMode){if(!input.beginGas(id,0))return;}else input.hold(id,action);
+   if(button===primary&&drivingMode){if(!input.beginGas(id))return;}else input.hold(id,action);
    keyOwners.set(id,event.code);paint();
   });
  }
- primary.addEventListener('pointermove',event=>{
-  if(!drivingMode||captures.get(event.pointerId)?.element!==primary)return;
-  event.preventDefault();input.moveGas(event.pointerId,event.clientY);paint();
- });
  for(const element of [steer,...buttons.map(([button])=>button)]){
   element.addEventListener('pointermove',event=>event.stopPropagation());
   element.addEventListener('pointerup',event=>{event.stopPropagation();finish(event);});

@@ -1,0 +1,2 @@
+- [ ] Review the isolated wall-contact animation before applying its response to the live track.
+- [ ] Then increase kart speed and improve handling, as requested.

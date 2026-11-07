@@ -48,9 +48,9 @@ const walkingChart=document.querySelector('.movement-keys').innerHTML;
 const walkingLabel=canvas.getAttribute('aria-label');
 function setDrivingChart(){
  document.querySelector('.movement-keys').innerHTML=driving
-  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D / ↓</kbd>Brake / reverse</span><span><kbd>S / ←</kbd>Steer left</span><span><kbd>F / →</kbd>Steer right</span><span class="drift-key"><kbd>SPACE</kbd>Drift</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
+  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D / ↓</kbd>Brake / reverse</span><span><kbd>S / ←</kbd>Steer left</span><span><kbd>F / →</kbd>Steer right</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
   : walkingChart;
- canvas.setAttribute('aria-label',driving?'E accelerates; D or Down Arrow brakes and reverses. S/F or Left/Right Arrows steer. Space arms drift without braking; hold a turn to build the slide. Short steering taps stay gentle. Release steering to hold the arc; countersteer to straighten. Shift uses the held item; H exits when stopped.':walkingLabel);
+ canvas.setAttribute('aria-label',driving?'E accelerates; D or Down Arrow brakes and reverses. S/F or Left/Right Arrows steer. Shift uses the held item; H exits when stopped.':walkingLabel);
 }
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
@@ -141,6 +141,7 @@ controls.addEventListener('end',()=>{orbiting=false;manualCameraUntil=performanc
 const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
   if(!playing||event.target.closest('input,textarea,select,button,summary,a'))return;
+  if(driving&&event.code==='Space'){event.preventDefault();return;}
   if(directionKeys.has(event.code)||(driving&&DRIVING_KEYS.has(event.code))){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
   if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
@@ -206,7 +207,7 @@ function frame(time){
     previousKart={...kartState};jumpQueued=false;
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
     const drivingInput=readDrivingInput(keys,mobile.consume());
-    if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.drift=false;drivingInput.brake=true;}
+    if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
     const startForward=drivingInput.throttle>0&&!drivingInput.brake;
     if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
@@ -247,7 +248,6 @@ function frame(time){
   const mph=String(driving?speedToMph(kartState.speed):0);if(speedometer.value!==mph)speedometer.value=mph;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
   canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;
-  canvas.dataset.drifting=String(driving&&kartState.drifting);
   mobile.update({driving,heldItem:kartState.heldItem,boosting:kartState.boostTime>0,interactionText:driving?(mobileExitPending?'Stop…':'Exit'):'Kart',canInteract:driving||canEnterVehicle(runner,kartState),canFlip:runner.grounded&&runner.speed<.65});
 }
 

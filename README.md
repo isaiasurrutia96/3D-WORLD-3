@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and racing circuit. Kart driving now includes controlled drifting. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
+Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and racing circuit. Kart driving uses grip steering; drifting has been removed. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
 
 ## Controls
 
@@ -12,7 +12,7 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 - Drag to orbit, scroll/pinch to zoom, L to lock the mouse, Esc to release, R to reset the view.
 - The fixed overhead minimap shows the circuit and overpass. The blue arrow follows your position and facing direction in the kart or on foot; the white line marks start/finish. Colored dots replay the saved top-four ghosts at the same positions as the 3D ghost karts and follow the existing **Top 4 ghosts** toggle. The slab is not drawn on the map; an off-circuit player remains indicated at the map edge. Its phone layout leaves driving and on-foot touch controls clear.
 - H: enter the kart when nearby; H exits when stopped and a safe spot is available.
-- While driving: E accelerates, D or Down Arrow brakes/reverses, S/F or Left/Right Arrows steer, and a fresh Shift press uses the held item. Space only arms drift and never applies a brake. Brief steering taps stay identical to normal steering; a sustained turn establishes a slide and builds its angle progressively. Release steering to hold an established arc, countersteer to progressively straighten, and release Space to regain grip. The independent brake overrides gas and Nitro. The mouse changes the view without steering.
+- While driving: E accelerates, D or Down Arrow brakes/reverses, S/F or Left/Right Arrows steer, and a fresh Shift press uses the held item. Steering uses grip with no drift mode. Space has no kart action; it remains Jump on foot. The brake overrides gas and Nitro. The mouse changes the view without steering.
 - Q + Space while standing still: a standing backflip, with a grounded load/push-off, backward launch, single tucked turn and landing absorption. Holding the chord does not repeat it.
 - Space on foot: single jump from standing, walking or sprinting. Holding Space does not auto-repeat; release and press again for another jump.
 - Walking, running and normal jumping use Claude’s native rig and pose animation. Idle remains still.
@@ -22,15 +22,15 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 Touch devices use a layout based on the mobile racing reference, in portrait or landscape:
 
 - The larger bottom-left **Left / Right** buttons steer the kart. Each finger releases independently; pressing both steering buttons gives neutral steering.
-- Hold the bottom-right **Gas** pad to accelerate. Slide that same finger up at least 52 CSS pixels to arm **Drift**; small movements stay on Gas. Slide back to within 24 pixels of the contact point to return to gas without lifting. Lift to release gas and drift. The separate entry/release thresholds prevent finger jitter toggling drift. The kart waits for Gas before starting the lap; it no longer auto-accelerates.
-- On both mobile and laptop, drift starts with normal steering: holding a direction for 0.18 seconds establishes the slide, then builds its angle gradually. A short countersteer unwinds an established arc toward straight; holding the opposite direction longer blends a new turn. Body alignment is rate-limited while unwinding, and releasing drift eases alignment over 0.55 seconds. **Space** and the upward swipe only control drift. The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over gas and Nitro.
+- Hold the bottom-right **Gas** button to accelerate. Moving that finger does not activate another driving mode; lift to release Gas. The kart waits for Gas before starting the lap.
+- The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over Gas and Nitro. Speed and steering lock are unchanged in this update.
 - During gameplay the full game surface prevents native pinch/double-tap webpage zoom, with Safari gesture-event guards. Intentional camera gestures on the canvas remain available; browser zoom on the home screen is unaffected.
-- The upper-right item button shows **Boost** or **Shell** after collecting a box. One tap uses the held item, including while other fingers hold steering and drift. Holding the button cannot automatically consume a later pickup.
+- The upper-right item button shows **Boost** or **Shell** after collecting a box. One tap uses the held item, including while other fingers hold steering and Gas. Holding the button cannot automatically consume a later pickup.
 - **View** changes between the existing third-person and isometric cameras. The **Laps & ghosts** disclosure keeps times, replay toggle and restart accessible without covering the driving controls; it opens beside the HUD on short landscape screens.
 - **Exit** brakes to a stop before using the existing safe kart exit. On foot, the left pad becomes **Move** (small movements walk, larger movements run), the right button becomes **Jump**, and the secondary button becomes a standing **Flip**. **Kart** re-enters when nearby.
 - Returning Home, cancelling a touch, changing orientation, losing focus or hiding the page clears held fingers. Background/home simulation does not advance. Play starts another attempt without deleting records.
 
-`src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture and document-level release/cancel handling, including release outside a control when capture fails. It also recovers after all touches end and ignores stale capture-loss notifications. The touch input merges into the existing keyboard/vehicle interfaces. `tests/mobile-input.test.js` covers stick limits, button/finger ownership, cancellation, queued taps, input precedence and combined steering/drift. `tests/jump-drift.test.js` checks gentle drift recovery, travel direction, retained speed and countersteering.
+`src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture and document-level release/cancel handling, including release outside a control when capture fails. It also recovers after all touches end and ignores stale capture-loss notifications. The touch input merges into the existing keyboard/vehicle interfaces. `tests/mobile-input.test.js` covers stick limits, button/finger ownership, cancellation, queued taps, input precedence and combined steering/Gas. `tests/jump-driving.test.js` checks the jump, independent brakes and inert Space input while driving.
 
 ## Development
 
@@ -77,11 +77,11 @@ Additional checks cover the slab/bridge seam, guardrail blocking/clearance, a co
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, slightly reduced speed-sensitive steering (0.39 low-speed lock), guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s, with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 66 m/s, with 36 m/s² boosted acceleration for the existing two-second burst. Space only arms drift; D or Down Arrow brakes/reverses. There are no CPU opponents or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, slightly reduced speed-sensitive steering (0.39 low-speed lock), guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 42 m/s, with 16 m/s² forward acceleration and speed-adjusted steering; reverse is 8 m/s. Nitro raises the temporary cap to 66 m/s, with 36 m/s² boosted acceleration for the existing two-second burst. D or Down Arrow brakes/reverses; Space has no kart action. There are no CPU opponents or vehicle jumps.
 
-Hold **Space + S/F** (or **Space + Left/Right Arrow**) above 12 m/s to build a controlled drift. Steering starts normally; a 0.18-second hold establishes the slide, then builds its angle up to about 32 degrees. Brief taps never latch a full turn. Releasing steering while holding Space carries a gentler established arc. Countersteering progressively unwinds it toward straight; continued opposite input blends a new turn, and releasing the correction retains it. Steering into the original direction tightens the arc again. Changes to the sideways body angle preserve the travel heading, so body alignment cannot add an unintended turn. Releasing Space restores grip smoothly. **E + Space** maintains acceleration while armed or drifting; Space never brakes. **D / Down Arrow**, or the mobile **↓ Brake** button, takes priority over Gas and Nitro and retains brake-before-reverse behavior. Coasting drifts lose speed naturally. Braking, reversing, low speed, airborne travel and shell spins cancel drifting. Rail contact cancels the slide and requires releasing drift before starting another. Drifting adds no speed boost or mini-turbo. Position and body heading remain in the existing ghost trace, with no change to saved-record formats or course identifiers.
+The kart follows its facing direction with speed-sensitive grip steering and smooth wheel input. There is no drift state, slip-angle offset, gesture or key binding. Saved replay fields and course identifiers are unchanged, so existing lap records are preserved. The existing live rail response is unchanged pending review of the isolated wall-contact proposal below.
 
-The compact top-right lap/ghost panel also displays kart speed in **MPH**, converted from metres per second and rounded to a whole number. Reverse shows speed magnitude; on foot the kart readout is zero. The timer starts when E or Gas supplies forward input; arming drift does not prevent a start.
+The compact top-right lap/ghost panel also displays kart speed in **MPH**, converted from metres per second and rounded to a whole number. Reverse shows speed magnitude; on foot the kart readout is zero. The timer starts when E or Gas supplies forward input.
 
 `src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. The chase camera follows the kart's heading, while mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
@@ -128,3 +128,11 @@ Source: `isaiasurrutia96/3D-WORLD-3`, branch `chatgpt-work`, pinned commit `b60e
 - `src/vehicle-view.js` seats the imported rig. `src/ghost-kart.js` bakes that seated model into the existing shared ghost geometry. Recorded kart coordinates and storage keys are unchanged, so saved lap traces still replay.
 
 `tests/fixtures/claude-ground-b60e295.json` contains ground-pose and motor snapshots generated from the original source, not from this adapter. `tests/stage1.test.js` compares against them and checks source proportions, input speeds, state isolation, mount/reset, retained aerial moves and traversal of both circuit levels. Browser checks cover the visible figure, run/Shift-walk, jump/backflip, kart entry/exit and trial startup.
+
+## Wall-contact review
+
+Open [the wall-contact preview](wall-contact-preview.html) to compare head-on and shallow-angle impacts using the current kart and avatar. Replay, pause, slow playback and timeline seeking are available. A [short MP4](public/previews/wall-contact.mp4) is included.
+
+The proposed response is isolated in `src/preview/wall-contact.js` and is not connected to live track collisions yet. It uses zero-restitution contact impulses, friction and continuous angular motion. This is a low-speed motion study without damage simulation.
+
+Next requested tuning, after reviewing wall contact: **increase kart speed and improve handling**. See [TODO.md](TODO.md).

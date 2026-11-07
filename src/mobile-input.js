@@ -1,6 +1,4 @@
 const clamp=value=>Math.max(-1,Math.min(1,value));
-export const GAS_DRIFT_SWIPE=52;
-const GAS_DRIFT_RELEASE=24;
 
 export function stickDirection(dx,dy,radius){
  const x=dx/Math.max(1,radius),y=-dy/Math.max(1,radius),length=Math.hypot(x,y);
@@ -14,19 +12,12 @@ export function stickDirection(dx,dy,radius){
 export function createMobileInput(){
  const held=new Map();let stick=null,pedal=null,right=0,forward=0,primaryPressed=false,secondaryPressed=false;
  const isHeld=action=>[...held.values()].includes(action);
- function read(){return{right:clamp(right+Number(isHeld('right'))-Number(isHeld('left'))),forward,primary:isHeld('primary'),primaryPressed,secondary:isHeld('secondary'),secondaryPressed,gas:pedal!==null,drift:pedal?.drift??false};}
+ function read(){return{right:clamp(right+Number(isHeld('right'))-Number(isHeld('left'))),forward,primary:isHeld('primary'),primaryPressed,secondary:isHeld('secondary'),secondaryPressed,gas:pedal!==null};}
  return{
   isHeld,
   beginStick(id){if(stick!==null&&stick!==id)return false;stick=id;return true;},
   moveStick(id,axes){if(stick===id){right=clamp(axes.right);forward=clamp(axes.forward);}},
-  beginGas(id,y){if(pedal!==null)return false;pedal={id,y,drift:false};return true;},
-  moveGas(id,y){
-   if(pedal?.id!==id)return;
-   // Separate entry/release thresholds prevent finger jitter toggling drift.
-   const rise=pedal.y-y;
-   if(rise>=GAS_DRIFT_SWIPE)pedal.drift=true;
-   else if(rise<=GAS_DRIFT_RELEASE)pedal.drift=false;
-  },
+  beginGas(id){if(pedal!==null)return false;pedal={id};return true;},
   hold(id,action){if(![...held.values()].includes(action)){if(action==='primary')primaryPressed=true;else if(action==='secondary')secondaryPressed=true;}held.set(id,action);},
   release(id,cancelled=false){
    if(stick===id){stick=null;right=0;forward=0;}
