@@ -216,7 +216,7 @@ function frame(time){
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);applyItems(kartPose,driving);applyTrial(alpha,STEP);
+  applyKart(kartPose);applyItems(kartPose,driving);const ghostPoses=applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -226,7 +226,7 @@ function frame(time){
    animation.update({...runner,distance,phase},dt);
   }
   const focus=driving?kartPose:avatar.position;
-  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y);
+  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses);
   const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
   if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){

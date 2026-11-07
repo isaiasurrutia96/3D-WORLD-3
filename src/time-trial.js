@@ -4,6 +4,7 @@ export const COURSE_ID='letsgo-circuit-d4a711d-start95-v1';
 export const STORAGE_KEY='letsgo.top-laps.v2';
 export const LEGACY_STORAGE_KEY='letsgo.best-lap.v1';
 export const MAX_GHOSTS=4;
+export const GHOST_COLORS=Object.freeze(['#8deafa','#d7a2ff','#ffc578','#8cf0a3']);
 export const START_INDEX=95,CHECKPOINT_COUNT=12,GHOST_HZ=30,MAX_LAP_SECONDS=1800;
 export const COURSE_LENGTH=trackSamples.at(-1).distance;
 const COUNT=trackSamples.length-1,START_DISTANCE=trackSamples[START_INDEX].distance;

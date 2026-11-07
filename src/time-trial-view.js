@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {createGhostTemplate} from './ghost-kart.js';
 import {createVehicleView} from './vehicle-view.js';
-import {GATES,CHECKPOINT_COUNT,MAX_GHOSTS,sampleGhost,formatTime} from './time-trial.js';
+import {GATES,CHECKPOINT_COUNT,MAX_GHOSTS,GHOST_COLORS,sampleGhost,formatTime} from './time-trial.js';
 import {TRACK_HALF_WIDTH} from './track.js';
 
 export function createTimeTrialView(scene,state){
@@ -33,10 +33,10 @@ export function createTimeTrialView(scene,state){
    gateNodes.push({node,highlights,index:gate.index});
   }
  }
- const colors=['#8deafa','#d7a2ff','#ffc578','#8cf0a3'],template=createGhostTemplate();
+ const template=createGhostTemplate();
  const ghosts=Array.from({length:MAX_GHOSTS},(_,index)=>{
   const model=template.clone();model.name=index===0?'Best lap ghost':`Lap ghost ${index+1}`;model.userData.rank=index+1;
-  const material=new THREE.MeshBasicMaterial({color:colors[index],transparent:true,opacity:.26,depthWrite:false});
+  const material=new THREE.MeshBasicMaterial({color:GHOST_COLORS[index],transparent:true,opacity:.26,depthWrite:false});
   model.traverse(node=>{if(node.isMesh){node.material=material;node.castShadow=false;node.receiveShadow=false;}});scene.add(model);model.visible=false;
   return{model,material,apply:createVehicleView(model)};
  });
@@ -47,12 +47,20 @@ export function createTimeTrialView(scene,state){
   const active=state.status==='ready'||state.status==='running';
   for(const gate of gateNodes){const expected=state.passed<CHECKPOINT_COUNT?state.passed+1:0;gate.node.visible=active&&gate.index===expected;for(const part of gate.highlights)part.visible=gate.index===expected;}
   const time=state.status==='running'?Math.max(0,state.elapsed-(1-alpha)*step):0;
-  ghosts.forEach(({model,material,apply},index)=>{material.opacity=.26*Math.min(1,time/.5);const pose=state.status==='running'&&state.showGhost?sampleGhost(state.ghostRecords[index],time):null;model.visible=!!pose;if(pose)apply(pose);});
+  // The minimap consumes these same sampled poses, so its dots cannot drift
+  // away from the 3D ghosts. At the start line it can also show saved ghosts.
+  const ghostPoses=ghosts.map(({model,material,apply},index)=>{
+   material.opacity=.26*Math.min(1,time/.5);
+   const pose=active&&state.showGhost?sampleGhost(state.ghostRecords[index],time):null;
+   model.visible=state.status==='running'&&!!pose;if(model.visible)apply(pose);
+   return pose;
+  });
   for(const rank of ranks)rank.value=formatTime(state.records[Number(rank.dataset.lapRank)-1]?.duration);
   timer.value=formatTime(state.elapsed);best.value=formatTime(state.best?.duration);lap.textContent=`Lap ${state.completed+1}`;
   last.textContent=state.lastLap==null?'':`${state.lastWasBest?'New best':state.lastRank?`New #${state.lastRank}`:'Last lap'} ${formatTime(state.lastLap)}`;
   button.textContent=state.status==='idle'?'Start in kart · T':'Restart lap · T';toggle.disabled=!state.best;toggle.checked=state.showGhost;
   const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Your top four laps become ghosts';
   if(text!==message){status.textContent=text;message=text;}
+  return ghostPoses;
  };
 }
