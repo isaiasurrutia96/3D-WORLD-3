@@ -1,6 +1,6 @@
 const clamp=value=>Math.max(-1,Math.min(1,value));
-export const GAS_DRIFT_SWIPE=28;
-const GAS_DRIFT_RELEASE=12;
+export const GAS_DRIFT_SWIPE=52;
+const GAS_DRIFT_RELEASE=24;
 
 export function stickDirection(dx,dy,radius){
  const x=dx/Math.max(1,radius),y=-dy/Math.max(1,radius),length=Math.hypot(x,y);

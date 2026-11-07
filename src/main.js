@@ -11,7 +11,7 @@ import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveP
 import {createItemSystem,useHeldItem,stepItems} from './items.js';
 import {createItemView} from './item-view.js';
 import {createVehicleView,createSeatedPose,speedToMph} from './vehicle-view.js';
-import {MOVEMENT_KEYS,DRIVING_STEERING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
+import {MOVEMENT_KEYS,DRIVING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
 import {createMobileControls,bindPress} from './mobile-controls.js';
 import {createMinimap} from './minimap.js';
 
@@ -48,9 +48,9 @@ const walkingChart=document.querySelector('.movement-keys').innerHTML;
 const walkingLabel=canvas.getAttribute('aria-label');
 function setDrivingChart(){
  document.querySelector('.movement-keys').innerHTML=driving
-  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D</kbd>Brake / reverse</span><span><kbd>S / ←</kbd>Steer left</span><span><kbd>F / →</kbd>Steer right</span><span class="drift-key"><kbd>SPACE</kbd>E-brake / drift</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
+  ? '<span><kbd>E</kbd>Accelerate</span><span><kbd>D / ↓</kbd>Brake / reverse</span><span><kbd>S / ←</kbd>Steer left</span><span><kbd>F / →</kbd>Steer right</span><span class="drift-key"><kbd>SPACE</kbd>Drift</span><span><kbd>SHIFT</kbd>Use item</span><span id="held-item" aria-live="polite">Item: —</span><span><kbd>H</kbd><span id="kart-action">Exit kart</span></span>'
   : walkingChart;
- canvas.setAttribute('aria-label',driving?'Drive the kart with E/D and steer with S/F or left/right arrows. Hold Space while steering to drift; keep E held to accelerate. Release steering to hold the arc; countersteer to straighten. Space outside a drift applies the e-brake even while accelerating. Shift uses the held item; H exits when stopped.':walkingLabel);
+ canvas.setAttribute('aria-label',driving?'E accelerates; D or Down Arrow brakes and reverses. S/F or Left/Right Arrows steer. Space arms drift without braking; hold a turn to build the slide. Short steering taps stay gentle. Release steering to hold the arc; countersteer to straighten. Shift uses the held item; H exits when stopped.':walkingLabel);
 }
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
@@ -141,7 +141,7 @@ controls.addEventListener('end',()=>{orbiting=false;manualCameraUntil=performanc
 const directionKeys=MOVEMENT_KEYS;
 window.addEventListener('keydown',event=>{
   if(!playing||event.target.closest('input,textarea,select,button,summary,a'))return;
-  if(directionKeys.has(event.code)||(driving&&DRIVING_STEERING_KEYS.has(event.code))){event.preventDefault();keys.add(event.code);}
+  if(directionKeys.has(event.code)||(driving&&DRIVING_KEYS.has(event.code))){event.preventDefault();keys.add(event.code);}
   if(event.code==='Space'){event.preventDefault();if(!event.repeat)jumpQueued=true;}
   if(event.code==='KeyH'){event.preventDefault();if(!event.repeat)interactionQueued=true;}
   if(driving&&(event.code==='ShiftLeft'||event.code==='ShiftRight')&&!event.repeat)itemQueued=true;
@@ -149,6 +149,10 @@ window.addEventListener('keydown',event=>{
 window.addEventListener('keyup',event=>keys.delete(event.code));
 window.addEventListener('blur',()=>{gameFocused=false;clearInputs();previousTime=undefined;accumulator=0;});
 window.addEventListener('focus',()=>{gameFocused=true;previousTime=undefined;});
+// Keep browser zoom gestures out of gameplay. Pointer Events still reach
+// OrbitControls for intentional camera gestures on the canvas.
+for(const type of ['gesturestart','gesturechange','gestureend','dblclick'])document.addEventListener(type,event=>{if(playing)event.preventDefault();},{passive:false});
+document.addEventListener('touchmove',event=>{if(playing&&event.touches.length>1)event.preventDefault();},{passive:false});
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
@@ -203,7 +207,7 @@ function frame(time){
     if(itemQueued){useHeldItem(itemSystem,kartState);itemQueued=false;}
     const drivingInput=readDrivingInput(keys,mobile.consume());
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.drift=false;drivingInput.brake=true;}
-    const startForward=drivingInput.throttle>0&&!drivingInput.eBrake&&!drivingInput.brake;
+    const startForward=drivingInput.throttle>0&&!drivingInput.brake;
     if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}

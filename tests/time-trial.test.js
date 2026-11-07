@@ -72,13 +72,15 @@ test('a lap with repeated drifts still validates and records the sideways kart p
   const target=trackSamples[(index+2)%count].point,desired=Math.atan2(target.x-kart.x,target.z-kart.z);
   const error=Math.atan2(Math.sin(desired-kart.yaw-kart.driftAngle),Math.cos(desired-kart.yaw-kart.driftAngle)),steer=Math.max(-1,Math.min(1,-error*2));
   rest=Math.max(0,rest-dt);driftTime=Math.max(0,driftTime-dt);
-  if(rest===0&&kart.speed>12&&Math.abs(steer)>.2){driftTime=.3;rest=5;}
+  // Hold through the deliberate drift-entry phase; brief taps now correctly
+  // remain normal turns rather than supplying sideways replay coverage.
+  if(rest===0&&kart.speed>12&&Math.abs(steer)>.2){driftTime=1.2;rest=5;}
   const previous={...kart};stepVehicle(kart,{throttle:kart.speed<13?1:0,steer,brake:kart.speed>15,drift:driftTime>0},dt,worldPhysics);
   stepTimeTrial(state,previous,kart,frame===0,dt);peak=Math.max(peak,kart.y);
   if(kart.drifting){driftTicks++;if(!sample&&Math.abs(kart.driftAngle)>.15)sample={time:state.elapsed,...kart};}
   assert.equal(state.status,'running',state.reason);assert.equal(kart.grounded,true);
  }
- assert.equal(state.completed,1);assert.ok(driftTicks>500&&peak>8);assert.ok(sample);
+ assert.equal(state.completed,1);assert.ok(driftTicks>500&&peak>8,JSON.stringify({driftTicks,peak}));assert.ok(sample);
  const replay=sampleGhost(state.best,sample.time);
  assert.ok(Math.hypot(replay.x-sample.x,replay.z-sample.z)<.02);
  assert.ok(Math.abs(Math.atan2(Math.sin(replay.yaw-sample.yaw),Math.cos(replay.yaw-sample.yaw)))<.01);

@@ -80,6 +80,8 @@ canvas[data-drifting="true"]~.key-chart .drift-key kbd{color:#b5f8ff;border-colo
 
 .minimap{position:absolute;z-index:4;top:132px;left:max(40px,env(safe-area-inset-left));width:192px;height:160px;padding:8px;border:1px solid #65758d66;border-radius:14px;background:#101b35bb;pointer-events:none;user-select:none}
 .minimap svg{display:block;width:100%;height:100%}
+#app[data-screen="game"],#app[data-screen="game"] *{touch-action:none}
+#app[data-screen="game"]{user-select:none;-webkit-user-select:none}
 .touch-mode .minimap{top:max(76px,calc(env(safe-area-inset-top) + 60px));left:max(16px,env(safe-area-inset-left));width:144px;height:120px;padding:6px}
 @media(max-width:380px){.touch-mode .minimap{top:max(124px,calc(env(safe-area-inset-top) + 108px));width:128px;height:108px}}
 @media(orientation:landscape) and (max-height:550px){

@@ -26,8 +26,8 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
   for(const [button,action]of buttons){const active=button===primary&&drivingMode?value.gas:input.isHeld(action);button.classList.toggle('is-held',active);button.setAttribute('aria-pressed',String(active));}
   primary.classList.toggle('is-drifting',drivingMode&&value.drift);
   text('touch-primary-label',drivingMode?(value.drift?'Drift':'Gas'):'Jump');
-  text('touch-primary-hint',drivingMode?(value.drift?'Slide down: gas':'Slide up: drift'):'');
-  primary.setAttribute('aria-label',drivingMode?'Hold for gas; slide up to drift and down to return to gas':'Jump');
+  text('touch-primary-hint',drivingMode?(value.drift?'Slide down: gas':'Slide farther up'):'');
+  primary.setAttribute('aria-label',drivingMode?'Hold for gas; slide farther up to drift and down to return to gas':'Jump');
  }
  function capture(element,event){
   try{element.setPointerCapture(event.pointerId);}catch{}
@@ -108,7 +108,7 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
    if(drivingMode!==driving){drivingMode=driving;paint();}
    document.getElementById('touch-controls').dataset.mode=driving?'driving':'on-foot';
    steer.hidden=driving;steeringButtons.hidden=!driving;
-   text('touch-steer-label',driving?'Steer':'Move');text('touch-secondary-label',driving?'Reverse':'Flip');
+   text('touch-steer-label',driving?'Steer':'Move');text('touch-secondary-label',driving?'Brake':'Flip');
    secondary.setAttribute('aria-label',driving?'Hold to brake and reverse':'Standing backflip');
    secondary.setAttribute('aria-disabled',String(!driving&&!canFlip));secondary.classList.toggle('is-unavailable',!driving&&!canFlip);
    const kind=driving?(heldItem??(boosting?'boosting':'none')):'none';
