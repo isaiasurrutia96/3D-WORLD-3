@@ -9,25 +9,23 @@ const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
 }
 export function stepVehicle(state,input,dt,world){
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
  state.impactRecovery=Math.max(0,(state.impactRecovery??0)-dt);
  state.impactYawRate=(state.impactYawRate??0)*Math.exp(-6*dt);
  state.lateralSpeed=(state.lateralSpeed??0)*Math.exp(-7*dt);
- const boosting=state.boostTime>0,spinning=state.spinTime>0;
+ const boosting=state.boostTime>0;
  state.boostTime=Math.max(0,state.boostTime-dt);
- if(spinning){const spinStep=Math.min(dt,state.spinTime);state.yaw+=spinStep*Math.PI*2/.75;state.spinTime=Math.max(0,state.spinTime-dt);}
  const rawThrottle=clamp(input.throttle??0,-1,1);
- const steer=spinning?0:clamp(input.steer??0,-1,1);
+ const steer=clamp(input.steer??0,-1,1);
  // Only the independent brake/reverse input or the safe-exit stop can brake.
  const braking=!!input.brake;
  const throttle=boosting&&rawThrottle>=0&&!braking?1:rawThrottle;
  const topSpeed=boosting?NITRO_TOP_SPEED:VEHICLE_TOP_SPEED;
  if(state.impactRecovery>0&&rawThrottle>=0)state.speed*=Math.exp(-6*dt);
- if(spinning)state.speed=approach(state.speed,0,20*dt);
- else if(braking)state.speed=approach(state.speed,0,36*dt);
+ if(braking)state.speed=approach(state.speed,0,36*dt);
  else if(throttle>0&&state.impactRecovery<=0){
   state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?NITRO_ACCELERATION:VEHICLE_ACCELERATION))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
@@ -40,7 +38,7 @@ export function stepVehicle(state,input,dt,world){
  // Driven wheels can still turn the nose away while pushing against a rail.
  // This small steering response requires player input, never a forced yaw.
  const turnSpeed=state.railContactTime>0&&throttle>0?Math.max(state.speed,2):state.speed;
- const steeringTurn=state.grounded&&!spinning?-turnSpeed/WHEELBASE*Math.tan(state.steering)*dt:0;
+ const steeringTurn=state.grounded?-turnSpeed/WHEELBASE*Math.tan(state.steering)*dt:0;
  const travelYaw=state.yaw+steeringTurn;
  state.yaw=travelYaw+state.impactYawRate*dt;
  const oldX=state.x,oldZ=state.z,sin=Math.sin(state.yaw),cos=Math.cos(state.yaw);

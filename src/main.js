@@ -14,6 +14,7 @@ import {createVehicleView,createSeatedPose,speedToMph} from './vehicle-view.js';
 import {MOVEMENT_KEYS,DRIVING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
 import {createMobileControls,bindPress} from './mobile-controls.js';
 import {createMinimap} from './minimap.js';
+import {createDrivingCameraState,updateDrivingCamera,ISO_HALF_HEIGHT,CHASE_FOLLOW_RATE} from './driving-camera.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -58,12 +59,18 @@ Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-3,near:0.1,far:20
 sun.shadow.normalBias=0.015;
 let camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
 const thirdPersonCamera=camera;
-const isoCamera=new THREE.OrthographicCamera(-24,24,18,-18,.1,3000);
+const isoCamera=new THREE.OrthographicCamera(-28,28,ISO_HALF_HEIGHT,-ISO_HALF_HEIGHT,.1,3000);
+const drivingCamera=createDrivingCameraState();
 let isometric=false;
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
+function reset(){
+ const focus=driving?kartState:runner;drivingCamera.lookTurn=0;
+ if(driving&&!isometric){const pose=updateDrivingCamera(drivingCamera,kartState,0);controls.target.set(pose.target.x,pose.target.y,pose.target.z);camera.position.set(pose.position.x,pose.position.y,pose.position.z);}
+ else{controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(28,28,28):new THREE.Vector3(-12,5,0));}
+ controls.update();
+}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
 function toggleCamera(){if(!playing)return;isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();const button=document.querySelector('#view-toggle');button.setAttribute('aria-pressed',String(isometric));button.setAttribute('aria-label',isometric?'Switch to third-person view':'Switch to isometric view');canvas.dataset.view=isometric?'isometric':'third-person';canvas.focus({preventScroll:true});}
@@ -74,7 +81,7 @@ function resize(){
  if(!width||!height)return;
  renderer.setSize(Math.round(width*scale),Math.round(height*scale),false);
  thirdPersonCamera.aspect=width/height;thirdPersonCamera.fov=width<700?55:45;thirdPersonCamera.updateProjectionMatrix();
- isoCamera.left=-18*width/height;isoCamera.right=18*width/height;isoCamera.updateProjectionMatrix();
+ isoCamera.left=-ISO_HALF_HEIGHT*width/height;isoCamera.right=ISO_HALF_HEIGHT*width/height;isoCamera.updateProjectionMatrix();
  renderer.render(scene,camera);
 }
 window.addEventListener('resize',resize);resize();
@@ -178,7 +185,7 @@ function toggleVehicle(){
   const exit=findExitPosition(kartState,worldPhysics);
   if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
   invalidateTimeTrial(trial,'Left the kart — restart lap');
-  driving=false;kartState.speed=0;kartState.boostTime=0;kartState.spinTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
+  driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
  }
  mobile.clear();mobileExitPending=false;
@@ -190,7 +197,7 @@ function startTrial(){
  Object.assign(kartState,createVehicleState(),RACE_START,{heldItem:'nitro'});previousKart={...kartState};
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
- itemSystem.shells=[];itemSystem.time=0;
+ itemSystem.time=0;
  armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();reset();canvas.focus({preventScroll:true});
 }
 bindPress(document.getElementById('trial-start'),startTrial);
@@ -236,7 +243,7 @@ function frame(time){
     stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
-   stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics);
+   stepItems(itemSystem,driving?kartState:null,previousKart,STEP);
    accumulator-=STEP;
   }
   if(driving&&kartState.y< -35){Object.assign(kartState,createVehicleState());itemQueued=false;previousKart={...kartState};reset();}
@@ -255,18 +262,21 @@ function frame(time){
   }
   const focus=driving?kartPose:avatar.position;
   updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses);
-  const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
+  const automaticChase=driving&&!isometric&&!orbiting&&time>manualCameraUntil;
+  const framing=driving?updateDrivingCamera(drivingCamera,kartPose,dt):null;
+  const look=automaticChase?framing.target:{x:focus.x,y:focus.y+1.2,z:focus.z};
+  const target=new THREE.Vector3(look.x,THREE.MathUtils.damp(controls.target.y,look.y,10,dt),look.z);
   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
-  if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){
-   const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));
-   camera.position.lerp(desired,1-Math.exp(-5*dt));
+  if(automaticChase){
+   const desired=new THREE.Vector3(framing.position.x,framing.position.y,framing.position.z);
+   camera.position.lerp(desired,1-Math.exp(-CHASE_FOLLOW_RATE*dt));
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
-  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
+  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
   controls.update();render();
   canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
-  canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);canvas.dataset.shells=String(itemSystem.shells.length);
+  canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
   const mph=String(driving?speedToMph(Math.hypot(kartState.speed,kartState.lateralSpeed)):0);if(speedometer.value!==mph)speedometer.value=mph;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
