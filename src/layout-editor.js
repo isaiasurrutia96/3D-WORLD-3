@@ -1,4 +1,5 @@
 import {GRID_SIZE,layoutProfile,snapPosition,encodePosition,decodePosition,readLayouts,saveLayouts} from './layout-state.js';
+import {bindPress} from './mobile-controls.js';
 
 // Position offsets preserve each element's normal layout space, so moving the
 // lap panel does not pull its neighboring item button out of place.
@@ -8,6 +9,7 @@ export function createLayoutEditor({onPreview,onClose}){
  const items=[
   ['navigation','.game-navigation','Home / View / Exit'],['trial','.trial-panel','Time trial'],['minimap','#minimap','Minimap'],
   ['left','#touch-left','Left'],['right','#touch-right','Right'],['gas','#touch-primary','Gas'],['brake','#touch-secondary','Brake / Reverse'],
+  ['boost','#touch-item','Boost / Item'],
  ].map(([id,selector,label])=>({id,node:document.querySelector(selector),label}));
  let storage=null;try{storage=localStorage;}catch{}
  let saved=readLayouts(storage),draft=null,editing=false,drag=null,selected=null,resizeFrame=0;
@@ -57,9 +59,9 @@ export function createLayoutEditor({onPreview,onClose}){
  document.getElementById('settings-button').addEventListener('click',showSettings);
  document.getElementById('settings-back').addEventListener('click',()=>{settings.hidden=true;settings.inert=true;home.hidden=false;home.inert=false;app.dataset.screen='home';document.getElementById('settings-button').focus({preventScroll:true});});
  document.getElementById('customize-layout').addEventListener('click',open);
- document.getElementById('layout-cancel').addEventListener('click',close);
- document.getElementById('layout-reset').addEventListener('click',()=>{draft[profile()]={};apply();select(null);});
- document.getElementById('layout-save').addEventListener('click',()=>{
+ bindPress(document.getElementById('layout-cancel'),close);
+ bindPress(document.getElementById('layout-reset'),()=>{draft[profile()]={};apply();select(null);});
+ bindPress(document.getElementById('layout-save'),()=>{
   if(!saveLayouts(storage,draft)){selection.textContent='Unable to save in this browser. Your changes are still open; allow site storage and try again.';return;}
   const name=profile()==='portrait'?'Portrait':'Landscape';saved=clone(draft);close();
   const message=document.getElementById('layout-save-status');message.textContent=`${name} layout saved in this browser.`;message.hidden=false;

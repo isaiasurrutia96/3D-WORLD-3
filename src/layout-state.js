@@ -1,6 +1,6 @@
 export const LAYOUT_STORAGE_KEY='letsgo.control-layout.v1';
 export const GRID_SIZE=4;
-export const LAYOUT_IDS=['navigation','trial','minimap','left','right','gas','brake'];
+export const LAYOUT_IDS=['navigation','trial','minimap','left','right','gas','brake','boost'];
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 export const layoutProfile=(width,height)=>width>height?'landscape':'portrait';
 

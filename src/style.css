@@ -116,6 +116,7 @@
 .layout-editing .layout-selected{outline:2px solid #9ff5ff;outline-offset:3px}
 .layout-editing .layout-movable:before{content:attr(data-layout-label);position:absolute;top:-18px;left:0;padding:2px 5px;border-radius:4px;background:#11293df2;color:#b8f3ff;font:600 9px Arial,sans-serif;white-space:nowrap;pointer-events:none}
 .layout-editing .layout-movable>*{pointer-events:none}
+.layout-editing .touch-item{position:relative}
 #touch-left,#touch-right{position:relative}
 @media(orientation:landscape) and (max-height:550px){.layout-toolbar{width:320px;padding:11px 13px}.layout-toolbar-copy{gap:3px}.layout-toolbar-copy strong{font-size:16px}.layout-toolbar-copy>span{font-size:10px}.layout-actions{margin-top:9px;gap:6px}.layout-actions button{min-height:36px;padding:7px 10px;font-size:11px}}
 @media(orientation:landscape) and (max-height:550px){.touch-mode .trial-details[open] .trial-details-body{max-height:var(--layout-popover-height,calc(100dvh - 32px))}.touch-mode .trial-panel[data-popover-side="right"] .trial-details[open] .trial-details-body{right:auto;left:calc(100% + 10px)}}

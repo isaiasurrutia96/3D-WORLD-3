@@ -34,7 +34,7 @@ Touch devices use a layout based on the mobile racing reference, in portrait or 
 
 ### Customize Layout
 
-Open **Settings → Customize Layout** from Home. The game stays paused while the actual HUD and driving buttons appear over a fine 4 px grid. Drag the lap panel, minimap, Left, Right, Gas or Brake/Reverse individually; Home/View/Exit moves as one navigation group. Select an item and use arrow keys for 4 px adjustments. Moving an item does not activate its game action. Positions stay within the screen and reported device safe areas.
+Open **Settings → Customize Layout** from Home. The game stays paused while the actual HUD and driving buttons appear over a fine 4 px grid. Drag the lap panel, minimap, Left, Right, Gas, Brake/Reverse or Boost/Item individually; Home/View/Exit moves as one navigation group. Select an item and use arrow keys for 4 px adjustments. Moving an item does not activate its game action. Positions stay within the screen and reported device safe areas. Boost uses the existing layout storage version, so adding its saved position preserves all previously customized controls.
 
 **Save Changes** stores the layout in this browser. Portrait and landscape layouts are separate; rotate while editing to adjust either one. Saved coordinates adapt to screen size and widget dimensions, with grid snapping and edge clamping. **Reset** restores defaults for the current orientation in the draft; **Cancel** leaves saved settings intact. Storage errors keep the editor open rather than discarding changes. The separate `letsgo.control-layout.v1` storage key does not modify lap/ghost records. On-foot Jump/Flip use the saved positions of their shared Gas/Brake controls.
 

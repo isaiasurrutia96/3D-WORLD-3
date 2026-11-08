@@ -26,6 +26,14 @@ test('portrait and landscape layouts persist separately without touching ghost r
  assert.equal(saveLayouts(storage,profiles),true);assert.deepEqual(readLayouts(storage),profiles);assert.equal(values.get('letsgo.top-laps.v2'),'existing ghost data');
  assert.equal(values.size,2);assert.ok(values.has(LAYOUT_STORAGE_KEY));
 });
+test('adding Boost keeps version-one positions and saves its two orientations independently',()=>{
+ const old={version:1,portrait:{gas:{x:.8,y:.7},left:{x:.1,y:.8}},landscape:{navigation:{x:.1,y:.1},trial:{x:.7,y:.1}}};
+ let value=JSON.stringify(old);const storage={getItem:()=>value,setItem:(key,next)=>{assert.equal(key,LAYOUT_STORAGE_KEY);value=next;}};
+ const layouts=readLayouts(storage);assert.deepEqual(layouts,{portrait:old.portrait,landscape:old.landscape});
+ layouts.portrait.boost={x:.6,y:.3};layouts.landscape.boost={x:.8,y:.2};assert.equal(saveLayouts(storage,layouts),true);
+ const loaded=readLayouts(storage);assert.deepEqual(loaded.portrait.boost,{x:.6,y:.3});assert.deepEqual(loaded.landscape.boost,{x:.8,y:.2});
+ for(const profile of ['portrait','landscape'])for(const [id,point]of Object.entries(old[profile]))assert.deepEqual(loaded[profile][id],point);
+});
 test('malformed layout entries and unavailable storage fail without applying bad positions',()=>{
  assert.deepEqual(readLayouts({getItem:()=>'{broken json'}),{});
  assert.deepEqual(readLayouts({getItem:()=>JSON.stringify({version:1,portrait:{gas:{x:-1,y:.5},brake:{x:.5,y:.5},unknown:{x:.2,y:.2}}})}),{portrait:{brake:{x:.5,y:.5}}});
