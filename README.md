@@ -85,7 +85,7 @@ The kart follows its facing direction with speed-sensitive grip steering and smo
 
 The compact top-right lap/ghost panel also displays kart speed in **MPH**, converted from metres per second and rounded to a whole number. Reverse shows speed magnitude; on foot the kart readout is zero. The timer starts when E or Gas supplies forward input.
 
-`src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. `src/driving-camera.js` frames the existing chase view slightly upward and smooths a bounded look into the steering direction. It reads the actual wheel angle and speed, without steering the vehicle; a stationary kart does not swivel the view. Mouse orbit temporarily overrides automatic framing. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
+`src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. The chase camera follows the kart's heading, while mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
 Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety, wheel animation, asymmetric jump takeoff and a complete driven lap over the crossing. Browser checks cover approaching/mounting, steering, braking, reverse, safe dismount and returning to on-foot jumping.
 
@@ -99,7 +99,7 @@ While driving, press either Shift key once to use the held item. Holding Shift d
 
 `src/item-view.js` renders the rotating multicolor question boxes and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover Nitro-only collection/respawn, inventory limits, separate road levels, expiry/braking, and rejection of obsolete held items. Browser checks exercise actual box pickup and Shift activation.
 
-Camera views: press **V** or tap the camera button in the bottom control chart to switch between the third-person view and a fixed-angle orthographic isometric view. The chase view still follows 11 m behind the kart, with a slightly higher look target for more sky. The isometric view spans 42 vertical metres at default zoom, up from 36, to reveal more track. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart contacts use the damped rebound and scrape response described above; neither direct nor oblique hits choose a forced tangent heading. Track replacement concepts are reviewed as images before changing the current course or its ghost records.
+Camera views: press **V** or tap the camera button in the bottom control chart to switch between the wider third-person view and a fixed-angle orthographic isometric view. Scroll/pinch adjusts zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart contacts use the damped rebound and scrape response described above; neither direct nor oblique hits choose a forced tangent heading.
 
 ### Backflip animation review (separate page)
 
