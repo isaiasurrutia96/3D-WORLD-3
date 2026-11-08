@@ -10,7 +10,19 @@
     <div id="app">
       <section id="home-screen" aria-label="LetsGo home">
         <div class="home-logo">LetsGo<span>®</span></div>
-        <button id="play-button" type="button" disabled>Play</button>
+        <div class="home-actions">
+          <button id="play-button" type="button" disabled>Play</button>
+          <button id="settings-button" class="menu-secondary" type="button">Settings</button>
+        </div>
+      </section>
+      <section id="settings-screen" class="settings-screen" aria-labelledby="settings-title" hidden inert>
+        <div class="settings-card">
+          <h1 id="settings-title">Settings</h1>
+          <button id="customize-layout" class="menu-primary" type="button">Customize Layout</button>
+          <p>Move your controls, lap panel and minimap.</p>
+          <p id="layout-save-status" role="status" hidden></p>
+          <button id="settings-back" class="menu-secondary" type="button">Back</button>
+        </div>
       </section>
       <main id="game-screen" aria-label="LetsGo game" hidden inert>
       <canvas aria-label="Plain jointed avatar running with E/D/S/F and walking while Shift is held on a charcoal slab connected to a floating circuit. Space jumps; Q plus Space performs a standing backflip. Drag to rotate the view; scroll or pinch to zoom." tabindex="0"></canvas>
@@ -79,6 +91,17 @@
         <button id="touch-primary" type="button" aria-pressed="false"><span id="touch-primary-label">Gas</span><small id="touch-primary-hint">Hold to accelerate</small></button>
       </section>
       </main>
+      <section id="layout-editor" aria-label="Customize control layout" hidden>
+        <div class="layout-grid" aria-hidden="true"></div>
+        <div class="layout-toolbar">
+          <div class="layout-toolbar-copy"><strong>Customize Layout</strong><span id="layout-profile">Landscape · 4 px grid</span><span id="layout-selection" role="status">Drag an outlined item · Arrow keys fine-tune</span></div>
+          <div class="layout-actions">
+            <button id="layout-reset" type="button">Reset</button>
+            <button id="layout-cancel" type="button">Cancel</button>
+            <button id="layout-save" class="menu-primary" type="button">Save Changes</button>
+          </div>
+        </div>
+      </section>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

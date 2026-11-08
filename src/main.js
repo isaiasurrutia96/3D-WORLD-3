@@ -15,6 +15,7 @@ import {MOVEMENT_KEYS,DRIVING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} fr
 import {createMobileControls,bindPress} from './mobile-controls.js';
 import {createMinimap} from './minimap.js';
 import {createDriverView} from './driver-view.js';
+import {createLayoutEditor} from './layout-editor.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -180,8 +181,8 @@ window.addEventListener('blur',()=>{gameFocused=false;clearInputs();previousTime
 window.addEventListener('focus',()=>{gameFocused=true;previousTime=undefined;});
 // Keep browser zoom gestures out of gameplay. Pointer Events still reach
 // OrbitControls for intentional camera gestures on the canvas.
-for(const type of ['gesturestart','gesturechange','gestureend','dblclick'])document.addEventListener(type,event=>{if(playing)event.preventDefault();},{passive:false});
-document.addEventListener('touchmove',event=>{if(playing&&event.touches.length>1)event.preventDefault();},{passive:false});
+for(const type of ['gesturestart','gesturechange','gestureend','dblclick'])document.addEventListener(type,event=>{if(playing||layoutEditor.isEditing())event.preventDefault();},{passive:false});
+document.addEventListener('touchmove',event=>{if((playing||layoutEditor.isEditing())&&event.touches.length>1)event.preventDefault();},{passive:false});
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
 function input(){
   forward.subVectors(controls.target,camera.position).setY(0).normalize();
@@ -325,6 +326,16 @@ function playGame(){
 bindPress(document.getElementById('home-button'),goHome);
 bindPress(document.getElementById('home-logo-link'),goHome);
 bindPress(playButton,playGame);
+const layoutEditor=createLayoutEditor({
+ onPreview(){
+  clearInputs();if(document.pointerLockElement===canvas)document.exitPointerLock();controls.enabled=false;
+  mobile.update({driving:true,heldItem:'nitro',boosting:false,interactionText:'Exit',canInteract:true,canFlip:false});
+  resize();
+ },
+ onClose(){
+  mobile.clear();mobile.update({driving,heldItem:kartState.heldItem,boosting:kartState.boostTime>0,interactionText:driving?'Exit':'Kart',canInteract:driving||canEnterVehicle(runner,kartState),canFlip:runner.grounded&&runner.speed<.65});
+ },
+});
 const trialDetails=document.getElementById('trial-details');bindPress(trialDetails.querySelector('summary'),()=>{trialDetails.open=!trialDetails.open;});
 setTouchMode(window.matchMedia('(pointer:coarse)').matches);
 app.dataset.screen='home';controls.enabled=false;playButton.disabled=false;

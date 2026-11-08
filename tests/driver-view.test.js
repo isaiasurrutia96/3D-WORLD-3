@@ -4,9 +4,26 @@ import * as THREE from 'three';
 import {createOnFootAvatar,resetRig} from '../src/on-foot/avatar.js';
 import {createKartFrame} from '../src/kart.js';
 import {createVehicleState} from '../src/vehicle-controller.js';
-import {createSeatedPose,createVehicleView} from '../src/vehicle-view.js';
+import {createSeatedPose,createVehicleView,frontWheelAngles} from '../src/vehicle-view.js';
 import {createDriverView} from '../src/driver-view.js';
 import {ARM} from '../src/claude/player/PlayerModel.ts';
+
+test('front tires follow the steering radius while wheel roll stays on the axle',()=>{
+ const kart=createKartFrame(),apply=createVehicleView(kart);
+ for(const steering of [-.4,-.08,0,.08,.4]){
+  const angles=frontWheelAngles(steering);apply({...createVehicleState(),steering,wheelRotation:2.4});
+  for(const side of ['left','right']){
+   const front=kart.getObjectByName(`front_axle_${side}_wheel`),rear=kart.getObjectByName(`rear_axle_${side}_wheel`);
+   assert.equal(front.rotation.y,angles[side]);assert.equal(front.rotation.x,2.4);assert.equal(rear.rotation.y,0);assert.equal(rear.rotation.x,2.4);
+   if(steering)assert.equal(Math.sign(angles[side]),-Math.sign(steering));
+  }
+  if(steering){
+   const inner=steering>0?'left':'right',outer=steering>0?'right':'left';assert.ok(Math.abs(angles[inner])>Math.abs(angles[outer]));
+   const innerRadius=2.03/Math.tan(Math.abs(angles[inner]))+1.04,outerRadius=2.03/Math.tan(Math.abs(angles[outer]))-1.04;
+   assert.ok(Math.abs(innerRadius-outerRadius)<1e-9,'both tires turn around the same point');
+  }else assert.deepEqual(angles,{left:0,right:0});
+ }
+});
 
 test('both driver hands follow the actual wheel through steering, heading, pitch and bank',()=>{
  const kart=createKartFrame(),avatar=createOnFootAvatar();kart.add(avatar);createSeatedPose(avatar)();

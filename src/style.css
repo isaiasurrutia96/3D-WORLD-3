@@ -91,3 +91,31 @@
  .touch-mode .minimap{--map-top:max(76px,calc(env(safe-area-inset-top) + 60px));--map-cap:120px;--map-height:min(var(--map-cap),calc(100dvh - max(18px,env(safe-area-inset-bottom)) - var(--map-top) - 168px));top:var(--map-top);height:var(--map-height);width:calc(var(--map-height)*1.2)}
 }
 @media(orientation:landscape) and (max-height:350px){.touch-mode .minimap{--map-top:max(64px,calc(env(safe-area-inset-top) + 48px));--map-cap:72px;padding:4px}}
+
+.home-actions{display:flex;flex-direction:column;align-items:center;gap:12px}
+#app{--layout-safe-left:env(safe-area-inset-left,0px);--layout-safe-right:env(safe-area-inset-right,0px);--layout-safe-top:env(safe-area-inset-top,0px);--layout-safe-bottom:env(safe-area-inset-bottom,0px)}
+.menu-secondary,.menu-primary{min-height:44px;padding:12px 20px;border:1px solid #65758d99;border-radius:12px;background:#101b35;color:#e0e6f4;font:600 15px Arial,sans-serif;cursor:pointer;touch-action:manipulation}
+.menu-primary{background:#e7effc;border-color:#e7effc;color:#111c32}
+#settings-button{width:220px}
+.menu-secondary:hover{background:#24334f}.menu-primary:hover{background:#fff}
+.menu-secondary:focus-visible,.menu-primary:focus-visible,.layout-actions button:focus-visible{outline:3px solid #7de9ef;outline-offset:3px}
+.settings-screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:#080e25}
+.settings-card{display:flex;flex-direction:column;align-items:stretch;width:min(340px,100%);gap:14px;text-align:center}
+.settings-card h1{font-size:30px;letter-spacing:-1px;margin:0 0 16px}.settings-card p{font-size:13px;line-height:1.6;color:#a3b2cc;margin:0 0 12px}
+#layout-editor{position:absolute;inset:0;z-index:90;pointer-events:none;touch-action:none}
+.layout-grid{position:absolute;inset:0;background-image:linear-gradient(#a5c7df12 1px,transparent 1px),linear-gradient(90deg,#a5c7df12 1px,transparent 1px),linear-gradient(#a5c7df20 1px,transparent 1px),linear-gradient(90deg,#a5c7df20 1px,transparent 1px);background-size:4px 4px,4px 4px,20px 20px,20px 20px}
+.layout-toolbar{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(430px,calc(100% - 24px));padding:15px 18px;border:1px solid #7dabc8aa;border-radius:16px;background:#0d172cf2;box-shadow:0 8px 40px #0007;pointer-events:auto}
+.layout-toolbar-copy{display:flex;flex-direction:column;gap:6px}.layout-toolbar-copy strong{font-size:19px}.layout-toolbar-copy>span{font-size:11px;color:#a9c0d5;line-height:1.35}#layout-selection{color:#8feaf0}
+.layout-actions{display:flex;gap:8px;margin-top:14px}.layout-actions button{min-height:42px;padding:8px 12px;border:1px solid #65758d99;border-radius:9px;background:#17263e;color:#dbe7f7;font:600 12px Arial,sans-serif;cursor:pointer}.layout-actions #layout-save{margin-left:auto;background:#dcecf8;color:#102238;border-color:#dcecf8}
+.layout-editing #game-screen{user-select:none;-webkit-user-select:none;touch-action:none}
+.layout-editing .key-chart{display:none}
+.layout-editing .touch-controls{position:absolute;inset:0;z-index:5;display:block;pointer-events:none}
+.layout-editing .touch-only{display:flex;align-items:center;justify-content:center}
+.layout-editing #touch-steer{display:none}
+.layout-editing .layout-movable{outline:1px dashed #93b6cf;outline-offset:3px;cursor:grab!important;pointer-events:auto!important;touch-action:none!important}
+.layout-editing .layout-selected{outline:2px solid #9ff5ff;outline-offset:3px}
+.layout-editing .layout-movable:before{content:attr(data-layout-label);position:absolute;top:-18px;left:0;padding:2px 5px;border-radius:4px;background:#11293df2;color:#b8f3ff;font:600 9px Arial,sans-serif;white-space:nowrap;pointer-events:none}
+.layout-editing .layout-movable>*{pointer-events:none}
+#touch-left,#touch-right{position:relative}
+@media(orientation:landscape) and (max-height:550px){.layout-toolbar{width:320px;padding:11px 13px}.layout-toolbar-copy{gap:3px}.layout-toolbar-copy strong{font-size:16px}.layout-toolbar-copy>span{font-size:10px}.layout-actions{margin-top:9px;gap:6px}.layout-actions button{min-height:36px;padding:7px 10px;font-size:11px}}
+@media(orientation:landscape) and (max-height:550px){.touch-mode .trial-details[open] .trial-details-body{max-height:var(--layout-popover-height,calc(100dvh - 32px))}.touch-mode .trial-panel[data-popover-side="right"] .trial-details[open] .trial-details-body{right:auto;left:calc(100% + 10px)}}

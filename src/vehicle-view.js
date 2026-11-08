@@ -3,14 +3,25 @@ import * as THREE from 'three';
 
 export function speedToMph(speed){return Math.round(Math.abs(speed)*2.2369362920544);}
 
+// Match the controller's 2.03 m wheelbase and the model's 2.08 m front track.
+// The inside tire follows the tighter radius; rolling remains on its axle.
+export function frontWheelAngles(steering){
+ const center=-steering;
+ if(Math.abs(center)<1e-8)return{left:0,right:0};
+ const sign=Math.sign(center),radius=2.03/Math.tan(Math.abs(center));
+ const inner=Math.atan2(2.03,Math.max(.01,radius-1.04)),outer=Math.atan2(2.03,radius+1.04);
+ return{left:sign*(sign<0?inner:outer),right:sign*(sign>0?inner:outer)};
+}
+
 export function createVehicleView(model){
  const wheels=[];
- for(const axle of ['front_axle','rear_axle'])for(const side of ['left','right'])wheels.push({node:model.getObjectByName(`${axle}_${side}_wheel`),front:axle==='front_axle'});
+ for(const axle of ['front_axle','rear_axle'])for(const side of ['left','right'])wheels.push({node:model.getObjectByName(`${axle}_${side}_wheel`),front:axle==='front_axle',side});
  const steering=model.getObjectByName('steering_wheel'),steeringRest=steering.quaternion.clone();
  const spin=new THREE.Quaternion(),axis=new THREE.Vector3(0,0,1);
  return function apply(state){
   model.position.set(state.x,state.y,state.z);model.rotation.set(state.pitch,state.yaw,state.bank,'YXZ');
-  for(const wheel of wheels)wheel.node.rotation.set(state.wheelRotation,wheel.front?-state.steering:0,0,'YXZ');
+  const angles=frontWheelAngles(state.steering);
+  for(const wheel of wheels)wheel.node.rotation.set(state.wheelRotation,wheel.front?angles[wheel.side]:0,0,'YXZ');
   steering.quaternion.copy(steeringRest).multiply(spin.setFromAxisAngle(axis,-state.steering*2.5));
  };
 }

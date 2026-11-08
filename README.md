@@ -4,7 +4,7 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 
 ## Controls
 
-- The home screen contains only the LetsGo logo and **Play**. Play starts a fresh attempt seated at the start/finish line. **Home** returns to that screen, clears held input and stops the render/simulation loop. Saved top-four laps are retained.
+- The home screen contains the LetsGo logo, **Play**, and **Settings** underneath. Play starts a fresh attempt seated at the start/finish line. **Home** returns to that screen, clears held input and stops the render/simulation loop. Saved top-four laps are retained.
 - Click **Start in kart** or press **T** to spawn seated on the start/finish line. The clock stays at zero until **E** first accelerates. T restarts an attempt.
 
 - E: run forward; D: run backward; S: run left; F: run right, relative to the camera.
@@ -31,6 +31,14 @@ Touch devices use a layout based on the mobile racing reference, in portrait or 
 - Returning Home, cancelling a touch, changing orientation, losing focus or hiding the page clears held fingers. Background/home simulation does not advance. Play starts another attempt without deleting records.
 
 `src/mobile-input.js` owns finger state and queued taps; `src/mobile-controls.js` binds Pointer Events with pointer capture and document-level release/cancel handling, including release outside a control when capture fails. It also recovers after all touches end and ignores stale capture-loss notifications. The touch input merges into the existing keyboard/vehicle interfaces. `tests/mobile-input.test.js` covers stick limits, button/finger ownership, cancellation, queued taps, input precedence and combined steering/Gas. `tests/jump-driving.test.js` checks the jump, independent brakes and inert Space input while driving.
+
+### Customize Layout
+
+Open **Settings → Customize Layout** from Home. The game stays paused while the actual HUD and driving buttons appear over a fine 4 px grid. Drag the lap panel, minimap, Left, Right, Gas or Brake/Reverse individually; Home/View/Exit moves as one navigation group. Select an item and use arrow keys for 4 px adjustments. Moving an item does not activate its game action. Positions stay within the screen and reported device safe areas.
+
+**Save Changes** stores the layout in this browser. Portrait and landscape layouts are separate; rotate while editing to adjust either one. Saved coordinates adapt to screen size and widget dimensions, with grid snapping and edge clamping. **Reset** restores defaults for the current orientation in the draft; **Cancel** leaves saved settings intact. Storage errors keep the editor open rather than discarding changes. The separate `letsgo.control-layout.v1` storage key does not modify lap/ghost records. On-foot Jump/Flip use the saved positions of their shared Gas/Brake controls.
+
+`src/layout-editor.js` handles the paused editor, grouped navigation, pointer capture and applying offsets without moving neighboring HUD items. `src/layout-state.js` validates persisted positions, keeps orientation profiles separate and performs grid/safe-area bounds calculations. The editor shows touch controls on a laptop for editing; normal desktop play keeps them hidden.
 
 ## Development
 
@@ -85,7 +93,7 @@ The kart follows its facing direction with speed-sensitive grip steering and smo
 
 The compact top-right lap/ghost panel also displays kart speed in **MPH**, converted from metres per second and rounded to a whole number. Reverse shows speed magnitude; on foot the kart readout is zero. The timer starts when E or Gas supplies forward input.
 
-`src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. `src/driver-view.js` solves the existing shoulder/elbow joints to two grips on the rotating wheel without changing avatar proportions. FPV hides the local head and torso surfaces that obstruct the eye, restoring their previous visibility when leaving that view. The chase camera follows the kart's heading with its previous position and follow rate; only its rendered pitch is raised by 2°. Mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
+`src/vehicle-view.js` applies the vehicle pose, wheel roll, steering angle and the seated driver pose. Its front tires use inner/outer steering angles calculated from the controller's 2.03 m wheelbase and the model's 2.08 m front axle width; both tires turn around the same point. Roll remains independent on the axle, rear tires do not steer, and the steering-wheel/hand connection remains intact. This does not alter handling. `src/driver-view.js` solves the existing shoulder/elbow joints to two grips on the rotating wheel without changing avatar proportions. FPV hides the local head and torso surfaces that obstruct the eye, restoring their previous visibility when leaving that view. The chase camera follows the kart's heading with its previous position and follow rate; only its rendered pitch is raised by 2°. Mouse orbit temporarily overrides automatic recentering. On-foot controls and animation are restored when exiting. A parked kart blocks the walking character; safe exits are checked against road support and rails. Falling into the void respawns the occupied kart near the bridge approach.
 
 Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety, wheel animation, asymmetric jump takeoff and a complete driven lap over the crossing. Browser checks cover approaching/mounting, steering, braking, reverse, safe dismount and returning to on-foot jumping.
 
