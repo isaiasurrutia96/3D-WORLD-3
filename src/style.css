@@ -52,18 +52,20 @@
 #touch-secondary>span:first-child{font-size:17px}
 #touch-primary.is-held,#touch-secondary.is-held{border-color:#a1f6ff;background:#245265c9}
 #touch-secondary.is-unavailable{opacity:.4}
-#touch-steering{position:absolute;left:max(24px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));display:flex;gap:10px;pointer-events:none}
-#touch-left,#touch-right{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:76px;height:76px;border:1.5px solid #d2def78c;border-radius:22px;background:#101b3566;color:#f1f5fe;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#touch-steering{position:absolute;left:max(32px,calc(env(safe-area-inset-left) + 8px));bottom:max(28px,env(safe-area-inset-bottom));display:flex;gap:10px;pointer-events:none}
+#touch-left,#touch-right{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:84px;height:84px;border:1.5px solid #d2def78c;border-radius:22px;background:#101b3566;color:#f1f5fe;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #touch-left>span,#touch-right>span{font:500 30px Arial,sans-serif}#touch-left small,#touch-right small{font:600 10px Arial,sans-serif}
 #touch-left.is-held,#touch-right.is-held{border-color:#a1f6ff;background:#245265c9}
 #touch-controls[data-mode="driving"] #touch-secondary{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 96px)}
-#touch-controls[data-mode="driving"] #touch-primary{height:144px;border-radius:30px;justify-content:center;padding:12px 5px}
+#touch-controls[data-mode="driving"] #touch-primary{width:116px;height:156px;right:max(32px,calc(env(safe-area-inset-right) + 8px));bottom:max(28px,env(safe-area-inset-bottom));border-radius:30px;justify-content:center;padding:12px 5px}
+/* Narrow portrait screens need a vertical gap between the larger hit areas. */
+@media(max-width:370px) and (orientation:portrait){#touch-controls[data-mode="driving"] #touch-primary{bottom:calc(max(28px,env(safe-area-inset-bottom)) + 92px)}}
 @media(max-width:700px){.game-navigation{top:64px;left:20px}.race-tools{top:16px;right:12px;width:176px}}
 @media(max-width:380px){.touch-mode .game-navigation{display:grid;grid-template-columns:repeat(2,auto)}.touch-mode .race-tools{width:164px}.touch-mode #trial-time{font-size:20px}}
 @media(orientation:landscape) and (max-height:550px){
- #touch-steering{bottom:max(18px,env(safe-area-inset-bottom))}
+ #touch-steering{left:max(56px,8vw,calc(env(safe-area-inset-left) + 16px));bottom:max(24px,env(safe-area-inset-bottom))}
  #touch-controls[data-mode="driving"] #touch-secondary{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 96px)}
- #touch-controls[data-mode="driving"] #touch-primary{height:128px}
+ #touch-controls[data-mode="driving"] #touch-primary{width:108px;height:140px;right:max(56px,8vw,calc(env(safe-area-inset-right) + 16px));bottom:max(24px,env(safe-area-inset-bottom))}
  .touch-mode .trial-details[open] .trial-details-body{position:absolute;top:0;right:calc(100% + 10px);width:176px;padding:10px 11px;border:1px solid #65758d80;border-radius:12px;background:#101b35f5}
  .touch-mode .trial-details[open]>summary{margin-bottom:0}
  #touch-steer{width:104px;height:104px;bottom:max(18px,env(safe-area-inset-bottom))}
@@ -71,7 +73,8 @@
  #touch-secondary{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 116px);left:calc(max(24px,env(safe-area-inset-left)) + 16px)}
  #home-screen{gap:24px}.home-logo{font-size:68px}
 }
-@media(orientation:landscape) and (max-height:350px){#touch-controls[data-mode="driving"] #touch-primary{height:108px}.touch-mode #touch-primary small{font-size:8px}}
+/* On short screens, Gas sits to the left of the unchanged item/HUD column. */
+@media(orientation:landscape) and (max-height:350px){#touch-controls[data-mode="driving"] #touch-primary{height:120px;right:calc(max(12px,env(safe-area-inset-right)) + 72px)}.touch-mode #touch-primary small{font-size:8px}}
 
 .minimap{position:absolute;z-index:4;top:132px;left:max(40px,env(safe-area-inset-left));width:192px;height:160px;padding:8px;border:1px solid #65758d66;border-radius:14px;background:#101b35bb;pointer-events:none;user-select:none}
 .minimap svg{display:block;width:100%;height:100%}

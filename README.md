@@ -21,7 +21,7 @@ Claude’s plain jointed avatar, walking, running and normal jump are connected 
 
 Touch devices use a layout based on the mobile racing reference, in portrait or landscape:
 
-- The larger bottom-left **Left / Right** buttons steer the kart. Each finger releases independently; pressing both steering buttons gives neutral steering.
+- The 84 px bottom-left **Left / Right** buttons steer the kart. These and the larger **Gas** pad sit farther inward in landscape for comfortable thumb reach. Very narrow portrait screens stagger Gas above the steering buttons to keep their hit areas separate. Each finger releases independently; pressing both steering buttons gives neutral steering.
 - Hold the bottom-right **Gas** button to accelerate. Moving that finger does not activate another driving mode; lift to release Gas. The kart waits for Gas before starting the lap.
 - The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over Gas and Nitro. Normal speed is capped at 120 MPH, Nitro at 180 MPH. Quick steering taps are softer; sustained steering has slightly more lock.
 - During gameplay the full game surface prevents native pinch/double-tap webpage zoom, with Safari gesture-event guards. Intentional camera gestures on the canvas remain available; browser zoom on the home screen is unaffected.
