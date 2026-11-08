@@ -5,11 +5,12 @@ import {moveKartAgainstRails} from './vehicle-contact.js';
 export const VEHICLE_TOP_SPEED=120*.44704,REVERSE_SPEED=8,NITRO_TOP_SPEED=180*.44704;
 export const VEHICLE_ACCELERATION=24,NITRO_ACCELERATION=48;
 export const STEERING_LOCK=.415;
+export const HELD_STEER_DELAY=.5,HELD_STEER_RAMP=.8,HELD_STEER_GAIN=.20;
 const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,steerHoldTime:0,steerHoldDirection:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
 }
 export function stepVehicle(state,input,dt,world){
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);
@@ -30,9 +31,13 @@ export function stepVehicle(state,input,dt,world){
   state.speed=state.speed>topSpeed?approach(state.speed,topSpeed,12*dt):Math.min(topSpeed,state.speed+(state.speed<0?36:(boosting?NITRO_ACCELERATION:VEHICLE_ACCELERATION))*dt);
  }else if(throttle<0)state.speed=clamp(state.speed-(state.speed>0?36:8)*dt,-REVERSE_SPEED,topSpeed);
  else if(state.impactRecovery<=0)state.speed=approach(state.speed,0,(1.8+.0035*state.speed*state.speed)*dt);
- // A slower build and quicker release soften short taps. Sustained steering
- // reaches a slightly stronger lock without a separate tap/hold mode.
- const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11);
+ // Keep the existing tap smoothing; a continuous hold adds lock gradually.
+ const heldDirection=Math.abs(steer)>.55&&state.speed>2&&state.grounded&&!braking?Math.sign(steer):0;
+ if(heldDirection){state.steerHoldTime=(state.steerHoldDirection===heldDirection?state.steerHoldTime:0)+dt;state.steerHoldDirection=heldDirection;}
+ else{state.steerHoldTime=0;state.steerHoldDirection=0;}
+ const hold=clamp((state.steerHoldTime-HELD_STEER_DELAY)/HELD_STEER_RAMP,0,1);
+ const holdGain=1+HELD_STEER_GAIN*hold*hold*(3-2*hold);
+ const maxSteer=STEERING_LOCK/(1+Math.abs(state.speed)/11)*holdGain;
  const building=steer*state.steering>=0&&Math.abs(steer*maxSteer)>Math.abs(state.steering);
  state.steering+=(steer*maxSteer-state.steering)*(1-Math.exp(-(building?6.5:14)*dt));
  // Driven wheels can still turn the nose away while pushing against a rail.

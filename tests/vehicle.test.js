@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED,NITRO_TOP_SPEED,VEHICLE_ACCELERATION,NITRO_ACCELERATION,STEERING_LOCK} from '../src/vehicle-controller.js';
+import {createVehicleState,stepVehicle,canEnterVehicle,findExitPosition,resolveParkedKart,VEHICLE_TOP_SPEED,REVERSE_SPEED,NITRO_TOP_SPEED,VEHICLE_ACCELERATION,NITRO_ACCELERATION,STEERING_LOCK,HELD_STEER_DELAY,HELD_STEER_RAMP,HELD_STEER_GAIN} from '../src/vehicle-controller.js';
 import {worldPhysics} from '../src/world.js';
 import {trackSamples} from '../src/track.js';
 import {createAvatar} from '../src/avatar.js';
@@ -132,14 +132,35 @@ test('coasting rail impacts do not create kinetic energy, even in a two-wall cor
   for(let i=0;i<360;i++){stepVehicle(kart,{},DT,corner);const next=energy(kart);assert.ok(next<=previous+1e-5,`energy increased: ${previous} -> ${next}`);previous=next;assert.ok(kart.x<8.83&&kart.z<8.83);}
  }
 });
-test('quick steering taps are softer while holding slightly improves handling',()=>{
+test('quick steering taps stay soft while sustained steering builds a tighter turn',()=>{
  function legacyTurn(seconds,tap){let yaw=0,wheel=0;const speed=40+VEHICLE_ACCELERATION*DT;for(let i=0;i<Math.round(seconds/DT);i++){const target=i*DT<tap?.39/(1+speed/11):0;wheel+=(target-wheel)*(1-Math.exp(-9*DT));yaw-=speed/2.03*Math.tan(wheel)*DT;}return Math.abs(yaw);}
  function newTurn(seconds,tap){const kart={...createVehicleState(),yaw:0,speed:40};for(let i=0;i<Math.round(seconds/DT);i++){kart.speed=40;stepVehicle(kart,{throttle:1,steer:i*DT<tap?1:0},DT,flat);}return Math.abs(kart.yaw);}
  for(const duration of [.025,.05,.1]){
   assert.ok(newTurn(.5,duration)<legacyTurn(.5,duration)*.8,'quick tap turns less than before at matching speed');
  }
- const ratio=newTurn(1.5,1.5)/legacyTurn(1.5,1.5);assert.ok(ratio>1&&ratio<1.08,'held turn is only slightly stronger');assert.ok(STEERING_LOCK>.39&&STEERING_LOCK<.43);
+ const ratio=newTurn(1.5,1.5)/legacyTurn(1.5,1.5);assert.ok(ratio>1&&ratio<1.25,'held turn builds additional lock without a large increase');assert.ok(STEERING_LOCK>.39&&STEERING_LOCK<.43);
  const boosted={...createVehicleState(),speed:VEHICLE_TOP_SPEED,boostTime:2};advance(boosted,1,{throttle:1});assert.ok(Math.abs(boosted.speed-NITRO_TOP_SPEED)<1e-8);assert.equal(speedToMph(boosted.speed),180);
+});
+
+test('held steering leaves brief taps unchanged, ramps smoothly, and resets on release or reversal',()=>{
+ const kart={...createVehicleState(),yaw:0,speed:40};
+ const base=STEERING_LOCK/(1+(40+VEHICLE_ACCELERATION*DT)/11);
+ let originalWheel=0,previousWheel=0,previousYaw=0;
+ const frames=Math.round((HELD_STEER_DELAY+HELD_STEER_RAMP+.7)/DT);
+ for(let frame=1;frame<=frames;frame++){
+  kart.speed=40;stepVehicle(kart,{throttle:1,steer:1},DT,flat);
+  originalWheel+=(base-originalWheel)*(1-Math.exp(-6.5*DT));
+  if(frame*DT<=HELD_STEER_DELAY)assert.ok(Math.abs(kart.steering-originalWheel)<1e-12,'delay preserves existing tap response');
+  assert.ok(kart.steering>=previousWheel-1e-12&&kart.steering-previousWheel<.006,'no abrupt wheel step');
+  assert.ok(Math.abs(kart.yaw-previousYaw)<.025,'heading changes continuously');
+  previousWheel=kart.steering;previousYaw=kart.yaw;
+ }
+ assert.ok(kart.steering/base>1+HELD_STEER_GAIN-.002&&kart.steering/base<=1+HELD_STEER_GAIN,'bounded extra lock');
+ stepVehicle(kart,{},DT,flat);assert.equal(kart.steerHoldTime,0);assert.equal(kart.steerHoldDirection,0);
+ assert.ok(kart.steering>0&&kart.steering<previousWheel,'release smooths toward neutral');
+ advance(kart,1.5,{throttle:1,steer:1});const angle=kart.steering;
+ stepVehicle(kart,{throttle:1,steer:-1},DT,flat);
+ assert.equal(kart.steerHoldTime,DT);assert.equal(kart.steerHoldDirection,-1);assert.ok(kart.steering>0&&kart.steering<angle,'countersteering does not snap the wheel');
 });
 
 test('boosted-speed impacts stay outside segmented curved rails on both road levels',()=>{

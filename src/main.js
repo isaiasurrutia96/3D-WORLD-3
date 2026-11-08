@@ -14,6 +14,7 @@ import {createVehicleView,createSeatedPose,speedToMph} from './vehicle-view.js';
 import {MOVEMENT_KEYS,DRIVING_KEYS,readMoveAxes,readDrivingInput,wantsSprint} from './input.js';
 import {createMobileControls,bindPress} from './mobile-controls.js';
 import {createMinimap} from './minimap.js';
+import {createDriverView} from './driver-view.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -34,6 +35,7 @@ const animation=createRunningAnimator(avatar);
 const kart=scene.getObjectByName('Go-kart prototype');
 kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
+const driverView=createDriverView(avatar,kart);
 const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,kart);
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
@@ -58,15 +60,36 @@ Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-3,near:0.1,far:20
 sun.shadow.normalBias=0.015;
 let camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
 const thirdPersonCamera=camera;
-const isoCamera=new THREE.OrthographicCamera(-24,24,18,-18,.1,3000);
-let isometric=false;
+const ISO_HALF_HEIGHT=21,TPV_UP_TILT=2*Math.PI/180;
+const isoCamera=new THREE.OrthographicCamera(-28,28,ISO_HALF_HEIGHT,-ISO_HALF_HEIGHT,.1,3000);
+const firstPersonCamera=new THREE.PerspectiveCamera(76,1,.04,3000);firstPersonCamera.position.set(0,1.32,-.78);kart.add(firstPersonCamera);
+let viewMode='third-person',fpvYaw=0,fpvPitch=0;
+const fpvTarget=new THREE.Vector3(),fpvOrigin=new THREE.Vector3(),fpvDirection=new THREE.Vector3(),fpvRotation=new THREE.Quaternion(),renderRotation=new THREE.Quaternion();
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.enablePan=false;controls.minDistance=4;controls.maxDistance=1500;
 controls.minPolarAngle=0.1;controls.maxPolarAngle=Math.PI/2-0.05;
-function reset(){const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(isometric?new THREE.Vector3(24,24,24):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();}
+function updateFirstPersonCamera(){
+ kart.updateMatrixWorld(true);firstPersonCamera.getWorldPosition(fpvOrigin);kart.getWorldQuaternion(fpvRotation);
+ const pitch=-.10+fpvPitch;
+ fpvDirection.set(Math.sin(fpvYaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(fpvYaw)*Math.cos(pitch)).applyQuaternion(fpvRotation);
+ firstPersonCamera.lookAt(fpvTarget.copy(fpvOrigin).add(fpvDirection));
+}
+function reset(){
+ fpvYaw=0;fpvPitch=0;
+ if(viewMode==='first-person'&&driving){applyKart(kartState);driverView.update();updateFirstPersonCamera();return;}
+ const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(viewMode==='isometric'?new THREE.Vector3(28,28,28):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();
+}
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
-function toggleCamera(){if(!playing)return;isometric=!isometric;camera=isometric?isoCamera:thirdPersonCamera;controls.object=camera;controls.enableRotate=!isometric;controls.minZoom=.35;controls.maxZoom=4;reset();resize();const button=document.querySelector('#view-toggle');button.setAttribute('aria-pressed',String(isometric));button.setAttribute('aria-label',isometric?'Switch to third-person view':'Switch to isometric view');canvas.dataset.view=isometric?'isometric':'third-person';canvas.focus({preventScroll:true});}
+function setCameraView(mode){
+ viewMode=mode;camera=mode==='isometric'?isoCamera:mode==='first-person'?firstPersonCamera:thirdPersonCamera;
+ controls.object=camera;controls.enabled=playing&&mode!=='first-person'&&document.pointerLockElement!==canvas;controls.enableRotate=mode==='third-person';controls.enableZoom=mode!=='first-person';controls.minZoom=.35;controls.maxZoom=4;
+ driverView.firstPerson(driving&&mode==='first-person');
+ const modes=driving?['third-person','first-person','isometric']:['third-person','isometric'],next=modes[(modes.indexOf(mode)+1)%modes.length];
+ const labels={'third-person':'TPV','first-person':'FPV',isometric:'ISO'},button=document.querySelector('#view-toggle');button.textContent=labels[mode];button.setAttribute('aria-label',`Camera: ${labels[mode]}. Switch to ${labels[next]}.`);button.title=`${labels[mode]} · Press V for ${labels[next]}`;
+ canvas.dataset.view=mode;updateControlHint();reset();resize();canvas.focus({preventScroll:true});
+}
+function toggleCamera(){if(!playing)return;const modes=driving?['third-person','first-person','isometric']:['third-person','isometric'];setCameraView(modes[(modes.indexOf(viewMode)+1)%modes.length]);}
 bindPress(document.querySelector('#view-toggle'),toggleCamera);
 window.addEventListener('keydown',event=>{if(playing&&event.code==='KeyV'&&!event.repeat&&!event.target.closest('input,textarea,select')){event.preventDefault();toggleCamera();}});
 function resize(){
@@ -74,13 +97,17 @@ function resize(){
  if(!width||!height)return;
  renderer.setSize(Math.round(width*scale),Math.round(height*scale),false);
  thirdPersonCamera.aspect=width/height;thirdPersonCamera.fov=width<700?55:45;thirdPersonCamera.updateProjectionMatrix();
- isoCamera.left=-18*width/height;isoCamera.right=18*width/height;isoCamera.updateProjectionMatrix();
- renderer.render(scene,camera);
+ firstPersonCamera.aspect=width/height;firstPersonCamera.updateProjectionMatrix();
+ isoCamera.left=-ISO_HALF_HEIGHT*width/height;isoCamera.right=ISO_HALF_HEIGHT*width/height;isoCamera.updateProjectionMatrix();
+ render();
 }
 window.addEventListener('resize',resize);resize();
 const orbit = new THREE.Spherical();
 const mouseOffset = new THREE.Vector3();
 const controlHint = document.querySelector('#camera-hint');
+function updateControlHint(){
+ controlHint.textContent=document.pointerLockElement===canvas?'Mouse locked · L / Esc to release':viewMode==='first-person'?'FPV · L to look around · R to reset':'Drag to rotate · Scroll or pinch to zoom';
+}
 window.addEventListener('keydown', async event => {
   if (!playing || event.code !== 'KeyL' || event.repeat || event.target.closest('input,textarea,select')) return;
   event.preventDefault();
@@ -94,17 +121,18 @@ window.addEventListener('keydown', async event => {
 });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  controls.enabled = playing && !locked;
+  controls.enabled = playing && !locked && viewMode!=='first-person';
   canvas.dataset.mouseLocked = String(locked);
-  controlHint.textContent = locked
-    ? 'Mouse locked · L / Esc to release'
-    : 'Drag to rotate · Scroll or pinch to zoom';
+  updateControlHint();
 });
 document.addEventListener('pointerlockerror', () => {
   controlHint.textContent = 'Mouse lock blocked · Click the game and press L again';
 });
 document.addEventListener('mousemove', event => {
-  if (!playing || document.pointerLockElement !== canvas || isometric) return;
+  if (!playing || document.pointerLockElement !== canvas || viewMode==='isometric') return;
+  if(viewMode==='first-person'){
+   fpvYaw=THREE.MathUtils.clamp(fpvYaw-event.movementX*.0025,-1.2,1.2);fpvPitch=THREE.MathUtils.clamp(fpvPitch-event.movementY*.0025,-.45,.45);updateFirstPersonCamera();render();return;
+  }
   mouseOffset.subVectors(camera.position,controls.target);
   orbit.setFromVector3(mouseOffset);
   orbit.theta -= event.movementX*0.0025;
@@ -166,7 +194,12 @@ function input(){
   const sprint=axes.forward||axes.right?wantsSprint(keys):Math.hypot(virtual.forward,virtual.right)>.55;
   return {x:direction.x,z:direction.z,sprint,jump,backflip:keys.has('KeyQ')||touchFlip};
 }
-function render(){renderer.render(scene,camera);}
+function render(){
+ const tilt=driving&&viewMode==='third-person';
+ if(tilt){renderRotation.copy(camera.quaternion);camera.rotateX(TPV_UP_TILT);}
+ renderer.render(scene,camera);
+ if(tilt)camera.quaternion.copy(renderRotation);
+}
 controls.enableDamping=false;
 let previousTime,accumulator=0,previous={...runner},previousKart={...kartState};
 function toggleVehicle(){
@@ -180,9 +213,10 @@ function toggleVehicle(){
   invalidateTimeTrial(trial,'Left the kart — restart lap');
   driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
+  driverView.firstPerson(false);if(viewMode==='first-person')viewMode='third-person';
  }
  mobile.clear();mobileExitPending=false;
- jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();reset();return true;
+ jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);return true;
 }
 function startTrial(){
  if(!playing)return;
@@ -191,7 +225,7 @@ function startTrial(){
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
  itemSystem.time=0;
- armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();reset();canvas.focus({preventScroll:true});
+ armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
 }
 bindPress(document.getElementById('trial-start'),startTrial);
 document.getElementById('trial-ghost').addEventListener('change',event=>{trial.showGhost=event.target.checked;canvas.focus({preventScroll:true});});
@@ -244,7 +278,7 @@ function frame(time){
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);applyItems(kartPose,driving);const ghostPoses=applyTrial(alpha,STEP);
+  applyKart(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);const ghostPoses=applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -255,16 +289,20 @@ function frame(time){
   }
   const focus=driving?kartPose:avatar.position;
   updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses);
-  const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
-  const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
-  if(driving&&!isometric&&!orbiting&&time>manualCameraUntil){
-   const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));
-   camera.position.lerp(desired,1-Math.exp(-5*dt));
+  if(driving&&viewMode==='first-person')updateFirstPersonCamera();
+  else{
+   const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
+   const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
+   if(driving&&viewMode==='third-person'&&!orbiting&&time>manualCameraUntil){
+    const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));
+    camera.position.lerp(desired,1-Math.exp(-5*dt));
+   }
+   controls.update();
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
   if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
-  controls.update();render();
+  render();
   canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
@@ -281,7 +319,7 @@ function goHome(){
  controls.enabled=false;gameScreen.hidden=true;gameScreen.inert=true;homeScreen.hidden=false;app.dataset.screen='home';document.title='LetsGo';playButton.focus({preventScroll:true});
 }
 function playGame(){
- homeScreen.hidden=true;gameScreen.hidden=false;gameScreen.inert=false;playing=true;gameFocused=true;controls.enabled=true;app.dataset.screen='game';document.title='LetsGo · Race';
+ homeScreen.hidden=true;gameScreen.hidden=false;gameScreen.inert=false;playing=true;gameFocused=true;controls.enabled=viewMode!=='first-person';app.dataset.screen='game';document.title='LetsGo · Race';
  startTrial();resize();renderer.setAnimationLoop(frame);
 }
 bindPress(document.getElementById('home-button'),goHome);
