@@ -1,11 +1,12 @@
 import {trackSamples} from './track.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2;
-export function createItemSystem(){
+export function createItemSystem(tracks=[trackSamples]){
+ if(!Array.isArray(tracks))tracks=[trackSamples];
  const boxes=[];
  // Rows cover both directions of travel, including the straight after entry.
- for(let row=0;row<16;row++){
-  const index=(1182+row*75)%1200,sample=trackSamples[index];
+ for(const samples of tracks)for(let row=0;row<16;row++){
+  const count=samples.length-1,index=(Math.floor(count*.985)+row*Math.floor(count/16))%count,sample=samples[index];
   for(const lane of [-6,0,6])boxes.push({id:boxes.length,x:sample.point.x+sample.normal.x*lane,
    y:sample.point.y,z:sample.point.z+sample.normal.z*lane,cooldown:0});
  }

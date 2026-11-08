@@ -50,7 +50,7 @@ test('one jump per press, gravity/apex, elevated landing and falling off unsuppo
  const elevated=Object.assign(createRunner(),{x:p.x,z:p.z,y:p.y});
  for(let i=0;i<150;i++)stepRunner(elevated,{x:0,z:0,jump:i<100},STEP,worldPhysics);
  assert.equal(elevated.grounded,true);assert.ok(elevated.y>8);
- const falling=Object.assign(createRunner(),{x:-150,z:0});
+ const falling=Object.assign(createRunner(),{x:-150,z:-240});
  for(let i=0;i<100;i++)stepRunner(falling,{x:0,z:0},STEP,worldPhysics);
  assert.equal(falling.grounded,false);assert.ok(falling.y< -5);
 });

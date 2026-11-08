@@ -36,6 +36,7 @@
       <div class="race-tools">
       <section class="trial-panel" aria-label="Time trial">
         <div class="trial-heading"><span>TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
+        <div id="trial-course" class="trial-course">Original Circuit</div>
         <div class="trial-current">
           <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
           <span class="speed-readout"><output id="kart-speed" aria-label="Kart speed in miles per hour" aria-live="off">0</output><span>MPH</span></span>
@@ -89,6 +90,11 @@
         <div id="touch-steer" role="group" aria-label="Touch steering joystick"><span id="touch-stick-thumb"></span><span id="touch-steer-label">Steer</span></div>
         <button id="touch-secondary" type="button" aria-pressed="false"><span aria-hidden="true">↓</span><span id="touch-secondary-label">Brake</span></button>
         <button id="touch-primary" type="button" aria-pressed="false"><span id="touch-primary-label">Gas</span><small id="touch-primary-hint">Hold to accelerate</small></button>
+      </section>
+      <section id="lap-entrance" class="lap-entrance" aria-label="Start a track lap" hidden>
+        <div><strong id="lap-entrance-name">Original Circuit</strong><span>Ready for a timed lap?</span></div>
+        <button id="lap-entrance-start" type="button">Start lap <kbd>Enter</kbd></button>
+        <button id="lap-entrance-close" type="button" aria-label="Dismiss track entrance prompt">×</button>
       </section>
       </main>
       <section id="layout-editor" aria-label="Customize control layout" hidden>

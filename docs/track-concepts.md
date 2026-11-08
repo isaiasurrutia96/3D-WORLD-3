@@ -1,6 +1,6 @@
 # Track image studies
 
-These are image-only concepts for review. No new circuits are built into the game. The existing floor slab and racing circuit retain their geometry, collisions, driving physics, lap timing and ghosts.
+The earlier studies below remain image-only concepts. The separately approved slot-car-style reference has now been adapted into the playable Skyline Circuit west of the slab; see [the reference](skyline-reference.png) and the Skyline section in [README](../README.md). The original floor slab, circuit geometry, driving physics and saved ghosts are preserved.
 
 ## Revised concepts: existing-circuit variations
 

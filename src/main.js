@@ -1,4 +1,4 @@
-import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,RACE_START,exportGhosts,importGhosts,MAX_GHOST_FILE_BYTES} from './time-trial.js';
+import {createTimeTrial,armTimeTrial,stepTimeTrial,invalidateTimeTrial,exportGhosts,importGhosts,MAX_GHOST_FILE_BYTES} from './time-trial.js';
 import {createTimeTrialView} from './time-trial-view.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -16,6 +16,8 @@ import {createMobileControls,bindPress} from './mobile-controls.js';
 import {createMinimap} from './minimap.js';
 import {createDriverView} from './driver-view.js';
 import {createLayoutEditor} from './layout-editor.js';
+import {COURSES,ORIGINAL_COURSE,WORLD_START} from './courses.js';
+import {createLapEntranceMarkers,nearestLapEntrance} from './lap-entrances.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -30,6 +32,7 @@ scene.fog=new THREE.Fog('#080e25',700,2500);
 scene.add(new THREE.HemisphereLight('#ffffff','#8e96ac',1.8));
 const sun=new THREE.DirectionalLight('#ffffff',1.7);sun.position.set(-3,8,5);scene.add(sun);
 scene.add(createWorld());
+createLapEntranceMarkers(scene,COURSES);
 const avatar=createAvatar();scene.add(avatar);
 const runner=Object.assign(createRunner(),SPAWN);
 const animation=createRunningAnimator(avatar);
@@ -37,11 +40,14 @@ const kart=scene.getObjectByName('Go-kart prototype');
 kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
 const driverView=createDriverView(avatar,kart);
-const itemSystem=createItemSystem(),applyItems=createItemView(scene,itemSystem,kart);
+const itemSystem=createItemSystem(COURSES.map(course=>course.samples)),applyItems=createItemView(scene,itemSystem,kart);
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
-const trial=createTimeTrial(trialStorage),applyTrial=createTimeTrialView(scene,trial);
-const updateMinimap=createMinimap(document.getElementById('minimap'));
+const trials=new Map(COURSES.map(course=>[course.id,createTimeTrial(trialStorage,course)]));
+let activeCourse=ORIGINAL_COURSE,trial=trials.get(activeCourse.id),nearEntrance=null,dismissedEntrance=null;
+const applyTrial=createTimeTrialView(scene,()=>trial,COURSES);
+const updateMinimap=createMinimap(document.getElementById('minimap'),()=>trial.status==='ready'||trial.status==='running'?activeCourse:null);
+const entrancePrompt=document.getElementById('lap-entrance'),entranceName=document.getElementById('lap-entrance-name');
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y,radius=CHARACTER_RADIUS,height=CHARACTER_HEIGHT)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y,radius,height);
  const parked=resolveParkedKart(road.x,road.z,y,kartState,radius,height);
@@ -219,16 +225,35 @@ function toggleVehicle(){
  mobile.clear();mobileExitPending=false;
  jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);return true;
 }
-function startTrial(){
+function startTrial(course=activeCourse){
  if(!playing)return;
  clearInputs();mobileExitPending=false;
- Object.assign(kartState,createVehicleState(),RACE_START,{heldItem:'nitro'});previousKart={...kartState};
+ if(course!==activeCourse)invalidateTimeTrial(trial,'Switched tracks');
+ activeCourse=course;trial=trials.get(course.id);document.getElementById('ghost-transfer-status').hidden=true;
+ Object.assign(kartState,createVehicleState(),course.start,{heldItem:'nitro'});previousKart={...kartState};
  animation.reset();kart.add(avatar);seatAvatar();driving=true;
  for(const box of itemSystem.boxes)box.cooldown=0;
  itemSystem.time=0;
  armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
+ nearEntrance=null;entrancePrompt.hidden=true;
 }
-bindPress(document.getElementById('trial-start'),startTrial);
+function exploreWorld(){
+ clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
+ armTimeTrial(trial);trial.status='idle';
+ Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
+ accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
+}
+function updateEntrancePrompt(position){
+ if(dismissedEntrance&&nearestLapEntrance(position,COURSES,23)!==dismissedEntrance)dismissedEntrance=null;
+ nearEntrance=trial.status==='running'?null:nearestLapEntrance(position,COURSES);
+ if(nearEntrance===dismissedEntrance)nearEntrance=null;
+ entrancePrompt.hidden=!nearEntrance;if(nearEntrance)entranceName.textContent=nearEntrance.name;
+ canvas.dataset.nearTrack=nearEntrance?.id??'';
+}
+bindPress(document.getElementById('lap-entrance-start'),()=>{if(nearEntrance)startTrial(nearEntrance);});
+bindPress(document.getElementById('lap-entrance-close'),()=>{dismissedEntrance=nearEntrance;nearEntrance=null;entrancePrompt.hidden=true;canvas.focus({preventScroll:true});});
+window.addEventListener('keydown',event=>{if(playing&&nearEntrance&&event.code==='Enter'&&!event.repeat&&!event.target.closest('input,textarea,select,button,summary,a')){event.preventDefault();startTrial(nearEntrance);}});
+bindPress(document.getElementById('trial-start'),()=>startTrial());
 document.getElementById('trial-ghost').addEventListener('change',event=>{trial.showGhost=event.target.checked;canvas.focus({preventScroll:true});});
 const ghostFile=document.getElementById('ghost-file'),ghostMessage=document.getElementById('ghost-transfer-status'),importButton=document.getElementById('ghost-import');
 function ghostTransferMessage(text){ghostMessage.hidden=false;ghostMessage.textContent=text;}
@@ -236,7 +261,7 @@ bindPress(document.getElementById('ghost-export'),()=>{
  if(!trial.records.length)return;
  clearInputs();
  const url=URL.createObjectURL(new Blob([exportGhosts(trial)],{type:'application/json'}));
- const link=document.createElement('a');link.href=url;link.download=`letsgo-ghosts-${new Date().toISOString().slice(0,10)}.json`;
+ const link=document.createElement('a');link.href=url;link.download=`letsgo-${activeCourse===ORIGINAL_COURSE?'':'skyline-'}ghosts-${new Date().toISOString().slice(0,10)}.json`;
  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  ghostTransferMessage('Ghost file saved. Import it in your other browser.');
  canvas.focus({preventScroll:true});
@@ -274,7 +299,7 @@ function frame(time){
    stepItems(itemSystem,driving?kartState:null,previousKart,STEP);
    accumulator-=STEP;
   }
-  if(driving&&kartState.y< -35){Object.assign(kartState,createVehicleState());itemQueued=false;previousKart={...kartState};reset();}
+  if(driving&&kartState.y< -35){invalidateTimeTrial(trial,'Returned to slab — restart lap');Object.assign(kartState,createVehicleState(),WORLD_START);itemQueued=false;previousKart={...kartState};reset();}
   if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
@@ -289,6 +314,7 @@ function frame(time){
    animation.update({...runner,distance,phase},dt);
   }
   const focus=driving?kartPose:avatar.position;
+  updateEntrancePrompt(driving?kartState:runner);
   updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses);
   if(driving&&viewMode==='first-person')updateFirstPersonCamera();
   else{
@@ -304,7 +330,7 @@ function frame(time){
   const itemLabel=document.querySelector('#held-item');
   if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
   render();
-  canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
+  canvas.dataset.course=activeCourse.id;canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
   const mph=String(driving?speedToMph(Math.hypot(kartState.speed,kartState.lateralSpeed)):0);if(speedometer.value!==mph)speedometer.value=mph;
@@ -315,13 +341,14 @@ function frame(time){
 
 function goHome(){
  playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
+ nearEntrance=null;entrancePrompt.hidden=true;
  invalidateTimeTrial(trial,'Returned home — restart lap');previousTime=undefined;accumulator=0;
  if(document.pointerLockElement===canvas)document.exitPointerLock();
  controls.enabled=false;gameScreen.hidden=true;gameScreen.inert=true;homeScreen.hidden=false;app.dataset.screen='home';document.title='LetsGo';playButton.focus({preventScroll:true});
 }
 function playGame(){
  homeScreen.hidden=true;gameScreen.hidden=false;gameScreen.inert=false;playing=true;gameFocused=true;controls.enabled=viewMode!=='first-person';app.dataset.screen='game';document.title='LetsGo · Race';
- startTrial();resize();renderer.setAnimationLoop(frame);
+ exploreWorld();resize();renderer.setAnimationLoop(frame);
 }
 bindPress(document.getElementById('home-button'),goHome);
 bindPress(document.getElementById('home-logo-link'),goHome);

@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import {createGhostTemplate} from './ghost-kart.js';
 import {createVehicleView} from './vehicle-view.js';
-import {GATES,CHECKPOINT_COUNT,MAX_GHOSTS,GHOST_COLORS,sampleGhost,formatTime} from './time-trial.js';
-import {TRACK_HALF_WIDTH} from './track.js';
+import {CHECKPOINT_COUNT,MAX_GHOSTS,GHOST_COLORS,sampleGhost,formatTime} from './time-trial.js';
+import {ORIGINAL_COURSE} from './courses.js';
 
-export function createTimeTrialView(scene,state){
+export function createTimeTrialView(scene,stateOrGetter,courses=[ORIGINAL_COURSE]){
+ const getState=typeof stateOrGetter==='function'?stateOrGetter:()=>stateOrGetter;
  const group=new THREE.Group();group.name='Time trial start and checkpoints';scene.add(group);
  const white=new THREE.MeshLambertMaterial({color:'#f4f2e8'}),dark=new THREE.MeshLambertMaterial({color:'#182235'}),aqua=new THREE.MeshBasicMaterial({color:'#5ee2e7'});
  const gateNodes=[];
  function label(text){const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');ctx.fillStyle='#162237';ctx.fillRect(0,0,256,64);ctx.fillStyle='#eaf9ff';ctx.font='bold 33px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,128,34);const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;return new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide});}
- for(const gate of GATES){
+ for(const course of courses)for(const gate of course.gates){
+  const TRACK_HALF_WIDTH=course.halfWidth;
   const node=new THREE.Group();node.position.set(gate.x,gate.y,gate.z);node.rotation.y=Math.atan2(gate.fx,gate.fz);group.add(node);
   if(gate.index===0){
    const positions=[],colors=[];
@@ -30,7 +32,7 @@ export function createTimeTrialView(scene,state){
    }
    const ribbon=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_HALF_WIDTH*2,.24),new THREE.MeshBasicMaterial({color:'#67e9e9',transparent:true,opacity:.33,depthWrite:false,side:THREE.DoubleSide}));ribbon.rotation.x=-Math.PI/2;ribbon.position.y=.03;node.add(ribbon);highlights.push(ribbon);
    const arrow=new THREE.Mesh(new THREE.ConeGeometry(.75,2.1,3),aqua);arrow.rotation.x=Math.PI/2;arrow.position.set(0,.045,2.3);arrow.scale.z=.04;node.add(arrow);highlights.push(arrow);
-   gateNodes.push({node,highlights,index:gate.index});
+   gateNodes.push({node,highlights,index:gate.index,courseId:course.id});
   }
  }
  const template=createGhostTemplate();
@@ -45,8 +47,9 @@ export function createTimeTrialView(scene,state){
  const exportButton=document.getElementById('ghost-export');
  let message='';
  return function update(alpha,step){
+  const state=getState();
   const active=state.status==='ready'||state.status==='running';
-  for(const gate of gateNodes){const expected=state.passed<CHECKPOINT_COUNT?state.passed+1:0;gate.node.visible=active&&gate.index===expected;for(const part of gate.highlights)part.visible=gate.index===expected;}
+  for(const gate of gateNodes){const expected=state.passed<CHECKPOINT_COUNT?state.passed+1:0;gate.node.visible=active&&gate.courseId===state.course.id&&gate.index===expected;for(const part of gate.highlights)part.visible=gate.index===expected;}
   const time=state.status==='running'?Math.max(0,state.elapsed-(1-alpha)*step):0;
   // The minimap consumes these same sampled poses, so its dots cannot drift
   // away from the 3D ghosts. At the start line it can also show saved ghosts.
@@ -57,11 +60,12 @@ export function createTimeTrialView(scene,state){
    return pose;
   });
   for(const rank of ranks)rank.value=formatTime(state.records[Number(rank.dataset.lapRank)-1]?.duration);
+  const courseLabel=document.getElementById('trial-course');if(courseLabel.textContent!==state.course.name)courseLabel.textContent=state.course.name;
   timer.value=formatTime(state.elapsed);best.value=formatTime(state.best?.duration);lap.textContent=`Lap ${state.completed+1}`;
   last.textContent=state.lastLap==null?'':`${state.lastWasBest?'New best':state.lastRank?`New #${state.lastRank}`:'Last lap'} ${formatTime(state.lastLap)}`;
-  button.textContent=state.status==='idle'?'Start in kart · T':'Restart lap · T';toggle.disabled=!state.best;toggle.checked=state.showGhost;
+  button.textContent=state.status==='idle'?`Start ${state.course.name} · T`:'Restart lap · T';toggle.disabled=!state.best;toggle.checked=state.showGhost;
   exportButton.disabled=!state.records.length;
-  const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Your top four laps become ghosts';
+  const text=state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Approach a track entrance to start a lap';
   if(text!==message){status.textContent=text;message=text;}
   return ghostPoses;
  };
