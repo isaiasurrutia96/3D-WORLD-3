@@ -40,6 +40,11 @@ export interface AnimationInputs {
    * to one when it is fully behind him.
    */
   ledgeBoost: number;
+  /**
+   * Which way he is pointed while swimming: one straight down, minus one
+   * straight up, nothing level.
+   */
+  swimAim: number;
   /** True when the climb is onto a roof rather than over the top of a wall. */
   ledgeWide: boolean;
   /** Which placed move is running: a climb, a ladder step, or a way out of water. */
@@ -1173,12 +1178,17 @@ function poseSwim(input: AnimationInputs): void {
   const right = armStroke(swimPhase + 0.5, 1);
   const flutter = Math.sin(swimPhase * Math.PI * 6);
 
-  // Prone, but not flat out: the head stays up enough to be clearly above
-  // the surface, which is where the rest of the controller believes it is.
-  pose.bodyPitch = mix(0.14, 1.3);
-  pose.bodyHeight = mix(0.04, 0.3);
+  // Upright and low when treading, and angled rather than flat when
+  // swimming: head out of the water, chest under it, feet trailing well
+  // below. Flat out at 1.3 he planed across the surface like a board with
+  // his legs at the top of it, which is not how anyone swims and not what
+  // the water looks like it should do to him.
+  pose.bodyPitch = mix(0.1, 1.02);
+  pose.bodyHeight = mix(0.02, 0.36);
   pose.bodyRoll = mix(0, Math.sin(swimPhase * Math.PI * 2) * 0.22);
-  pose.headPitch = mix(-0.1, -0.5);
+  // Chin up. He is lower in the water now, so keeping his face out of it is
+  // the difference between swimming and drowning quietly.
+  pose.headPitch = mix(-0.3, -0.66);
 
   pose.shoulderLeftPitch = mix(treadShoulder, leftShoulder);
   pose.shoulderRightPitch = mix(treadShoulder, right.shoulder);
@@ -1187,12 +1197,15 @@ function poseSwim(input: AnimationInputs): void {
   pose.shoulderLeftRoll = mix(treadRoll, leftRoll);
   pose.shoulderRightRoll = mix(treadRoll, right.roll);
 
-  pose.hipLeft = mix(-0.95 - eggbeater * 0.3, 0.12 + flutter * 0.3);
-  pose.hipRight = mix(-0.95 + eggbeater * 0.3, 0.12 - flutter * 0.3);
-  pose.kneeLeft = mix(1.1 + Math.max(0, eggbeater) * 0.5, 0.2 + Math.max(0, -flutter) * 0.3);
-  pose.kneeRight = mix(1.1 + Math.max(0, -eggbeater) * 0.5, 0.2 + Math.max(0, flutter) * 0.3);
-  pose.ankleLeft = mix(0.2, -0.32);
-  pose.ankleRight = mix(0.2, -0.32);
+  // Legs down, not tucked. Treading with the knees up by the chest reads as
+  // curling into a ball; the kick that actually holds a person up is taken
+  // with the thighs hanging and the shins sweeping under them.
+  pose.hipLeft = mix(-0.46 - eggbeater * 0.26, -0.12 + flutter * 0.3);
+  pose.hipRight = mix(-0.46 + eggbeater * 0.26, -0.12 - flutter * 0.3);
+  pose.kneeLeft = mix(0.72 + Math.max(0, eggbeater) * 0.45, 0.2 + Math.max(0, -flutter) * 0.3);
+  pose.kneeRight = mix(0.72 + Math.max(0, -eggbeater) * 0.45, 0.2 + Math.max(0, flutter) * 0.3);
+  pose.ankleLeft = mix(0.26, -0.32);
+  pose.ankleRight = mix(0.26, -0.32);
 }
 
 /**
@@ -1207,10 +1220,14 @@ function poseButterfly(input: AnimationInputs): void {
   const wave = Math.sin(swimPhase * Math.PI * 2);
   const kick = Math.sin(swimPhase * Math.PI * 2 - 0.7);
 
-  // A quarter turn is exactly horizontal, so swimming forward sits just
-  // under it and a dive goes past it, pointing the head down the way he is
-  // actually travelling.
-  pose.bodyPitch = (input.diving ? 1.9 : 1.3) + wave * 0.14;
+  // A quarter turn is exactly horizontal, so level swimming sits just under
+  // it and he tips either side of that to point the way he is actually
+  // travelling: nose down into a dive, nose up on the way back to the
+  // surface. It used to be one of two fixed angles depending on whether the
+  // dive button was held, which said nothing about where he was going as
+  // soon as where he was going became a thing you could steer.
+  const aim = MathUtils.clamp(input.swimAim, -1, 1);
+  pose.bodyPitch = 1.3 + aim * 0.62 + wave * 0.14;
   pose.bodyHeight = 0.26;
   pose.bodyRoll = 0;
 
@@ -1229,7 +1246,8 @@ function poseButterfly(input: AnimationInputs): void {
   pose.ankleLeft = -0.3 - kick * 0.2;
   pose.ankleRight = -0.3 - kick * 0.2;
 
-  pose.headPitch = -0.5 - wave * 0.1;
+  // Chin toward where he is going, within reason.
+  pose.headPitch = -0.5 - wave * 0.1 - aim * 0.12;
 }
 
 function applyCarry(): void {

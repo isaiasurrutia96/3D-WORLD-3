@@ -472,10 +472,27 @@ export const TUNING = {
   /** Downward acceleration while the dive button is held. */
   diveAcceleration: 11,
   /**
-   * Fraction of the character's height that sits below the waterline while
-   * treading water, so head and shoulders stay clear.
+   * The push under the surface that one press of the dive button gives, so
+   * that a tap takes him down rather than needing to be held.
    */
-  floatSubmersion: 0.62,
+  diveImpulse: 3.2,
+  /**
+   * How much of the usual float-back-up he keeps while steering underwater
+   * by eye. Near neutral, because a mode that is steered needs long enough
+   * to steer in; at full buoyancy he was back on the surface before the
+   * mouse had finished moving.
+   */
+  lookSwimBuoyancy: 0.3,
+  /**
+   * Fraction of the character's height that sits below the waterline while
+   * treading water.
+   *
+   * At 0.62 he floated like a cork: head, shoulders and most of his chest
+   * clear of the surface, which is how nobody has ever trodden water. A
+   * person treading water is in the water up to the neck with only the head
+   * out, and that is what this is now — the waterline crosses at the collar.
+   */
+  floatSubmersion: 0.76,
   /** Vertical speed above which entering water makes a splash. */
   splashSpeed: 6,
 

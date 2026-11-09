@@ -855,6 +855,35 @@ if (course.strokeSpam.surface.rose > 0.6) {
       `${course.strokeSpam.surface.rose}m, out of the water`,
   );
 }
+// Swimming where he looks: C takes him under, the camera steers, and the
+// forward key is what turns looking into going.
+if (!course.lookSwim.dives) {
+  problems.push('one press of C in the water did not take him under');
+}
+if (!course.lookSwim.steers) {
+  problems.push(
+    `looking did not steer him — down gave ${course.lookSwim.down.dy}m and up gave ` +
+      `${course.lookSwim.up.dy}m`,
+  );
+}
+if (!course.lookSwim.turns) {
+  problems.push(
+    `looking sideways did not turn him — he went ${course.lookSwim.across.dx}m across ` +
+      `and ${course.lookSwim.across.dz}m along`,
+  );
+}
+if (!course.lookSwim.needsAKey) {
+  problems.push(
+    `looking around underwater propelled him on its own — ${course.lookSwim.idle.dx}m, ` +
+      `${course.lookSwim.idle.dy}m, ${course.lookSwim.idle.dz}m with nothing held`,
+  );
+}
+if (!course.lookSwim.surfaceIsFree) {
+  problems.push(
+    `looking down at the surface pulled him ${course.lookSwim.surfaceDrop}m under`,
+  );
+}
+
 // And floating still is floating still: coming up from the bottom with
 // nothing pressed must leave him treading water, not snatched onto the side.
 if (!course.floating.treads) {
@@ -1079,6 +1108,12 @@ console.log(
 console.log(
   `                floating still: "${course.floating.state}" at ${course.floating.at}m, ` +
     `then "${course.floating.stayed}"`,
+);
+console.log(
+  `                C then look: down ${course.lookSwim.down.dy}m, up ` +
+    `${course.lookSwim.up.dy}m, across ${course.lookSwim.across.dx}m · looking alone ` +
+    `${course.lookSwim.idle.dx}/${course.lookSwim.idle.dy}/${course.lookSwim.idle.dz}m · ` +
+    `at the surface ${course.lookSwim.surfaceDrop}m`,
 );
 console.log(
   `                8x Space at the surface: rose ${course.strokeSpam.surface.rose}m, ` +

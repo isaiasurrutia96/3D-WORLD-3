@@ -149,7 +149,7 @@ class Game {
     this.input.update(this.settings.cameraSensitivity, this.settings.invertCameraY);
     if (this.input.wasPressed('togglePointerLock')) this.input.togglePointerLock();
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
-    this.player.update(delta, this.input, this.cameraRig.movementYaw);
+    this.player.update(delta, this.input, this.cameraRig.movementYaw, this.cameraRig.lookPitch);
     this.cameraRig.update(delta, this.player);
     this.trackProgress();
 
@@ -871,9 +871,9 @@ class Game {
         // Where the camera is looking. Movement is camera-relative, so a
         // test that leaves this at zero while the character faces along +x
         // is pressing "right" into the wall, not along it.
-        const camera = { yaw: 0 };
+        const camera = { yaw: 0, pitch: 0 };
         const step = () => {
-          player.update(dt, stub, camera.yaw);
+          player.update(dt, stub, camera.yaw, camera.pitch);
           pressed.clear();
         };
         const frames = (s: number) => Math.max(1, Math.round(s / dt));
@@ -1101,9 +1101,9 @@ class Game {
         // Where the camera is looking. Movement is camera-relative, so a
         // test that leaves this at zero while the character faces along +x
         // is pressing "right" into the wall, not along it.
-        const camera = { yaw: 0 };
+        const camera = { yaw: 0, pitch: 0 };
         const step = () => {
-          player.update(dt, stub, camera.yaw);
+          player.update(dt, stub, camera.yaw, camera.pitch);
           pressed.clear();
         };
         const frames = (s: number) => Math.max(1, Math.round(s / dt));
@@ -2026,6 +2026,94 @@ class Game {
           dives: divedTo < floatY - 1,
         };
 
+        // Swimming where he looks. C takes him under and hands the
+        // steering to the camera; the forward key is what turns looking
+        // into going. Driven here with the camera pointed in several
+        // directions, with and without a hand on the stick.
+        {
+          const pool = { x: -35, z: 12 };
+          const dive = (pitch: number, yaw: number, forward: boolean, seconds: number) => {
+            camera.yaw = yaw;
+            camera.pitch = 0;
+            place(pool.x, 0, pool.z, Math.PI);
+            for (let i = 0; i < frames(2.5); i += 1) step();
+            const floatY = player.position.y;
+            // One tap of C, released at once.
+            tap('crouch');
+            step();
+            held.delete('crouch');
+            for (let i = 0; i < frames(0.6); i += 1) step();
+            const wentUnder = player.position.y < floatY - 0.4;
+
+            // Now look, and only then ask to move.
+            camera.pitch = pitch;
+            const from = { ...where() };
+            stick.y = forward ? -1 : 0;
+            for (let i = 0; i < frames(seconds); i += 1) step();
+            stick.y = 0;
+            const to = { ...where() };
+            const out = {
+              wentUnder,
+              dy: round(to.y - from.y),
+              dx: round(to.x - from.x),
+              dz: round(to.z - from.z),
+              moved: round(Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z)),
+              state: player.stateName,
+            };
+            held.clear();
+            stick.x = 0;
+            stick.y = 0;
+            camera.pitch = 0;
+            camera.yaw = 0;
+            return out;
+          };
+
+          // Looking down and holding forward goes down; looking up goes up.
+          const down = dive(0.95, 0, true, 1.4);
+          const up = dive(-0.55, 0, true, 1.4);
+          // Looking down and *not* holding forward must do nothing of the
+          // kind: a glance is a glance.
+          const idle = dive(0.95, 0, false, 1.4);
+          // And looking sideways takes him sideways rather than along the
+          // way he happened to be facing when he went under.
+          const across = dive(0, Math.PI / 2, true, 1.4);
+
+          // Coming back to the surface hands the steering back: looking
+          // down there must not drag him under again.
+          camera.yaw = 0;
+          place(pool.x, 0, pool.z, Math.PI);
+          for (let i = 0; i < frames(2.5); i += 1) step();
+          const surfaceY = player.position.y;
+          camera.pitch = 0.95;
+          stick.y = -1;
+          for (let i = 0; i < frames(1.6); i += 1) step();
+          stick.y = 0;
+          const surfaceDrop = round(player.position.y - surfaceY);
+          camera.pitch = 0;
+          camera.yaw = 0;
+          held.clear();
+
+          results.lookSwim = {
+            down,
+            up,
+            idle,
+            across,
+            surfaceDrop,
+            dives: down.wentUnder,
+            // Down goes down, up goes up, and both a good way.
+            steers: down.dy < -0.8 && up.dy > 0.5,
+            // Looking without asking to move gets him nowhere: not an inch
+            // horizontally, and not downward either. What he does do is
+            // drift up, because that is what a body in water does.
+            needsAKey:
+              Math.hypot(idle.dx, idle.dz) < 0.1 && idle.dy > -0.05 && down.dy < idle.dy - 1.5,
+            // And the yaw steers too: looking along +x sends him along it.
+            turns: Math.abs(across.dx) > 0.8 && Math.abs(across.dx) > Math.abs(across.dz),
+            // At the surface, looking down is only a camera movement.
+            surfaceIsFree: Math.abs(surfaceDrop) < 0.35,
+          };
+        }
+
         // The boost: a jump on its own against the same jump with a second
         // press of the button at the top of it.
         {
@@ -2113,6 +2201,8 @@ class Game {
         // Buttons tapped on the first step of this call, for driving a move
         // that answers a press rather than a hold.
         presses: string[] = [],
+        // Where the camera is tilted, for the one move steered by looking.
+        pitch = 0,
       ) => {
         const held = new Set(keys);
         const pressed = new Set(presses);
@@ -2124,7 +2214,7 @@ class Game {
           wasReleased: () => false,
         } as unknown as Input;
         for (let i = 0; i < Math.max(1, Math.round(seconds / dt)); i += 1) {
-          this.player.update(dt, stub, yaw);
+          this.player.update(dt, stub, yaw, pitch);
           pressed.clear();
         }
         return {

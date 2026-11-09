@@ -224,6 +224,19 @@ export class Player {
   private waterVolume: WaterVolume | null = null;
   private submerged = false;
   private atSurface = false;
+  /** Where the camera is pointed this frame. */
+  private lookYaw = 0;
+  private lookPitch = 0;
+  /**
+   * Swimming where he looks rather than where the stick points.
+   *
+   * Entered by pressing the dive button in water and left on reaching the
+   * surface, so that looking around at the surface is only ever a camera
+   * movement — which is what it has to be, or every glance would shove him
+   * somewhere.
+   */
+  private lookSwim = false;
+  private readonly scratchLook = new Vector3();
   /** Counts down after leaving water; see updateAir. */
   private leftWaterTimer = 0;
   private diving = false;
@@ -337,7 +350,11 @@ export class Player {
     return 'idle';
   }
 
-  update(delta: number, input: Input, cameraYaw: number): void {
+  update(delta: number, input: Input, cameraYaw: number, cameraPitch = 0): void {
+    // Where the camera is pointed, kept for the one move that is steered by
+    // looking rather than by the stick.
+    this.lookYaw = cameraYaw;
+    this.lookPitch = cameraPitch;
     this.animationTime += delta;
     if (this.strokeTimer > 0) this.strokeTimer -= delta;
     if (this.landingTimer > 0) this.landingTimer -= delta;
@@ -968,6 +985,20 @@ export class Player {
     this.gripPhase += rate * this.gripMoving;
   }
 
+  /**
+   * The way the camera is pointed, as a direction to swim along.
+   *
+   * The camera sits behind him on a yaw and a pitch, so where it looks is
+   * the opposite of where it sits. Pitch is positive looking down at him
+   * from above, which is also the direction a dive goes.
+   */
+  private lookDirection(target: Vector3): Vector3 {
+    const flat = Math.cos(this.lookPitch);
+    return target
+      .set(-Math.sin(this.lookYaw) * flat, -Math.sin(this.lookPitch), -Math.cos(this.lookYaw) * flat)
+      .normalize();
+  }
+
   /** His right along the edge: the way he is facing, crossed with up. */
   private edgeSide(target: Vector3): Vector3 {
     const forward = this.forwardVector(this.scratchMove);
@@ -1171,6 +1202,21 @@ export class Player {
       1,
     );
     return t * t * (3 - 2 * t) * TUNING.ledgeBoostLift;
+  }
+
+  /**
+   * Which way he is pointed while swimming, as a number from one pointing
+   * straight down to minus one pointing straight up.
+   *
+   * Taken from where he is actually going rather than from which button is
+   * held, so steering underwater by eye tips him over with the turn instead
+   * of swimming level while the view says otherwise. Below a crawl it is
+   * nothing: drifting is not aiming.
+   */
+  private swimAim(): number {
+    const speed = Math.hypot(this.velocity.x, this.velocity.y, this.velocity.z);
+    if (speed < 0.4) return 0;
+    return MathUtils.clamp(-this.velocity.y / speed, -1, 1);
   }
 
   /** How far in the extra push is, as a fraction, for the pose to drive on. */
@@ -1447,6 +1493,25 @@ export class Player {
     this.atSurface = Math.abs(toFloatLine) < 0.35;
 
     this.submerged = true;
+
+    // C takes him under and hands the steering to where he is looking. It
+    // is a press rather than a hold: he goes down, the button is let go,
+    // and from then on the mouse points him. Pressing it again gives up and
+    // lets him float. At the surface it only ever starts the dive, so
+    // looking around up there stays a camera movement and nothing else.
+    if (input.wasPressed('crouch')) {
+      if (this.lookSwim) {
+        this.lookSwim = false;
+      } else {
+        this.lookSwim = true;
+        this.velocity.y -= TUNING.diveImpulse;
+      }
+    }
+    // And he is only ever under his own steering while he is actually
+    // under. Surfacing hands it back, which is what makes coming up a way
+    // out of the mode rather than something to be cancelled.
+    if (this.atSurface && this.velocity.y >= 0) this.lookSwim = false;
+
     // Q dives, the same button that crouches on land: underwater there is
     // nothing to crouch for, and one button for "down" is easier to hold in
     // the head than two. The old key still works.
@@ -1456,8 +1521,10 @@ export class Player {
       this.velocity.y -= TUNING.diveAcceleration * delta;
     } else if (toFloatLine > 0) {
       // Rising: stronger the deeper the character is, capped so a deep dive
-      // does not fire them out of the water.
-      this.velocity.y += Math.min(TUNING.buoyancy, toFloatLine * 7) * delta;
+      // does not fire them out of the water. Steering by eye needs time to
+      // steer in, so while he is doing that he is closer to neutral.
+      const lift = this.lookSwim ? TUNING.lookSwimBuoyancy : 1;
+      this.velocity.y += Math.min(TUNING.buoyancy, toFloatLine * 7) * lift * delta;
     } else {
       // Settling back down onto the float line.
       this.velocity.y += Math.max(-TUNING.swimGravity, toFloatLine * 5) * delta;
@@ -1478,7 +1545,28 @@ export class Player {
       this.velocity.y += TUNING.strokeImpulse * lift;
     }
 
-    if (strength > 0.001) {
+    if (this.lookSwim) {
+      // Where he looks is where he goes — but only while he is asking to
+      // go somewhere. Looking around on its own moves the camera and
+      // nothing else, which is the whole reason the forward key is in this
+      // condition at all.
+      const drive = -input.move.y;
+      if (Math.abs(drive) > 0.001) {
+        const look = this.lookDirection(this.scratchLook);
+        this.velocity.addScaledVector(look, TUNING.swimAcceleration * drive * delta);
+        // He turns to face the way he is swimming, so the body follows the
+        // look rather than the look sliding over a body pointed elsewhere.
+        this.turnToward(look, delta, 0, 5.5);
+      }
+      // Sideways still slides him across, which is the one thing looking
+      // cannot do.
+      if (Math.abs(input.move.x) > 0.001) {
+        const across = this.scratchSide
+          .set(-Math.cos(this.lookYaw), 0, Math.sin(this.lookYaw))
+          .multiplyScalar(input.move.x);
+        this.velocity.addScaledVector(across, TUNING.swimAcceleration * 0.6 * delta);
+      }
+    } else if (strength > 0.001) {
       this.turnToward(wish, delta, 0, 5.5);
       this.velocity.addScaledVector(wish, TUNING.swimAcceleration * strength * delta);
     }
@@ -1554,6 +1642,7 @@ export class Player {
     this.submerged = false;
     this.atSurface = false;
     this.diving = false;
+    this.lookSwim = false;
     this.state = 'ledge';
     return true;
   }
@@ -2063,6 +2152,7 @@ export class Player {
       this.submerged = false;
       this.atSurface = false;
       this.diving = false;
+      this.lookSwim = false;
       // Nothing pressed in the water carries over onto land.
       this.leftWaterTimer = TUNING.waterExitGrace;
       this.airPresses = 0;
@@ -2305,6 +2395,7 @@ export class Player {
       ledgeShimmy: this.gripMoving,
       ledgeLift: this.ledgeLift,
       ledgeBoost: this.boostShowing(),
+      swimAim: this.swimAim(),
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

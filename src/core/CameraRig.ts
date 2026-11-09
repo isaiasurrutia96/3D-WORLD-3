@@ -47,6 +47,15 @@ export class CameraRig {
     return this.yaw;
   }
 
+  /**
+   * How far the camera is tilted. Positive looks down at him from above.
+   * Swimming underwater is steered by where the camera is pointed, so the
+   * controller needs this as well as the yaw.
+   */
+  get lookPitch(): number {
+    return this.pitch;
+  }
+
   /** Current yaw in degrees, for the on-screen readout. */
   get yawDegrees(): number {
     return ((MathUtils.radToDeg(this.yaw) % 360) + 360) % 360;
