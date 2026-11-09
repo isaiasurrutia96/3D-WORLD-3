@@ -2,6 +2,7 @@ import {createGhostTemplate} from '../ghost-kart.js';
 import {createVehicleView} from '../vehicle-view.js';
 import {createNitroExhaust} from '../item-view.js';
 import {interpolatePose} from '../time-trial.js';
+import {interpolateHitSpin} from '../kart-hit.js';
 import {Mesh,CircleGeometry,MeshBasicMaterial} from 'three';
 
 // Six opaque batches keep one additional driver inexpensive on phones.
@@ -11,6 +12,6 @@ export function createNpcView(scene){
  const apply=createVehicleView(model),exhaust=createNitroExhaust(model);
  return{model,update(driver,alpha,time){
   model.visible=!!driver;if(!driver)return null;
-  const pose={...driver.state,...interpolatePose(driver.previous,driver.state,alpha)};apply(pose);exhaust(pose,true,time);return pose;
+  const pose={...driver.state,...interpolatePose(driver.previous,driver.state,alpha),spinTime:interpolateHitSpin(driver.previous,driver.state,alpha)};apply(pose);exhaust(pose,true,time);return pose;
  }};
 }

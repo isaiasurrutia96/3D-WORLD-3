@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/avatar.test.js && node tests/running.test.js && node tests/world.test.js && node tests/vehicle.test.js && node tests/driver-view.test.js && node tests/layout-state.test.js && node tests/items.test.js && node tests/npc.test.js && node tests/backflip-preview.test.js && node tests/time-trial.test.js && node tests/second-track.test.js && node tests/suzuka-track.test.js && node tests/winding-track.test.js && node tests/stage1.test.js && node tests/jump-driving.test.js && node tests/mobile-input.test.js && node tests/wall-contact-preview.test.js"
+    "test": "node tests/avatar.test.js && node tests/running.test.js && node tests/world.test.js && node tests/vehicle.test.js && node tests/driver-view.test.js && node tests/layout-state.test.js && node tests/items.test.js && node tests/kart-hit.test.js && node tests/npc.test.js && node tests/backflip-preview.test.js && node tests/time-trial.test.js && node tests/second-track.test.js && node tests/suzuka-track.test.js && node tests/winding-track.test.js && node tests/stage1.test.js && node tests/jump-driving.test.js && node tests/mobile-input.test.js && node tests/wall-contact-preview.test.js"
   },
   "repository": {
     "type": "git",

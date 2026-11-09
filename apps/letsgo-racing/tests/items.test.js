@@ -52,11 +52,11 @@ test('firing a shell preserves an active boost and the firing kart heading',()=>
  assert.equal(useHeldItem(system,kart),true);assert.equal(kart.heldItem,null);assert.equal(kart.speed,80);assert.equal(kart.yaw,yaw);assert.equal(kart.boostTime,1);
  assert.ok(Math.hypot(system.shells[0].vx,system.shells[0].vz)>kart.speed);
 });
-test('a shell hits an NPC, cancels boost, slows it down and leaves its heading intact',()=>{
+test('a shell hits an NPC, cancels boost, slows it down and preserves its recovery heading',()=>{
  const system=createItemSystem(),owner={...createVehicleState(),x:0,y:0,z:0,yaw:0,heldItem:'shell'},target={...createVehicleState(),x:0,y:0,z:16,yaw:.7,speed:40,boostTime:1};
  system.boxes=[];useHeldItem(system,owner);let hits=0;
  for(let i=0;i<40;i++){stepItems(system,owner,owner,1/120,flat,[{state:target,previous:target}]);hits+=system.hits.length;}
- assert.equal(hits,1);assert.equal(system.shells.length,0);assert.ok(target.speed<12);assert.equal(target.boostTime,0);assert.equal(target.yaw,.7);assert.equal(owner.speed,0);
+ assert.equal(hits,1);assert.equal(system.shells.length,0);assert.ok(target.speed<12);assert.equal(target.boostTime,0);assert.equal(target.spinTime,.75);assert.equal(target.yaw,.7);assert.equal(owner.speed,0);
 });
 test('swept shell hits detect a moving kart crossing between frames',()=>{
  const system=createItemSystem(),owner={...createVehicleState(),x:0,y:0,z:0,yaw:0,heldItem:'shell'},target={...createVehicleState(),x:5,y:0,z:7.5,speed:40},previous={...target,x:-5};

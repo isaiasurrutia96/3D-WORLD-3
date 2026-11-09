@@ -1,5 +1,6 @@
 import {resetRig,HIP_HEIGHT} from './on-foot/avatar.js';
 import * as THREE from 'three';
+import {hitSpinAngle} from './kart-hit.js';
 
 export function speedToMph(speed){return Math.round(Math.abs(speed)*2.2369362920544);}
 
@@ -19,7 +20,7 @@ export function createVehicleView(model){
  const steering=model.getObjectByName('steering_wheel'),steeringRest=steering.quaternion.clone();
  const spin=new THREE.Quaternion(),axis=new THREE.Vector3(0,0,1);
  return function apply(state){
-  model.position.set(state.x,state.y,state.z);model.rotation.set(state.pitch,state.yaw,state.bank,'YXZ');
+  model.position.set(state.x,state.y,state.z);model.rotation.set(state.pitch,state.yaw+hitSpinAngle(state),state.bank,'YXZ');
   const angles=frontWheelAngles(state.steering);
   for(const wheel of wheels)wheel.node.rotation.set(state.wheelRotation,wheel.front?angles[wheel.side]:0,0,'YXZ');
   steering.quaternion.copy(steeringRest).multiply(spin.setFromAxisAngle(axis,-state.steering*2.5));

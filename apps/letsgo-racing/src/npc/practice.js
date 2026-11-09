@@ -18,7 +18,10 @@ export function createNpcPractice(world,items){
    if(!this.active)return;
    const npc=this.driver;npc.previous={...npc.state};
    if(startForward)this.running=true;
-   if(!this.running)return;
+   if(!this.running){
+    if(npc.state.spinTime>0)stepVehicle(npc.state,{},dt,world);
+    return;
+   }
    const input=readNpcInput(npc,dt,{traffic:[player],boxes:items.boxes});
    if(input.useItem)useHeldItem(items,npc.state);
    stepVehicle(npc.state,input,dt,world);resolveKartContact(player,npc.state,world);

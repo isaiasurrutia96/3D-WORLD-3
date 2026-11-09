@@ -45,6 +45,14 @@ item controls, and slow a hit kart without forcing its heading around. Only a
 derived NPC racing-line/pace profile is distributed; personal ghost exports and
 leaderboards stay separate. Claude's root world and movement code are unchanged.
 
+## Shell-hit spin — 9 November 2026
+
+**Confirmed by the project owner.** Restore a complete kart/driver spin on a
+shell hit, followed by a smooth return to the driving heading. Deliver and test
+this chunk first. Bananas (cleared per lap), shields, a dodgeable homing torpedo
+with a proximity warning, and a Space-bar kart jump are later chunks; none is
+implemented in this delivery. The movement world remains separate.
+
 ---
 
 ## A) The project

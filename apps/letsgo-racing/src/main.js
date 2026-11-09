@@ -20,6 +20,7 @@ import {COURSES,ORIGINAL_COURSE,WORLD_START} from './courses.js';
 import {createLapEntranceMarkers,nearestLapEntrance} from './lap-entrances.js';
 import {createNpcPractice} from './npc/practice.js';
 import {createNpcView} from './npc/view.js';
+import {interpolateHitSpin} from './kart-hit.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -219,7 +220,7 @@ function toggleVehicle(){
   animation.reset();driving=true;kart.add(avatar);seatAvatar();previousKart={...kartState};
  }else{
   const exit=findExitPosition(kartState,worldPhysics);
-  if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
+  if(!exit){hint.textContent=kartState.spinTime>0?'Wait for spin to finish':Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
   invalidateTimeTrial(trial,'Left the kart — restart lap');
   stopNpcPractice();driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
@@ -308,7 +309,7 @@ function frame(time){
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
     const startForward=drivingInput.throttle>0&&!drivingInput.brake;
     const waiting=trial.status==='ready'||npcPractice.active&&!npcPractice.running;
-    if(!waiting||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
+    if(!waiting||startForward||kartState.spinTime>0)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
     if(npcPractice.active)npcPractice.step(STEP,kartState,startForward);else stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
@@ -319,7 +320,7 @@ function frame(time){
   if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
-  const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
+  const kartPose={...kartState,spinTime:interpolateHitSpin(previousKart,kartState,alpha),x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
   applyKart(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);const npcPose=npcView.update(npcPractice.driver,alpha,itemSystem.time),ghostPoses=applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));

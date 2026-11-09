@@ -1,4 +1,5 @@
 import {trackSamples} from './track.js';
+import {startHitSpin} from './kart-hit.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
 export function createItemSystem(tracks=[trackSamples],random=Math.random){
@@ -55,7 +56,7 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
     const start=actor.previous??target,t0=part/steps,t1=(part+1)/steps;
     const a={x:old.x-(start.x+(target.x-start.x)*t0),z:old.z-(start.z+(target.z-start.z)*t0)},b={x:shell.x-(start.x+(target.x-start.x)*t1),z:shell.z-(start.z+(target.z-start.z)*t1)};
     if(Math.abs(shell.y-target.y)<1.4&&sweptDistance(a,b,0,0)<1.7){
-     target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);
+     target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);
      system.hits.push({target,owner:shell.owner});removed=true;break;
     }
    }
