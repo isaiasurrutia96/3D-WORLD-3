@@ -163,12 +163,13 @@ export const TUNING = {
   // ---- The ground pound ----------------------------------------------------
   /**
    * The upward push the second press of jump gives while he is still in the
-   * air. Small on purpose: it is a nudge that extends a jump, and the thing
-   * that makes the third press a deliberate choice rather than an accident.
-   * Lifted a little from where it started: at 5.4 the boost read as the jump
-   * simply refusing to fall for a moment rather than as a push upward.
+   * air. It has been lifted twice: at 5.4 it read as the jump refusing to
+   * fall for a moment rather than as a push, and at 6.5 it was a push you
+   * had to be looking for. A plain jump reaches 1.78m; this adds about 1.4m
+   * on top of it, which is a storey and cannot be missed. It stays under
+   * the triple jump's 3.4m, so the combo is still the highest thing he has.
    */
-  airBoostVelocity: 6.5,
+  airBoostVelocity: 8.8,
   /** How long he hangs before the drop. The pause is most of the move. */
   groundPoundHover: 0.22,
   /** How fast he comes down. Far quicker than falling. */
@@ -347,6 +348,18 @@ export const TUNING = {
    */
   ledgeShimmyProbe: 0.42,
   /** Push away from an edge when he jumps off it, and how hard upward. */
+  /**
+   * How long after the pull-up begins a second press of jump still counts
+   * as part of it. Long enough to be a deliberate double tap, short enough
+   * that a press meant for after the climb is not swallowed by it.
+   */
+  ledgeBoostWindow: 0.34,
+  /** How long the extra push takes to come in, from the second press. */
+  ledgeBoostRise: 0.26,
+  /** How much higher the push carries him by the end of the climb. */
+  ledgeBoostLift: 0.55,
+  /** And how fast he is still rising as he leaves the edge. */
+  ledgeBoostVelocity: 4.4,
   ledgeJumpOff: 4.2,
   ledgeJumpUp: 0.72,
 

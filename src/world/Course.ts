@@ -268,7 +268,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // =========================================================================
   // 9 — Three ways over an edge
   // =========================================================================
-  sign(31.4, 9, 20.4, 0, '9 · OVER THE TOP', 'Catch the edge · E pulls up', 'S / F along it · Space jumps off');
+  sign(31.4, 9, 20.4, 0, '9 · OVER THE TOP', 'Catch it, Space pulls up', 'Space twice pushes higher · S / F along it · D pushes off');
   // Thin: vaulted, landing on the far side.
   block(31.4, 9, 24, 6, 2.4, 0.35, ACCENT);
   block(31.4, 0, 27.5, 6, 9, 5);

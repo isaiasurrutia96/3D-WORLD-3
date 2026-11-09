@@ -57,8 +57,9 @@ export class Hud {
       pound</b> · kick off walls as long as you keep reaching them<br />
       Ladder: <b>E</b>/<b>D</b> up and down · <b>Space</b> jumps off ·
       <b>G</b> climbs down from the top<br />
-      Hanging: <b>S</b>/<b>F</b> along the edge · <b>E</b> pulls up ·
-      <b>Space</b> jumps off · <b>C</b> lets go<br />
+      Hanging: <b>S</b>/<b>F</b> along the edge · <b>Space</b> pulls up, and
+      <b>again</b> straight away to push up higher · <b>D</b> pushes off ·
+      <b>C</b> lets go<br />
       Water: <b>Space</b> strokes and climbs out · <b>Q</b> or <b>Ctrl</b>
       dives<br />
       <b>R</b> pick up and throw · let go at a run to <b>skid</b> ·

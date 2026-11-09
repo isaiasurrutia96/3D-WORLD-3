@@ -21,13 +21,13 @@ export type ActionName =
   | 'sideFlip'
   | 'climbDown'
   /**
-   * The forward key as a button rather than as an axis.
+   * The back key as a button rather than as an axis.
    *
-   * Pulling up off a ledge has to answer a fresh press. Reading the movement
-   * axis instead meant that anyone still holding forward from the run-up was
-   * hauled over the edge the instant they caught it, with no hang at all.
+   * Pushing off a ledge backwards has to answer a fresh press. Reading the
+   * movement axis instead would throw anyone off the moment they caught
+   * hold while still holding back from the approach.
    */
-  | 'forward'
+  | 'back'
   | 'togglePointerLock';
 
 const STICK_DEADZONE = 0.22;
@@ -361,8 +361,8 @@ const KEY_ACTIONS: Record<string, ActionName | undefined> = {
   KeyG: 'climbDown',
   // Also a movement key; the two readings do not interfere, because movement
   // is taken from the held-key set and this from the press queue.
-  KeyE: 'forward',
-  ArrowUp: 'forward',
+  KeyD: 'back',
+  ArrowDown: 'back',
 };
 
 const GAMEPAD_ACTIONS: Record<number, ActionName> = {

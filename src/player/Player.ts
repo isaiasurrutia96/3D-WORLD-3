@@ -200,6 +200,10 @@ export class Player {
    */
   /** How far past the edge this climb ends, kept for moving along it. */
   private ledgeStand = 0;
+  /** Whether the second press of jump landed, turning the pull into a push. */
+  private ledgeBoosted = false;
+  /** How far into the climb that press was, so the push starts from there. */
+  private ledgeBoostAt = 0;
   private gripPhase = 0;
   private gripMoving = 0;
   private readonly ledgeFrom = new Vector3();
@@ -772,6 +776,7 @@ export class Player {
     this.ledgeFacingFrom = this.facing;
     this.velocity.set(0, 0, 0);
     this.ledgeTimer = 0;
+    this.ledgeBoosted = false;
     this.ledgeLift = top - hangY;
     // He holds the edge and waits. Nothing happens until the jump button
     // says so, which is what makes it a hold rather than an escalator.
@@ -877,19 +882,31 @@ export class Player {
    * Hanging off an edge, waiting to be told what to do.
    *
    * Three answers, and they are kept apart on purpose. Sideways moves him
-   * along the edge, but only onto edge that is actually there. Forward
-   * pulls him up, and only on a fresh press of it: taken from the movement
-   * axis instead, anyone still holding forward from the run-up was hauled
-   * over the moment they caught hold, so there was no hang to speak of.
-   * Jump pushes him off backwards, the same answer the ladder gives.
+   * along the edge, but only onto edge that is actually there. Jump pulls
+   * him up, and only on a fresh press of it: taken from the movement axis
+   * instead, anyone still holding forward from the run-up was hauled over
+   * the moment they caught hold, so there was no hang to speak of. A second
+   * press of it while he is on the way up turns the pull into a push, which
+   * updateLedge deals with. Back pushes him off the wall instead.
    */
   private updateLedgeHang(delta: number, input: Input, wish: Vector3): void {
     this.object.position.copy(this.ledgeFrom);
     this.object.rotation.y = this.facing;
     this.syncCapsuleFromPosition();
 
-    // Off the edge, backwards and up, and not caught again on the way down.
+    // Up and over, on a press rather than a hold. A second press inside the
+    // window turns it into a harder push; that is updateLedge's business.
     if (input.wasPressed('jump')) {
+      this.ledgeHanging = false;
+      this.ledgeTimer = 0;
+      this.ledgeBoosted = false;
+      this.ledgeBoostAt = 0;
+      this.jumpBufferTimer = 0;
+      return;
+    }
+
+    // Off the edge, backwards and up, and not caught again on the way down.
+    if (input.wasPressed('back')) {
       const away = this.forwardVector(this.scratchMove);
       this.ledgeHanging = false;
       this.ledgeTimer = -1;
@@ -905,14 +922,6 @@ export class Player {
       this.jumpBufferTimer = 0;
       this.airPresses = 0;
       this.state = 'air';
-      return;
-    }
-
-    // Up and over, on a press rather than a hold.
-    if (input.wasPressed('forward')) {
-      this.ledgeHanging = false;
-      this.ledgeTimer = 0;
-      this.jumpBufferTimer = 0;
       return;
     }
 
@@ -1056,6 +1065,25 @@ export class Player {
       return;
     }
 
+    // A second press of jump while he is on his way up turns the pull-up
+    // into a push, and it has to carry on from wherever the first one has
+    // got to. So nothing is restarted and nothing is moved: the push is an
+    // extra rise added on top of the climb already running, beginning at
+    // nothing at the instant of the press and easing in from there. Tapped
+    // as fast as the keyboard will repeat or taken at the far end of the
+    // window, it is the same code and the same smooth join.
+    const climbing =
+      this.climbMove === 'mantle' || this.climbMove === 'vault' || this.climbMove === 'swing';
+    if (
+      climbing &&
+      !this.ledgeBoosted &&
+      input.wasPressed('jump') &&
+      this.ledgeTimer <= TUNING.ledgeBoostWindow
+    ) {
+      this.ledgeBoosted = true;
+      this.ledgeBoostAt = this.ledgeTimer;
+    }
+
     this.ledgeTimer += delta;
     const progress = MathUtils.clamp(this.ledgeTimer / this.ledgeSeconds, 0, 1);
 
@@ -1081,6 +1109,7 @@ export class Player {
       MathUtils.lerp(this.ledgeFrom.y, this.ledgeTo.y, up),
       MathUtils.lerp(this.ledgeFrom.z, this.ledgeTo.z, over),
     );
+    this.object.position.y += this.boostLift();
     // Turning is part of the move rather than something that happens to him
     // before it: getting onto a ladder means turning to face it.
     this.object.rotation.y = this.turnThrough(this.ledgeFacingFrom, this.facing, over);
@@ -1094,6 +1123,20 @@ export class Player {
       this.wallKicks = 0;
       this.jumpKind = 'normal';
       this.velocity.set(0, 0, 0);
+
+      // Pushed rather than pulled, he leaves the edge still going up, and
+      // lands on it a moment later. That is what makes the second press
+      // worth having: it clears the edge rather than stopping on it.
+      if (this.ledgeBoosted) {
+        this.ledgeBoosted = false;
+        this.pendingLadder = null;
+        this.velocity.y = TUNING.ledgeBoostVelocity;
+        this.jumpHeld = true;
+        this.airPresses = 0;
+        this.jumpBufferTimer = 0;
+        this.state = 'air';
+        return;
+      }
 
       // Onto a ladder rather than onto the ground: the move was the way on.
       if (this.climbMove === 'ladder-mount' && this.pendingLadder) {
@@ -1110,6 +1153,29 @@ export class Player {
       this.coyoteTimer = TUNING.coyoteTime;
       this.state = 'ground';
     }
+  }
+
+  /**
+   * How much of the extra push is showing, in metres.
+   *
+   * Zero at the instant of the second press, whenever in the climb that
+   * falls, and easing to its full height over a quarter of a second. Being
+   * zero at the press is the whole point: it is added to wherever the climb
+   * has already carried him, so there is no step to see.
+   */
+  private boostLift(): number {
+    if (!this.ledgeBoosted) return 0;
+    const t = MathUtils.clamp(
+      (this.ledgeTimer - this.ledgeBoostAt) / TUNING.ledgeBoostRise,
+      0,
+      1,
+    );
+    return t * t * (3 - 2 * t) * TUNING.ledgeBoostLift;
+  }
+
+  /** How far in the extra push is, as a fraction, for the pose to drive on. */
+  private boostShowing(): number {
+    return TUNING.ledgeBoostLift > 0 ? this.boostLift() / TUNING.ledgeBoostLift : 0;
   }
 
   /** The angle `t` of the way round from `from` to `to`, by the short way. */
@@ -1301,6 +1367,7 @@ export class Player {
     this.ledgeLift = surface - feet;
     this.ledgeSeconds = TUNING.ladderTopSeconds;
     this.ledgeTimer = 0;
+    this.ledgeBoosted = false;
     this.ledgeCooldown = 0;
     this.ladderCooldown = TUNING.ladderCooldown;
     this.velocity.set(0, 0, 0);
@@ -1348,6 +1415,7 @@ export class Player {
     this.pendingLadder = ladder;
     this.ledgeSeconds = TUNING.ladderMountSeconds;
     this.ledgeTimer = 0;
+    this.ledgeBoosted = false;
     this.ledgeLift = ladder.topY - this.ledgeTo.y;
     this.ledgeCooldown = 0;
     this.ladderCooldown = 0;
@@ -1480,6 +1548,7 @@ export class Player {
     this.ledgeLift = surface - feet;
     this.ledgeSeconds = TUNING.waterExitSeconds;
     this.ledgeTimer = 0;
+    this.ledgeBoosted = false;
     this.ledgeCooldown = 0;
     this.velocity.set(0, 0, 0);
     this.submerged = false;
@@ -2235,6 +2304,7 @@ export class Player {
       ledgeGrip: this.gripPhase,
       ledgeShimmy: this.gripMoving,
       ledgeLift: this.ledgeLift,
+      ledgeBoost: this.boostShowing(),
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

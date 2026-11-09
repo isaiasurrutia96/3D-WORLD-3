@@ -35,6 +35,11 @@ export interface AnimationInputs {
   againstWall: boolean;
   /** How far through a climb over a ledge he is, from 0 to 1. */
   ledgeProgress: number;
+  /**
+   * How far in the second press's extra push is, from nothing at the press
+   * to one when it is fully behind him.
+   */
+  ledgeBoost: number;
   /** True when the climb is onto a roof rather than over the top of a wall. */
   ledgeWide: boolean;
   /** Which placed move is running: a climb, a ladder step, or a way out of water. */
@@ -469,6 +474,27 @@ function poseLedge(input: AnimationInputs): void {
   pose.ankleLeft = mix(0.2, 0.24, 0);
   pose.ankleRight = mix(0.2, 0.24, 0);
   pose.bodyRoll = wide ? 0 : mix(0, 0.18, 0);
+
+  // Pushed rather than pulled. It is added on top of whatever beat the
+  // climb has reached rather than replacing it, and it comes in from
+  // nothing exactly as the extra height does, so a second press at any
+  // point in the window joins the movement already running instead of
+  // starting one of its own. He straightens up, drives the legs down
+  // underneath him and lifts his chin, which is what a push off locked
+  // arms looks like.
+  const drive = MathUtils.clamp(input.ledgeBoost, 0, 1);
+  if (drive > 0) {
+    pose.bodyPitch -= drive * 0.3;
+    pose.bodyHeight += drive * 0.05;
+    pose.bodySquash = MathUtils.lerp(pose.bodySquash, 1.05, drive);
+    pose.headPitch += drive * 0.26;
+    pose.hipLeft = MathUtils.lerp(pose.hipLeft, 0.12, drive);
+    pose.hipRight = MathUtils.lerp(pose.hipRight, 0.02, drive);
+    pose.kneeLeft = MathUtils.lerp(pose.kneeLeft, 0.1, drive);
+    pose.kneeRight = MathUtils.lerp(pose.kneeRight, 0.22, drive);
+    pose.ankleLeft = MathUtils.lerp(pose.ankleLeft, -0.3, drive);
+    pose.ankleRight = MathUtils.lerp(pose.ankleRight, -0.3, drive);
+  }
 
   reachForTheEdge(input);
 }

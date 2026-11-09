@@ -759,10 +759,10 @@ class Game {
           for (let i = 0; i < frames(0.5); i += 1) step();
           const stayed = player.stateName === 'hanging' && Math.abs(player.position.y - hangY) < 0.01;
 
-          // Forward pulls up. Jump used to, and now jumps off instead.
-          tap('forward');
+          // Jump pulls up. Back is what pushes him off the wall now.
+          tap('jump');
           for (let i = 0; i < frames(0.2); i += 1) step();
-          held.delete('forward');
+          held.delete('jump');
           for (let i = 0; i < frames(after); i += 1) {
             step();
             note();
@@ -1540,23 +1540,23 @@ class Game {
           const wentLeft = backZ < shimmiedZ - 0.6;
           const stillHanging = player.stateName === 'hanging';
 
-          // Holding forward must not pull him up; only a fresh press does.
-          held.add('forward');
+          // Holding jump must not pull him up; only a fresh press does.
+          held.add('jump');
           for (let i = 0; i < frames(0.6); i += 1) step();
           const heldForwardDidNothing = player.stateName === 'hanging';
-          held.delete('forward');
-          tap('forward');
+          held.delete('jump');
+          tap('jump');
           for (let i = 0; i < frames(1.6); i += 1) step();
-          held.delete('forward');
+          held.delete('jump');
           const pulledUp = player.position.y > 11.4;
 
-          // And off it: jump pushes him away rather than up.
+          // And off it: back pushes him away rather than up.
           const hung2 = catchTheRoof(41);
           const fromY = player.position.y;
           const fromX = player.position.x;
-          tap('jump');
+          tap('back');
           for (let i = 0; i < frames(0.35); i += 1) step();
-          held.delete('jump');
+          held.delete('back');
           const afterLedgeJump = player.stateName;
           for (let i = 0; i < frames(2.2); i += 1) step();
           const pushedBack = player.position.x < fromX - 0.8;
@@ -1754,6 +1754,86 @@ class Game {
             // Square to the wall within a couple of degrees however he
             // arrived, and never wandering a hand's width in or out of it.
             squaresUp: caughtAll && worstFacing <= 3 && worstDrift <= 0.12,
+          };
+        }
+
+        // The pull-up, and the push that a second press of jump turns it
+        // into. What matters is not only that the second press lifts him
+        // higher, but that it joins the movement already running: nothing
+        // restarted, nothing snapped, whenever in the window it lands.
+        {
+          const pullUp = (secondAfter: number | null) => {
+            place(26.25, 9.95, 40, Math.PI / 2);
+            for (let i = 0; i < frames(1.4); i += 1) {
+              step();
+              if (player.stateName === 'hanging') break;
+            }
+            if (player.stateName !== 'hanging') return null;
+
+            tap('jump');
+            step();
+            held.delete('jump');
+            let last = player.position.y;
+            let lastPitch = player.rig.body.rotation.x;
+            let biggestStep = 0;
+            let biggestTurn = 0;
+            let peak = player.position.y;
+            const wait = secondAfter === null ? -1 : Math.round(secondAfter / dt);
+            for (let i = 0; i < frames(2.6); i += 1) {
+              if (i === wait) tap('jump');
+              step();
+              held.delete('jump');
+              biggestStep = Math.max(biggestStep, Math.abs(player.position.y - last));
+              biggestTurn = Math.max(biggestTurn, Math.abs(player.rig.body.rotation.x - lastPitch));
+              last = player.position.y;
+              lastPitch = player.rig.body.rotation.x;
+              peak = Math.max(peak, player.position.y);
+            }
+            const out = {
+              peak: round(peak),
+              ended: round(player.position.y),
+              state: player.stateName,
+              // The largest the body moved, and the largest the pose
+              // turned, between two frames. A restart would show here.
+              biggestStep: round(biggestStep, 3),
+              biggestTurn: round(biggestTurn, 3),
+            };
+            held.clear();
+            return out;
+          };
+
+          const plain = pullUp(null);
+          const sameFrame = pullUp(0);
+          const oneFrame = pullUp(dt);
+          const early = pullUp(0.08);
+          const middle = pullUp(0.18);
+          const late = pullUp(0.3);
+          const tooLate = pullUp(0.5);
+          const boosted = [sameFrame, oneFrame, early, middle, late];
+
+          results.ledgePush = {
+            plain,
+            sameFrame,
+            oneFrame,
+            early,
+            middle,
+            late,
+            tooLate,
+            // A plain pull-up leaves him standing on the edge.
+            pullsUp: !!plain && plain.state === 'idle' && plain.ended > 11.4,
+            // Every second press inside the window lifts him clear of it.
+            pushesHigher:
+              boosted.every((r) => !!r && r.peak > (plain?.peak ?? 0) + 0.45) &&
+              boosted.every((r) => !!r && r.ended > 11.4 && r.state === 'idle'),
+            // And one outside it changes nothing.
+            windowCloses: !!tooLate && Math.abs(tooLate.peak - (plain?.peak ?? 0)) < 0.05,
+            // Nothing jumped: at a sixtieth of a second the climb covers a
+            // few centimetres a frame, and a reset to the hang would be a
+            // metre of it in one.
+            smooth:
+              [plain, ...boosted, tooLate].every(
+                (r) => !!r && r.biggestStep < 0.2 && r.biggestTurn < 0.25,
+              ),
           };
         }
 
@@ -2030,17 +2110,22 @@ class Game {
         // driving "right" with this left at zero while he faces along +x
         // presses into the wall rather than along it.
         yaw = 0,
+        // Buttons tapped on the first step of this call, for driving a move
+        // that answers a press rather than a hold.
+        presses: string[] = [],
       ) => {
         const held = new Set(keys);
+        const pressed = new Set(presses);
         const stub = {
           move: stick,
           look: { x: 0, y: 0 },
-          isDown: (a: string) => held.has(a),
-          wasPressed: () => false,
+          isDown: (a: string) => held.has(a) || pressed.has(a),
+          wasPressed: (a: string) => pressed.has(a),
           wasReleased: () => false,
         } as unknown as Input;
         for (let i = 0; i < Math.max(1, Math.round(seconds / dt)); i += 1) {
           this.player.update(dt, stub, yaw);
+          pressed.clear();
         }
         return {
           state: this.player.stateName,

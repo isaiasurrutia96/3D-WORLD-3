@@ -672,16 +672,50 @@ if (!course.ledgeWork.wentLeft) {
 }
 if (!course.ledgeWork.stillHanging) problems.push('shuffling along the edge let go of it');
 if (!course.ledgeWork.heldForwardDidNothing) {
-  problems.push('holding forward pulled him up without a fresh press of it');
+  problems.push('holding jump pulled him up without a fresh press of it');
 }
 if (!course.ledgeWork.pulledUp) {
-  problems.push(`pressing forward on the edge ended at ${course.ledgeWork.endedAt}m`);
+  problems.push(`pressing jump on the edge ended at ${course.ledgeWork.endedAt}m`);
 }
 if (!course.ledgeWork.jumpedOff) {
-  problems.push(`jump on the edge left him "${course.ledgeWork.afterLedgeJump}"`);
+  problems.push(`back on the edge left him "${course.ledgeWork.afterLedgeJump}"`);
 }
 if (!course.ledgeWork.pushedBack) {
-  problems.push('jumping off the edge did not push him away from the wall');
+  problems.push('pushing off the edge did not move him away from the wall');
+}
+
+// One press of jump pulls him up; a second inside the window pushes him
+// clear of the edge, and has to join the movement already running rather
+// than restart it.
+if (!course.ledgePush.pullsUp) {
+  problems.push(
+    `one press of jump on the edge ended as "${course.ledgePush.plain?.state}" at ` +
+      `${course.ledgePush.plain?.ended}m`,
+  );
+}
+if (!course.ledgePush.pushesHigher) {
+  problems.push(
+    `a second press did not push him clear — plain peaked at ` +
+      `${course.ledgePush.plain?.peak}m against ${course.ledgePush.sameFrame?.peak}m ` +
+      `double-tapped, ${course.ledgePush.middle?.peak}m mid-window and ` +
+      `${course.ledgePush.late?.peak}m late`,
+  );
+}
+if (!course.ledgePush.windowCloses) {
+  problems.push(
+    `a press well after the window still pushed him to ${course.ledgePush.tooLate?.peak}m`,
+  );
+}
+if (!course.ledgePush.smooth) {
+  const worst = Math.max(
+    ...[course.ledgePush.sameFrame, course.ledgePush.middle, course.ledgePush.late]
+      .filter(Boolean)
+      .map((r) => r.biggestStep),
+  );
+  problems.push(
+    `the second press restarted the climb rather than joining it — ${worst}m ` +
+      `of movement in one frame`,
+  );
 }
 
 // Hands on the edge, not on air. The search reaches further than his arms,
@@ -984,9 +1018,16 @@ console.log(
 );
 console.log(
   ` 9  hanging     along the edge z=${course.ledgeWork.caughtZ} to ` +
-    `z=${course.ledgeWork.shimmiedZ} to z=${course.ledgeWork.backZ}, held forward did nothing ` +
-    `${course.ledgeWork.heldForwardDidNothing}, E pulled up ${course.ledgeWork.pulledUp}, ` +
-    `Space gave "${course.ledgeWork.afterLedgeJump}"`,
+    `z=${course.ledgeWork.shimmiedZ} to z=${course.ledgeWork.backZ}, holding Space did ` +
+    `nothing ${course.ledgeWork.heldForwardDidNothing}, Space pulled up ` +
+    `${course.ledgeWork.pulledUp}, D gave "${course.ledgeWork.afterLedgeJump}"`,
+);
+console.log(
+  `                one press tops out at ${course.ledgePush.plain?.peak}m · two: ` +
+    `${course.ledgePush.sameFrame?.peak}m same frame, ${course.ledgePush.early?.peak}m ` +
+    `early, ${course.ledgePush.middle?.peak}m mid, ${course.ledgePush.late?.peak}m late, ` +
+    `${course.ledgePush.tooLate?.peak}m too late · worst single frame ` +
+    `${course.ledgePush.late?.biggestStep}m`,
 );
 console.log(
   `                caught it at ${course.ledgeGap.far.gap}m from the wall from a stretch ` +
