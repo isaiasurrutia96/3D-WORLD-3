@@ -21,6 +21,8 @@ import {createLapEntranceMarkers,nearestLapEntrance} from './lap-entrances.js';
 import {createNpcPractice} from './npc/practice.js';
 import {createNpcView} from './npc/view.js';
 import {interpolateHitSpin} from './kart-hit.js';
+import {ITEM_UNDER_TEST} from './item-test-mode.js';
+import {createTorpedoWarning} from './torpedo-view.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -44,6 +46,8 @@ kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
 const driverView=createDriverView(avatar,kart);
 const itemSystem=createItemSystem(COURSES.map(course=>course.samples),Math.random,COURSES),applyItems=createItemView(scene,itemSystem,kart);
+itemSystem.testItem=ITEM_UNDER_TEST;
+const updateTorpedoWarning=createTorpedoWarning(document.getElementById('torpedo-warning'),itemSystem);
 const npcPractice=createNpcPractice(worldPhysics,itemSystem),npcView=createNpcView(scene);
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
@@ -232,7 +236,7 @@ function toggleVehicle(){
 function stopNpcPractice(){npcPractice.stop();npcView.update(null,0,itemSystem.time);}
 function startTrial(course=activeCourse){
  if(!playing)return;
- stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];
+ stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];itemSystem.torpedoes=[];itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;
  if(course!==activeCourse)invalidateTimeTrial(trial,'Switched tracks');
  activeCourse=course;trial=trials.get(course.id);document.getElementById('ghost-transfer-status').hidden=true;
@@ -248,11 +252,11 @@ function startNpcPractice(){
  startTrial(ORIGINAL_COURSE);
  invalidateTimeTrial(trial,'NPC practice does not save lap times');trial.status='idle';trial.elapsed=0;
  itemSystem.allowShells=true;
- Object.assign(kartState,npcPractice.start());previousKart={...kartState};setCameraView(viewMode);
+ Object.assign(kartState,npcPractice.start(),{heldItem:itemSystem.testItem??'nitro'});previousKart={...kartState};setCameraView(viewMode);
 }
 bindPress(document.getElementById('npc-start'),startNpcPractice);
 function exploreWorld(){
- stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];
+ stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];itemSystem.torpedoes=[];itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
  Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
@@ -304,7 +308,7 @@ function frame(time){
    if(interactionQueued){interactionQueued=false;toggleVehicle();}
    if(driving){
     previousKart={...kartState};jumpQueued=false;
-    if(itemQueued){useHeldItem(itemSystem,kartState,worldPhysics);itemQueued=false;}
+    if(itemQueued){useHeldItem(itemSystem,kartState,worldPhysics,npcPractice.actors().map(actor=>actor.state));itemQueued=false;}
     const drivingInput=readDrivingInput(keys,mobile.consume());
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
     const startForward=drivingInput.throttle>0&&!drivingInput.brake;
@@ -345,9 +349,10 @@ function frame(time){
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
-  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.heldItem==='banana'?'Item: Banana':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
+  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.heldItem==='banana'?'Item: Banana':kartState.heldItem==='torpedo'?'Item: Torpedo':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
+  updateTorpedoWarning(driving?kartState:null);
   render();
-  canvas.dataset.npc=npcPractice.active?(npcPractice.driver.finished?'finished':npcPractice.running?'running':'ready'):'off';canvas.dataset.npcElapsed=String(npcPractice.driver?.elapsed??0);canvas.dataset.shells=String(itemSystem.shells.length);
+  canvas.dataset.npc=npcPractice.active?(npcPractice.driver.finished?'finished':npcPractice.running?'running':'ready'):'off';canvas.dataset.npcElapsed=String(npcPractice.driver?.elapsed??0);canvas.dataset.shells=String(itemSystem.shells.length);canvas.dataset.torpedoes=String(itemSystem.torpedoes.length);
   canvas.dataset.course=activeCourse.id;canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;

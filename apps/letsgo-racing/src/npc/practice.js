@@ -10,6 +10,7 @@ export function createNpcPractice(world,items){
   active:false,running:false,driver:null,
   start(){
    this.active=true;this.running=false;this.driver=createNpcDriver();
+   if(items.testItem)this.driver.state.heldItem=items.testItem;
    const p=coursePoint(ORIGINAL_COURSE,0,-2.8);
    return{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(p.fx,p.fz)};
   },
@@ -23,7 +24,7 @@ export function createNpcPractice(world,items){
     return;
    }
    const input=readNpcInput(npc,dt,{traffic:[player],boxes:items.boxes});
-   if(input.useItem)useHeldItem(items,npc.state,world);
+   if(input.useItem)useHeldItem(items,npc.state,world,[player]);
    stepVehicle(npc.state,input,dt,world);resolveKartContact(player,npc.state,world);
   },
   actors(){return this.active?[{state:this.driver.state,previous:this.driver.previous}]:[];},

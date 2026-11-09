@@ -62,6 +62,17 @@ finish crossing, and on restart/course change. Keep Time Trials Nitro-only,
 personal ghosts and normal driving unchanged. Shields, torpedoes and jumping
 remain separate later chunks.
 
+## Torpedo and single-item testing — 9 November 2026
+
+**Confirmed by the project owner.** Add the dodgeable homing torpedo next, with
+an incoming proximity warning. While testing a new combat item, boxes award
+only that item; retain other implementations for later restoration. Free-drive
+and NPC practice use Torpedo-only pickups and practice starters for this chunk.
+Scored Time Trials remain Nitro-only to preserve existing lap comparisons.
+The torpedo follows the road, commits to a straight final attack, can be juked
+by a late steering input, and uses the existing hit spin/recovery. Add no shield,
+kart jump, handling changes or other moves. Personal ghost files stay unchanged.
+
 ---
 
 ## A) The project

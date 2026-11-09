@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {createBananaModel} from './banana-view.js';
+import {createTorpedoModel} from './torpedo-view.js';
 
 function questionFace(color){
  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
@@ -29,14 +30,14 @@ export function createNitroExhaust(kart){
  return(state,active,time)=>{flames.visible=active&&state.boostTime>0&&state.speed>3;flames.scale.z=.9+.15*Math.sin(time*32);};
 }
 export function createItemView(scene,system,kart){
- const root=new THREE.Group();root.name='Item boxes, shells and bananas';scene.add(root);
+ const root=new THREE.Group();root.name='Item boxes and projectiles';scene.add(root);
  const faces=['#33b9e4','#a75bdf','#efaf32','#48bf97','#e76b9e','#4b8ae5'].map(questionFace);
  const cubeGeometry=new THREE.BoxGeometry(1.5,1.5,1.5),edgeGeometry=new THREE.EdgesGeometry(cubeGeometry);
  const boxes=system.boxes.map(box=>{
   const pivot=new THREE.Group();pivot.position.set(box.x,box.y+1.15,box.z);root.add(pivot);
   const cube=new THREE.Mesh(cubeGeometry,faces);pivot.add(cube,new THREE.LineSegments(edgeGeometry,new THREE.LineBasicMaterial({color:'#e8faff'})));return pivot;
  });
- const template=shellModel(),shells=new Map(),bananaTemplate=createBananaModel(),bananas=new Map();
+ const template=shellModel(),shells=new Map(),bananaTemplate=createBananaModel(),bananas=new Map(),torpedoTemplate=createTorpedoModel(),torpedoes=new Map();
  const exhaust=createNitroExhaust(kart);
  return function update(state,driving){
   system.boxes.forEach((box,i)=>{const node=boxes[i];node.visible=box.cooldown<=0;node.position.y=box.y+1.15+Math.sin(system.time*2+i)*.12;node.rotation.set(.12,system.time*1.1+i,.12);});
@@ -52,6 +53,12 @@ export function createItemView(scene,system,kart){
    const node=bananas.get(banana.id);node.position.set(banana.x,banana.y+.025,banana.z);
   }
   for(const [id,node]of bananas)if(!activeBananas.has(id)){root.remove(node);bananas.delete(id);}
+  const activeTorpedoes=new Set();
+  for(const torpedo of system.torpedoes){
+   activeTorpedoes.add(torpedo.id);if(!torpedoes.has(torpedo.id)){const node=torpedoTemplate.clone();root.add(node);torpedoes.set(torpedo.id,node);}
+   const node=torpedoes.get(torpedo.id);node.position.set(torpedo.x,torpedo.y+.6,torpedo.z);node.rotation.y=torpedo.yaw;
+  }
+  for(const [id,node]of torpedoes)if(!activeTorpedoes.has(id)){root.remove(node);torpedoes.delete(id);}
   exhaust(state,driving,system.time);
  };
 }

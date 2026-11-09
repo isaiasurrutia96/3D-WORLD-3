@@ -108,8 +108,8 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
    secondary.setAttribute('aria-disabled',String(!driving&&!canFlip));secondary.classList.toggle('is-unavailable',!driving&&!canFlip);
    const kind=driving?(heldItem??(boosting?'boosting':'none')):'none';
    item.dataset.item=kind;item.disabled=!driving||!heldItem;
-   text('touch-item-label',kind==='nitro'?'Boost':kind==='shell'?'Shell':kind==='banana'?'Banana':kind==='boosting'?'Boosting':'Item');
-   item.setAttribute('aria-label',kind==='nitro'?'Use Nitro boost':kind==='shell'?'Throw shell':kind==='banana'?'Drop banana behind kart':kind==='boosting'?'Nitro boost active':'No item available');
+   text('touch-item-label',kind==='nitro'?'Boost':kind==='shell'?'Shell':kind==='banana'?'Banana':kind==='torpedo'?'Torpedo':kind==='boosting'?'Boosting':'Item');
+   item.setAttribute('aria-label',kind==='nitro'?'Use Nitro boost':kind==='shell'?'Throw shell':kind==='banana'?'Drop banana behind kart':kind==='torpedo'?'Launch homing torpedo':kind==='boosting'?'Nitro boost active':'No item available');
    interact.textContent=interactionText;interact.disabled=!canInteract;
   },
  };

@@ -142,3 +142,11 @@
 .touch-item[data-item="shell"] .item-shell{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .touch-item[data-item="banana"]{color:#ffe575;border-color:#e6c74f}
 .touch-item[data-item="banana"] .item-banana{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.touch-item[data-item="torpedo"]{color:#ffb798;border-color:#f49873}
+.touch-item[data-item="torpedo"] .item-torpedo{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.torpedo-warning{position:absolute;left:50%;top:max(88px,env(safe-area-inset-top));transform:translateX(-50%);z-index:6;max-width:min(270px,70vw);padding:10px 15px;border:1px solid #f2ad61;border-radius:10px;background:#24160aeb;color:#ffe1ac;text-align:center;font:700 13px Arial,sans-serif;pointer-events:none}
+.torpedo-warning[data-kind="committed"]{background:#3f1211ed;border-color:#ff8177;color:#ffd8d4}
+.torpedo-warning[data-kind="notice"]{background:#101b35e6;border-color:#8a9ebc;color:#dce6f7;font-size:11px}
+.torpedo-warning strong,.torpedo-warning span{display:block}.torpedo-warning span:not(:empty){margin-top:4px;font-size:16px}
+.touch-mode .torpedo-warning{font-size:11px;padding:8px 12px}
+@media(orientation:portrait){.touch-mode .torpedo-warning{top:30%}}

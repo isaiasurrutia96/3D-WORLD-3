@@ -1,6 +1,7 @@
 import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
 import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
+import {launchTorpedo,stepTorpedoes} from './torpedoes.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
@@ -11,15 +12,16 @@ export function createItemSystem(tracks=[trackSamples],random=Math.random,course
   const count=samples.length-1,index=(Math.floor(count*.985)+row*Math.floor(count/16))%count,sample=samples[index];
   for(const lane of [-6,0,6])boxes.push({id:boxes.length,x:sample.point.x+sample.normal.x*lane,y:sample.point.y,z:sample.point.z+sample.normal.z*lane,cooldown:0});
  }
- return{boxes,shells:[],bananas:[],courses,time:0,nextShell:0,nextBanana:0,random,allowShells:true,hits:[]};
+ return{boxes,shells:[],bananas:[],torpedoes:[],courses,time:0,nextShell:0,nextBanana:0,nextTorpedo:0,random,allowShells:true,testItem:null,itemMessage:'',itemMessageUntil:0,hits:[]};
 }
 function sweptDistance(a,b,x,z){
  const dx=b.x-a.x,dz=b.z-a.z,denominator=dx*dx+dz*dz,t=denominator?Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/denominator)):0;
  return Math.hypot(x-a.x-dx*t,z-a.z-dz*t);
 }
-export function useHeldItem(system,kart,world){
- const item=kart.heldItem;if(!['nitro','shell','banana'].includes(item)){kart.heldItem=null;return false;}
+export function useHeldItem(system,kart,world,targets=[]){
+ const item=kart.heldItem;if(!['nitro','shell','banana','torpedo'].includes(item)){kart.heldItem=null;return false;}
  if(item==='banana'&&!dropBanana(system,kart,world))return false;
+ if(item==='torpedo'&&!launchTorpedo(system,kart,targets))return false;
  kart.heldItem=null;
  if(item==='nitro'){kart.boostTime=NITRO_SECONDS;kart.speed=Math.max(0,kart.speed);}
  else if(item==='shell'){
@@ -34,7 +36,7 @@ function pickup(system,kart,previous){
   if(box.cooldown>0||Math.abs(kart.y-box.y)>1.4)continue;
   if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){
    box.cooldown=BOX_RESPAWN;const draw=system.allowShells?system.random():0;
-   kart.heldItem=draw<.5?'nitro':draw<.75?'banana':'shell';break;
+   kart.heldItem=system.allowShells&&system.testItem?system.testItem:draw<.5?'nitro':draw<.75?'banana':'shell';break;
   }
  }
 }
@@ -46,6 +48,7 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
  clearFinishedBananas(system,previous,kart);
  for(const actor of actors)pickup(system,actor.state,actor.previous);
  stepBananas(system,actors,dt,world);
+ stepTorpedoes(system,actors,dt,world);
  const alive=[];
  for(const shell of system.shells){
   shell.age+=dt;if(shell.age>SHELL_LIFETIME||shell.bounces>12||!world)continue;

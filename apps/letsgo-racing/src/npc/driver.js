@@ -3,6 +3,7 @@ import {projectRaceCourse} from '../race-course.js';
 import {coursePoint,wrap} from './course-line.js';
 import {ORIGINAL_COURSE} from '../courses.js';
 import {ORIGINAL_NPC_REFERENCE} from './original-reference.js';
+import {findTorpedoTarget} from '../torpedoes.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const angle=v=>Math.atan2(Math.sin(v),Math.cos(v));
 export function referenceAt(progress,reference=ORIGINAL_NPC_REFERENCE){
@@ -12,7 +13,7 @@ export function referenceAt(progress,reference=ORIGINAL_NPC_REFERENCE){
 export function createNpcDriver({course=ORIGINAL_COURSE,reference=ORIGINAL_NPC_REFERENCE,progress=12,offset=2.8}={}){
  if(reference.course!==course.id||Math.abs(reference.length-course.length)>.01)throw Error('NPC reference belongs to a different course layout.');
  const p=coursePoint(course,progress,offset),state={...createVehicleState(),x:p.x,y:p.y,z:p.z,yaw:Math.atan2(p.fx,p.fz),heldItem:'nitro'};
- return{state,previous:{...state},course,reference,progress,startProgress:progress,lastProgress:progress,elapsed:0,finished:false,laneBias:0,passSide:0,passTime:0,stuckTime:0,reverseTime:0,targetSpeed:0,lastInput:{throttle:0,steer:0,brake:false}};
+ return{state,previous:{...state},course,reference,progress,startProgress:progress,lastProgress:progress,elapsed:0,finished:false,laneBias:0,passSide:0,passTime:0,stuckTime:0,reverseTime:0,torpedoCooldown:0,targetSpeed:0,lastInput:{throttle:0,steer:0,brake:false}};
 }
 function curvature(a,b,c){
  const ab=Math.hypot(b.x-a.x,b.z-a.z),bc=Math.hypot(c.x-b.x,c.z-b.z),ca=Math.hypot(c.x-a.x,c.z-a.z);
@@ -21,6 +22,7 @@ function curvature(a,b,c){
 // The brain returns ordinary controls. Only stepVehicle moves the kart.
 export function readNpcInput(driver,dt,{traffic=[],boxes=[]}={}){
  const {state,course,reference}=driver,projection=projectRaceCourse(state,course);
+ driver.torpedoCooldown=Math.max(0,(driver.torpedoCooldown??0)-dt);
  if(!projection)return{throttle:0,steer:0,brake:true,useItem:false};
  const delta=angle((projection.progress-driver.lastProgress)/course.length*Math.PI*2)/Math.PI/2*course.length;
  driver.progress+=delta;driver.lastProgress=projection.progress;if(!driver.finished)driver.elapsed+=dt;
@@ -77,7 +79,12 @@ export function readNpcInput(driver,dt,{traffic=[],boxes=[]}={}){
  }
  if(state.heldItem==='nitro'&&input.brake)input.useItem=false;
  if(state.heldItem==='banana'&&!driver.finished)input.useItem=state.speed>12&&alignment<.2&&!input.brake;
+ if(state.heldItem==='torpedo'&&!driver.finished){
+  const lock=findTorpedoTarget({courses:[course]},state,traffic);
+  input.useItem=!!lock&&lock.gap>=65&&driver.torpedoCooldown===0&&state.speed>10&&alignment<.4&&!input.brake;
+ }
  if(state.spinTime>0)input.useItem=false;
  if(driver.finished){input.throttle=0;input.brake=true;input.useItem=false;}
+ if(input.useItem&&state.heldItem==='torpedo')driver.torpedoCooldown=5;
  driver.lastInput=input;return input;
 }

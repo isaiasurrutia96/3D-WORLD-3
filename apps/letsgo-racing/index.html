@@ -26,6 +26,7 @@
       </section>
       <main id="game-screen" aria-label="LetsGo game" hidden inert>
       <canvas aria-label="Plain jointed avatar running with E/D/S/F and walking while Shift is held on a charcoal slab connected to a floating circuit. Space jumps; Q plus Space performs a standing backflip. Drag to rotate the view; scroll or pinch to zoom." tabindex="0"></canvas>
+      <div id="torpedo-warning" class="torpedo-warning" role="status" aria-live="polite" hidden></div>
       <header><a id="home-logo-link" class="brand" href="./">LetsGo<span>®</span></a></header>
       <nav class="game-navigation" aria-label="Game navigation">
         <button id="home-button" type="button" aria-label="Return to home">Home</button>
@@ -69,6 +70,7 @@
         <svg class="item-icon item-boost" viewBox="0 0 32 32" aria-hidden="true"><path d="M19 2 7 18h8l-2 12 12-17h-8z"/></svg>
         <svg class="item-icon item-shell" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 22c0-10 4-17 11-17s11 7 11 17M3 23h26v4H3zM16 5v17M6 15l10 7 10-7M9 8l7 7 7-7"/></svg>
         <svg class="item-icon item-banana" viewBox="0 0 32 32" aria-hidden="true"><path d="M15 4h3v9c1 6 6 10 11 11-5 4-11-1-13-7-1 7-6 12-12 10 5-4 8-8 9-14zM16 15c-1 6 0 10 4 13-5 1-8-4-7-8"/></svg>
+        <svg class="item-icon item-torpedo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 20 21 6l6-1-1 6-14 14-5-5zM8 19l-5 1 1 8 8 1 1-5M15 12l5 5M5 25l-3 5"/></svg>
         <span class="item-empty" aria-hidden="true">◇</span><span id="touch-item-label">Item</span>
       </button>
       </div>

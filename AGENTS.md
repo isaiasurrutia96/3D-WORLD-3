@@ -28,6 +28,10 @@ the worlds**. Both projects belong in this repository, with separate runtimes.
 - Start from current `main` and review concurrent changes before pushing.
   Keep the original LetsGo site available; do not delete or redirect it as
   part of this consolidation.
+- During each new combat-item test, boxes should award only the item being
+  tested in free driving/NPC practice. Set `src/item-test-mode.js` inside the
+  racing app for this; do not delete the other items' implementations. Scored
+  Time Trials retain their separate Nitro-only rules and ghost format.
 
 The import commit retains both Git histories. LetsGo's old provenance and
 project notes inside its folder describe its original development history;
