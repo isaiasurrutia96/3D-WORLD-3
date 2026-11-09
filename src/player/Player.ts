@@ -194,6 +194,12 @@ export class Player {
   /** How far the edge he is holding is above his feet. */
   private ledgeLift = 0;
   private ledgeCooldown = 0;
+  /**
+   * How far through the hand-over-hand cycle he is, and which way he is
+   * going along the edge (0 when he is holding still with both hands).
+   */
+  private gripPhase = 0;
+  private gripMoving = 0;
   private readonly ledgeFrom = new Vector3();
   private readonly ledgeTo = new Vector3();
   private strokeTimer = 0;
@@ -367,7 +373,7 @@ export class Player {
     }
 
     if (this.state === 'ledge') {
-      this.updateLedge(delta, input);
+      this.updateLedge(delta, input, wish);
       this.updateCarry(delta, input);
       this.updateRecovery(delta);
       this.syncModel(delta, strength);
@@ -673,6 +679,16 @@ export class Player {
     this.ledgeDiagnostics.surface = Math.round(top * 100) / 100;
     if (lip < TUNING.ledgeGrabLow || lip > TUNING.ledgeGrabHigh) return why('out of reach');
 
+    // And there has to be something to hang over. A lip at chest height is
+    // just as true of a kerb as of a rooftop, and he was catching both: a
+    // side flip past a one-metre slab left him dangling off it with his toes
+    // almost on the floor. What tells them apart is the drop underneath.
+    const floor = this.world.groundProbe(
+      this.scratchProbe.set(this.object.position.x, feet + 0.15, this.object.position.z),
+      TUNING.ledgeMinDrop + 0.15,
+    );
+    if (floor && top - floor.y < TUNING.ledgeMinDrop) return why('only a step');
+
     // How far the surface carries on past the edge decides which of the
     // three it is: somewhere to stand just past the edge, somewhere to stand
     // well past it, or nothing at all — a top too thin to stand on, which is
@@ -770,7 +786,7 @@ export class Player {
    * over the moment they caught hold, so there was no hang to speak of.
    * Jump pushes him off backwards, the same answer the ladder gives.
    */
-  private updateLedgeHang(delta: number, input: Input): void {
+  private updateLedgeHang(delta: number, input: Input, wish: Vector3): void {
     this.object.position.copy(this.ledgeFrom);
     this.object.rotation.y = this.facing;
     this.syncCapsuleFromPosition();
@@ -813,11 +829,20 @@ export class Player {
       return;
     }
 
-    // Along the edge. Left and right are taken from the stick itself rather
-    // than from the camera, because while hanging there is only one line he
-    // can move along and it is the edge's, not the camera's.
-    const sideways = MathUtils.clamp(input.move.x, -1, 1);
+    // Along the edge, in whichever direction the stick is actually pointing
+    // once the camera has had its say. Taken from the raw stick instead, the
+    // edge and the screen disagree as soon as the camera comes round, and
+    // pressing right stops moving him right.
+    const side = this.edgeSide(this.scratchSide);
+    const sideways = MathUtils.clamp(wish.x * side.x + wish.z * side.z, -1, 1);
     if (Math.abs(sideways) > 0.2) this.shimmy(sideways, delta);
+    else this.gripMoving = 0;
+  }
+
+  /** His right along the edge: the way he is facing, crossed with up. */
+  private edgeSide(target: Vector3): Vector3 {
+    const forward = this.forwardVector(this.scratchMove);
+    return target.set(-forward.z, 0, forward.x);
   }
 
   /**
@@ -828,12 +853,10 @@ export class Player {
    * for a surface at the same height as the one in his hands.
    */
   private shimmy(direction: number, delta: number): void {
-    const forward = this.forwardVector(this.scratchMove);
-    // His right, on the flat: the cross product of the way he is facing with
-    // up. Written the other way round it is his left, and pressing right
-    // shuffles him left, which is the kind of thing nobody reports as a bug
-    // and everybody notices.
-    const side = this.scratchSide.set(-forward.z, 0, forward.x);
+    const side = this.edgeSide(this.scratchSide);
+    // scratchMove holds the facing direction, which edgeSide just put there
+    // and ledgeSurfaceAt is about to read.
+    const forward = this.scratchMove;
 
     const step = direction * TUNING.ledgeShimmySpeed * delta;
     const edgeY = this.ledgeFrom.y + this.ledgeLift;
@@ -846,7 +869,16 @@ export class Player {
     const ahead = this.ledgeSurfaceAt(forward, TUNING.ledgeReach, this.object.position.y);
     this.object.position.copy(saved);
     this.syncCapsuleFromPosition();
-    if (ahead === null || Math.abs(ahead - edgeY) > 0.2) return;
+    if (ahead === null || Math.abs(ahead - edgeY) > 0.2) {
+      this.gripMoving = 0;
+      return;
+    }
+
+    // The hands take turns, and the cycle is driven by how far he has
+    // actually travelled rather than by a clock — stop halfway and a hand
+    // stops halfway to its next hold.
+    this.gripPhase += step / TUNING.ledgeGripStride;
+    this.gripMoving = Math.sign(step);
 
     this.ledgeFrom.x += side.x * step;
     this.ledgeFrom.z += side.z * step;
@@ -861,9 +893,9 @@ export class Player {
    * straight line between the two points, because a straight line would take
    * him through the very edge he is climbing over.
    */
-  private updateLedge(delta: number, input: Input): void {
+  private updateLedge(delta: number, input: Input, wish: Vector3): void {
     if (this.ledgeHanging) {
-      this.updateLedgeHang(delta, input);
+      this.updateLedgeHang(delta, input, wish);
       return;
     }
 
@@ -2043,6 +2075,8 @@ export class Player {
       ledgeWide: this.ledgeWide,
       ledgeMove: this.climbMove,
       ledgeHanging: this.ledgeHanging,
+      ledgeGrip: this.gripPhase,
+      ledgeShimmy: this.gripMoving,
       ledgeLift: this.ledgeLift,
       inputStrength,
       strokeProgress:

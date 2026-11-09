@@ -278,8 +278,22 @@ export const TUNING = {
   ledgeVaultSeconds: 0.5,
   /** How long after a climb before another one can start. */
   ledgeCooldown: 0.25,
+  /**
+   * How far the ground has to be below an edge before it counts as one.
+   *
+   * Height above his feet is not enough on its own. A kerb, a plinth and a
+   * step up onto a platform all present a lip somewhere around chest
+   * height, and he was catching all of them — a side flip past a one-metre
+   * slab ended with him dangling off it with his toes almost on the floor.
+   * What separates a ledge from a step is what is underneath it: if the
+   * ground is close under the edge there is nothing to hang over, and the
+   * answer is to land on it and walk up.
+   */
+  ledgeMinDrop: 1.6,
   /** How fast he shuffles sideways along an edge he is hanging from. */
   ledgeShimmySpeed: 1.3,
+  /** How far he travels sideways per complete hand-over-hand cycle. */
+  ledgeGripStride: 0.62,
   /**
    * How far to the side the check for more edge looks before he shuffles
    * onto it. A shoulder's width, so he stops at a corner rather than

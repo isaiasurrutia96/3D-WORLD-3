@@ -638,10 +638,16 @@ if (!course.ladderWork.climbedDown) {
 
 // Hanging off an edge: along it, up off it, and away from it.
 if (!course.ledgeWork.hung) problems.push('dropping onto the roof edge did not catch it');
-if (!course.ledgeWork.movedAlong) {
+if (!course.ledgeWork.wentRight) {
   problems.push(
-    `sideways on the edge moved him from z=${course.ledgeWork.caughtZ} to ` +
+    `right on the edge moved him from z=${course.ledgeWork.caughtZ} to ` +
       `z=${course.ledgeWork.shimmiedZ}`,
+  );
+}
+if (!course.ledgeWork.wentLeft) {
+  problems.push(
+    `left on the edge moved him from z=${course.ledgeWork.shimmiedZ} to ` +
+      `z=${course.ledgeWork.backZ}`,
   );
 }
 if (!course.ledgeWork.stillHanging) problems.push('shuffling along the edge let go of it');
@@ -656,6 +662,15 @@ if (!course.ledgeWork.jumpedOff) {
 }
 if (!course.ledgeWork.pushedBack) {
   problems.push('jumping off the edge did not push him away from the wall');
+}
+
+// A one metre plinth is a step, not a ledge: he lands on it and walks up.
+if (course.lowStep.grabbed) {
+  problems.push(
+    `a low step was caught as a ledge — falling beside it gave ` +
+      `${course.lowStep.dropped.states.join(' > ')}, a side flip past it gave ` +
+      `${course.lowStep.flipped.states.join(' > ')}`,
+  );
 }
 
 // C crouches on land; Q dives in water.
@@ -883,8 +898,12 @@ console.log(
     `${course.ladderWork.mountedAt}m, down to ${course.ladderWork.descendedTo}m`,
 );
 console.log(
+  ` 3  low step    falling beside it: ${course.lowStep.dropped.states.join(' > ')} · ` +
+    `side flip past it: ${course.lowStep.flipped.states.join(' > ')}`,
+);
+console.log(
   ` 9  hanging     along the edge z=${course.ledgeWork.caughtZ} to ` +
-    `z=${course.ledgeWork.shimmiedZ}, held forward did nothing ` +
+    `z=${course.ledgeWork.shimmiedZ} to z=${course.ledgeWork.backZ}, held forward did nothing ` +
     `${course.ledgeWork.heldForwardDidNothing}, E pulled up ${course.ledgeWork.pulledUp}, ` +
     `Space gave "${course.ledgeWork.afterLedgeJump}"`,
 );

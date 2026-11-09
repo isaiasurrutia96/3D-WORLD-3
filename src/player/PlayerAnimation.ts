@@ -41,6 +41,10 @@ export interface AnimationInputs {
   ledgeMove: ClimbMove;
   /** True while he is holding the edge, waiting for the jump button. */
   ledgeHanging: boolean;
+  /** How far through the hand-over-hand cycle he is, in whole grips. */
+  ledgeGrip: number;
+  /** -1, 0 or 1: which way he is shuffling along the edge, if at all. */
+  ledgeShimmy: number;
   /** How far the edge he is holding is above his feet, right now. */
   ledgeLift: number;
   landing: boolean;
@@ -589,6 +593,51 @@ function reachForTheEdge(input: AnimationInputs): void {
   // Hands a little wider than the shoulders, as they would be on an edge.
   pose.shoulderLeftRoll = 0.14;
   pose.shoulderRightRoll = 0.14;
+
+  if (input.ledgeShimmy !== 0) handOverHand(input, up, ahead);
+}
+
+/**
+ * Moving along an edge, one hand at a time.
+ *
+ * Both hands used to slide along it together, which is not how anybody has
+ * ever moved along a ledge. Here the cycle alternates: through the first
+ * half the left hand holds while the right lets go, lifts, reaches the way
+ * he is going and takes hold again; through the second half they swap. The
+ * holding hand is solved onto the edge exactly as it is when he hangs
+ * still, so it never drifts, and the body leans onto whichever hand has
+ * the weight.
+ */
+function handOverHand(input: AnimationInputs, up: number, ahead: number): void {
+  const cycle = input.ledgeGrip - Math.floor(input.ledgeGrip);
+  // Which hand is in the air, and how far through its reach it is.
+  const rightMoving = cycle < 0.5;
+  const t = rightMoving ? cycle / 0.5 : (cycle - 0.5) / 0.5;
+  const swing = Math.sin(t * Math.PI);
+
+  // The free hand comes off the edge, so its hold is shorter by the lift.
+  const free = solveArm(up - swing * 0.17, ahead - swing * 0.06);
+  // And it swings the way he is travelling, which is what reads as reaching
+  // for the next hold rather than merely letting go.
+  const reach = input.ledgeShimmy * swing * 0.4;
+
+  if (rightMoving) {
+    pose.shoulderRightPitch = free.shoulder;
+    pose.elbowRight = free.elbow;
+    pose.shoulderRightRoll = 0.14 + Math.max(0, reach) + Math.max(0, -reach) * 0.2;
+  } else {
+    pose.shoulderLeftPitch = free.shoulder;
+    pose.elbowLeft = free.elbow;
+    pose.shoulderLeftRoll = 0.14 + Math.max(0, -reach) + Math.max(0, reach) * 0.2;
+  }
+
+  // Weight hangs from the hand still holding on.
+  pose.bodyRoll += (rightMoving ? -1 : 1) * swing * 0.1;
+  pose.bodyYaw += input.ledgeShimmy * swing * 0.08;
+  pose.headYaw = input.ledgeShimmy * 0.22;
+  // The legs trail, swinging a little behind the body.
+  pose.hipLeft -= swing * 0.12;
+  pose.hipRight -= swing * 0.12;
 }
 
 const solvedArm = { shoulder: 0, elbow: 0 };

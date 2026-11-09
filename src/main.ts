@@ -1468,12 +1468,18 @@ class Game {
 
           const hung = catchTheRoof(40);
           const caughtZ = round(player.position.z);
-          // Along the edge, away from its near corner. Facing the wall at
-          // x = 26.9, his right runs toward +z, where the roof carries on.
+          // Along the edge in both directions. Facing the wall at x = 26.9,
+          // his right runs toward +z, where the roof carries on.
           stick.x = 1;
           for (let i = 0; i < frames(1.2); i += 1) step();
           stick.x = 0;
           const shimmiedZ = round(player.position.z);
+          const wentRight = shimmiedZ > caughtZ + 0.6;
+          stick.x = -1;
+          for (let i = 0; i < frames(1.2); i += 1) step();
+          stick.x = 0;
+          const backZ = round(player.position.z);
+          const wentLeft = backZ < shimmiedZ - 0.6;
           const stillHanging = player.stateName === 'hanging';
 
           // Holding forward must not pull him up; only a fresh press does.
@@ -1503,7 +1509,10 @@ class Game {
             hung,
             caughtZ,
             shimmiedZ,
-            movedAlong: Math.abs(shimmiedZ - caughtZ) > 0.6,
+            backZ,
+            wentRight,
+            wentLeft,
+            movedAlong: wentRight && wentLeft,
             stillHanging,
             heldForwardDidNothing,
             pulledUp,
@@ -1513,6 +1522,39 @@ class Game {
             jumpedOff: afterLedgeJump !== 'hanging',
             pushedBack,
             endedAt: round(player.position.y),
+          };
+        }
+
+        // Low steps are not ledges. A side flip past the one metre plinth at
+        // station 4, and a plain fall beside it, both used to end with him
+        // dangling off it with his toes almost on the floor.
+        {
+          const beside = (how: 'fall' | 'sideflip') => {
+            place(4.6, 2.2, 0, Math.PI / 2);
+            if (how === 'sideflip') {
+              stick.x = -1;
+              for (let i = 0; i < frames(0.5); i += 1) step();
+              tap('jump');
+              for (let i = 0; i < frames(0.1); i += 1) step();
+              tap('sideFlip');
+            }
+            const states: string[] = [];
+            for (let i = 0; i < frames(2.6); i += 1) {
+              step();
+              held.clear();
+              const name = player.stateName;
+              if (states[states.length - 1] !== name) states.push(name);
+            }
+            stick.x = 0;
+            held.clear();
+            return { states, ended: player.stateName, y: round(player.position.y) };
+          };
+          const dropped = beside('fall');
+          const flipped = beside('sideflip');
+          results.lowStep = {
+            dropped,
+            flipped,
+            grabbed: dropped.states.includes('hanging') || flipped.states.includes('hanging'),
           };
         }
 
