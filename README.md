@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and three floating racing circuits. Kart driving uses grip steering; drifting has been removed. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
+Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
 
 ## Controls
 
@@ -99,6 +99,18 @@ The route comes from the same [Suzuka SVG](docs/references/suzuka.svg) used in t
 
 `src/track-builder.js` supports a north/south access bridge in addition to the existing east/west bridges. Tests compare the route to the independent source SVG, check ribbon closure and unfolded edges, sample road and bridge support, verify both crossover levels and isolated ghost storage, and complete a lap with the actual kart physics. Restore point: `checkpoint-before-suzuka-2026-11-09`, commit `5ce2395`.
 
+## Three-Level Circuit: Spa, Zandvoort and Interlagos
+
+The fourth entrance is on the slab’s **south side**, at **Three-Level Circuit**. Start there with **Enter / Start lap**. One lap follows Spa on the bottom, climbs to Zandvoort in the middle, climbs to Interlagos at the top, then follows the outside descent back to Spa. There is one start/finish line and one ordered set of 12 checkpoints for the entire combined lap. The former closure of each source circuit is removed so there are no optional forks between independently closed loops.
+
+`src/three-level-track.js` builds one continuous closed road ribbon from the three imported outlines and three smooth connectors. The main decks sit at 0, 32 and 64 m. Zandvoort and Interlagos are scaled slightly to accommodate the existing 26 m road width, with small offsets that keep the three outlines stacked. The combined adaptation is approximately 31.3 km including its connecting roads. Maximum connector grade is about 8.7%; projected crossings have at least 9 m of centerline separation, and nearby full-width road corridors remain more than 6 m apart vertically. It retains the existing charcoal pavement, red/white curbs and silver rails without structural support pillars. The access bridge joins the south slab edge to the bottom road.
+
+The sources are [Spa](docs/references/spa.svg), [Zandvoort](docs/references/zandvoort.svg), and [Interlagos](docs/references/interlagos.svg), from the same pinned RaceTracksAPI map collection used above. `node scripts/import-three-level.mjs` regenerates `src/data/three-level-layout.js` offline. These are layout adaptations, with authored deck elevations and connections rather than replicas of the facilities’ terrain.
+
+Lap times and ghosts use `letsgo.three-level.top-laps.v1`, isolated from all three existing courses. Item boxes, cameras, controls, avatar and driving physics use the existing systems. The minimap draws height layers through the new top deck so upper roads remain above lower roads. Tests compare all three deck outlines to their source maps, verify the open ports, closed ribbon and full-width clearances, traverse the access bridge, preserve older ghost records and drive a complete combined lap with actual kart physics.
+
+Restore checkpoint: `checkpoint-before-three-level-circuit-2026-11-09`, commit `cf2e6f2`.
+
 ## Colored go-kart prototype
 
 `src/kart.js` builds a static retro go-kart beside the bridge approach. It has cherry-red nose/side/rear panels, a dark navy seat, exposed silver chassis, four full black rubber tires and silver rims with dark hubs. The old skeletal wheel hoops have been replaced. Wheels and steering retain separate named groups for future rigging. The design uses flat material colors without textures or logos. The kart is now drivable. The avatar is seated while mounted; the wheels roll, front wheels steer and the steering wheel turns. H mounts/exits, with proximity and safe-ground checks.
@@ -139,7 +151,7 @@ Each entrance's **Start lap** prompt selects its circuit and places the player i
 
 Pass all **12 ordered checkpoints**, then cross the finish line forward. The next lap begins immediately when crossing the line. Leaving the course or the kart invalidates that attempt; restart with the button or T. Moving back and forth across the line, reversing around the course or skipping portions cannot set a valid lap. Progress queries account for height so the overpass and road underneath remain distinct.
 
-Each circuit has its own four fastest valid laps and 30 Hz kart pose traces. The Original Circuit keeps the exact `letsgo.top-laps.v2` storage key and course identifier; Skyline uses `letsgo.skyline.top-laps.v1` and Suzuka uses `letsgo.suzuka.top-laps.v1`. Switching circuits does not overwrite the other circuit’s records. Imports must match the selected circuit. Existing `letsgo.best-lap.v1` records migrate automatically; the old entry is retired only after a successful new save. Qualifying laps fill the table, sorted fastest first, and a new top-four lap replaces only the slowest entry. The original best is preserved during migration.
+Each circuit has its own four fastest valid laps and 30 Hz kart pose traces. The Original Circuit keeps the exact `letsgo.top-laps.v2` storage key and course identifier; Skyline uses `letsgo.skyline.top-laps.v1`, Suzuka uses `letsgo.suzuka.top-laps.v1`, and the combined Three-Level Circuit uses `letsgo.three-level.top-laps.v1`. Switching circuits does not overwrite the other circuit’s records. Imports must match the selected circuit. Existing `letsgo.best-lap.v1` records migrate automatically; the old entry is retired only after a successful new save. Qualifying laps fill the table, sorted fastest first, and a new top-four lap replaces only the slowest entry. The original best is preserved during migration.
 
 Ghosts are local to the browser/device, so switching between Firefox, a phone browser or an in-app browser does not transfer them automatically. Use **Export ghosts** under **Laps & ghosts** in the original browser, transfer the downloaded JSON file, then use **Import ghosts** in the destination browser. The file contains the original times and full pose traces, so older-speed ghosts replay exactly as recorded. Import validates the course and recordings, merges the fastest four without duplicating laps or replacing faster local records, and retains the existing storage format and key. Keep the export to retain older comparison laps even after newer laps replace them in the top four. No example/test laps are installed as personal records.
 

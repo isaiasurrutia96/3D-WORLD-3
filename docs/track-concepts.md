@@ -1,6 +1,6 @@
 # Track image studies
 
-The earlier studies below remain image-only concepts. The separately approved slot-car-style reference has now been adapted into the playable Skyline Circuit west of the slab; see [the reference](skyline-reference.png) and the Skyline section in [README](../README.md). Suzuka’s real route has also been adapted as a third playable circuit on the north side of the slab; see [its source map](references/suzuka.svg). The original floor slab, circuit geometry, driving physics and saved ghosts are preserved.
+The earlier studies below remain image-only concepts. The separately approved slot-car-style reference has now been adapted into the playable Skyline Circuit west of the slab; see [the reference](skyline-reference.png) and the Skyline section in [README](../README.md). Suzuka’s real route has also been adapted as a third playable circuit on the north side of the slab; see [its source map](references/suzuka.svg). Spa, Zandvoort and Interlagos are now connected into one three-level circuit on the south side of the slab. The original floor slab, circuit geometry, driving physics and saved ghosts are preserved.
 
 ## Revised concepts: existing-circuit variations
 

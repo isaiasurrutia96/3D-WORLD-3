@@ -20,7 +20,8 @@ export function createMinimap(container,getFocusedCourse=()=>COURSES[0]){
    add('path',{d,...style,stroke:'#080e25','stroke-width':roadWidth+2.5});add('path',{d,...style,stroke:'#b8c7da','stroke-width':roadWidth});
    // Draw successive deck levels from low to high so bridge crossings read
    // in the same order as the physical roads, including the third level.
-   for(const level of [1,11,21]){
+   const top=Math.max(...points.map(p=>p.y));
+   for(let level=1;level<top;level+=10){
     let raised='',section=[];
     for(let i=0;i<points.length;i++){
      if(points[i].y>level){if(!section.length&&i)section.push(points[i-1]);section.push(points[i]);}
