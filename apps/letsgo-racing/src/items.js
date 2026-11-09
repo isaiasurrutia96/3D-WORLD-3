@@ -1,8 +1,9 @@
 import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
+import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
-export function createItemSystem(tracks=[trackSamples],random=Math.random){
+export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
  if(typeof tracks==='function'){random=tracks;tracks=[trackSamples];}
  if(!Array.isArray(tracks))tracks=[trackSamples];
  const boxes=[];
@@ -10,17 +11,18 @@ export function createItemSystem(tracks=[trackSamples],random=Math.random){
   const count=samples.length-1,index=(Math.floor(count*.985)+row*Math.floor(count/16))%count,sample=samples[index];
   for(const lane of [-6,0,6])boxes.push({id:boxes.length,x:sample.point.x+sample.normal.x*lane,y:sample.point.y,z:sample.point.z+sample.normal.z*lane,cooldown:0});
  }
- return{boxes,shells:[],time:0,nextShell:0,random,allowShells:true,hits:[]};
+ return{boxes,shells:[],bananas:[],courses,time:0,nextShell:0,nextBanana:0,random,allowShells:true,hits:[]};
 }
 function sweptDistance(a,b,x,z){
  const dx=b.x-a.x,dz=b.z-a.z,denominator=dx*dx+dz*dz,t=denominator?Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/denominator)):0;
  return Math.hypot(x-a.x-dx*t,z-a.z-dz*t);
 }
-export function useHeldItem(system,kart){
- const item=kart.heldItem;if(item!=='nitro'&&item!=='shell'){kart.heldItem=null;return false;}
+export function useHeldItem(system,kart,world){
+ const item=kart.heldItem;if(!['nitro','shell','banana'].includes(item)){kart.heldItem=null;return false;}
+ if(item==='banana'&&!dropBanana(system,kart,world))return false;
  kart.heldItem=null;
  if(item==='nitro'){kart.boostTime=NITRO_SECONDS;kart.speed=Math.max(0,kart.speed);}
- else{
+ else if(item==='shell'){
   const sin=Math.sin(kart.yaw),cos=Math.cos(kart.yaw),speed=110+Math.max(0,kart.speed)*.25;
   system.shells.push({id:system.nextShell++,owner:kart,x:kart.x+sin*2,y:kart.y,z:kart.z+cos*2,vx:sin*speed,vz:cos*speed,age:0,bounces:0});
  }
@@ -30,7 +32,10 @@ function pickup(system,kart,previous){
  if(!kart||kart.heldItem)return;
  for(const box of system.boxes){
   if(box.cooldown>0||Math.abs(kart.y-box.y)>1.4)continue;
-  if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){box.cooldown=BOX_RESPAWN;kart.heldItem=system.allowShells&&system.random()>=.5?'shell':'nitro';break;}
+  if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){
+   box.cooldown=BOX_RESPAWN;const draw=system.allowShells?system.random():0;
+   kart.heldItem=draw<.5?'nitro':draw<.75?'banana':'shell';break;
+  }
  }
 }
 // Advance one shared clock for both drivers. Rivals use the same boxes and rules.
@@ -38,7 +43,9 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
  system.time+=dt;system.hits=[];
  for(const box of system.boxes)box.cooldown=Math.max(0,box.cooldown-dt);
  const actors=[...(kart?[{state:kart,previous:previous??kart}]:[]),...rivals];
+ clearFinishedBananas(system,previous,kart);
  for(const actor of actors)pickup(system,actor.state,actor.previous);
+ stepBananas(system,actors,dt,world);
  const alive=[];
  for(const shell of system.shells){
   shell.age+=dt;if(shell.age>SHELL_LIFETIME||shell.bounces>12||!world)continue;

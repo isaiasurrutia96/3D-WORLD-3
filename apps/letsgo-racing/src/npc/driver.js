@@ -76,6 +76,7 @@ export function readNpcInput(driver,dt,{traffic=[],boxes=[]}={}){
   input.useItem=!!targetKart||(!leader&&alignment<.06&&cornerSpeed>65);
  }
  if(state.heldItem==='nitro'&&input.brake)input.useItem=false;
+ if(state.heldItem==='banana'&&!driver.finished)input.useItem=state.speed>12&&alignment<.2&&!input.brake;
  if(state.spinTime>0)input.useItem=false;
  if(driver.finished){input.throttle=0;input.brake=true;input.useItem=false;}
  driver.lastInput=input;return input;

@@ -53,6 +53,15 @@ this chunk first. Bananas (cleared per lap), shields, a dodgeable homing torpedo
 with a proximity warning, and a Space-bar kart jump are later chunks; none is
 implemented in this delivery. The movement world remains separate.
 
+## Banana slip — 9 November 2026
+
+**Confirmed by the project owner.** Add only the banana item next, with a real
+sideways slip and the existing spin/recovery. Drop with Shift/mobile Item;
+both drivers can hit it. Clear peels for a circuit on the player's forward
+finish crossing, and on restart/course change. Keep Time Trials Nitro-only,
+personal ghosts and normal driving unchanged. Shields, torpedoes and jumping
+remain separate later chunks.
+
 ---
 
 ## A) The project

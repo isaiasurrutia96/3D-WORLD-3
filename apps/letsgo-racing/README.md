@@ -165,10 +165,35 @@ driving heading. Another hit does not snap an in-progress turn back to zero.
 TPV/ISO retain their existing camera behavior; FPV follows the seated driver
 through the spin. Ghost file fields and personal lap records are unchanged.
 
-The user requested separately testable deliveries. Only spin/recovery is in
-this chunk. Bananas cleared after a lap, a shield, an evadable homing torpedo
-with a proximity warning, and a Space-bar kart jump remain later chunks.
+The user requested separately testable deliveries. The first chunk delivered spin/recovery. Bananas are added in the next chunk
+below. A shield, an evadable homing torpedo with a proximity warning, and a
+Space-bar kart jump remain later chunks.
 Restore point: `checkpoint-before-shell-spin-2026-11-09` at `6b0c708`.
+
+### Banana slip — second combat chunk
+
+Free-drive/NPC boxes now award 50% Nitro, 25% banana, and 25% shell. Time
+Trials keep Nitro-only boxes. Shift or the existing mobile Item button drops
+a yellow peel three metres behind the kart, on supported ground. The NPC can
+also drop bananas through its ordinary item action. Drops preserve active Nitro.
+
+`src/bananas.js` checks swept contact at the correct road height, with a short
+owner grace period. A hit consumes the peel, cancels Nitro, reduces forward
+speed, adds a bounded sideways slip, and starts the existing full spin. The
+slip uses the kart's physical lateral velocity and existing rail collisions;
+it loses energy and fades as the spin finishes. Normal handling is unchanged.
+`src/banana-view.js` builds shared, low-poly peel geometry; the mobile item
+button has its own Banana label and icon.
+
+When the player crosses a circuit's finish line forward, all peels on that
+circuit clear. This cleanup does not score a lap or write any records. Other
+circuits' peels remain. Restarting, switching course, or returning to free
+drive clears dropped hazards; unsupported drops retain the held item. At most
+64 peels remain in a session, with the oldest retired first.
+
+This delivery adds only bananas. Shields, torpedoes and kart jumping remain
+pending the user's next test. Restore point:
+`checkpoint-before-bananas-2026-11-09` at `74355da`.
 
 ## Colored go-kart prototype
 
@@ -190,7 +215,7 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 ## Item boxes
 
-`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box awards Nitro or a green shell with equal probability in free driving/NPC practice, with one inventory slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
+`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box awards Nitro (50%), a green shell (25%) or a banana (25%) in free driving/NPC practice, with one inventory slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
 
 While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. Each fresh time-trial attempt (entrance start or restart) begins with one Nitro in the normal item slot; rolling over the finish line does not grant another. The existing mobile item button also uses it. Activating this Nitro while waiting does not start the clock or consume boost time; E/Gas starts both the simulation and the lap. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 

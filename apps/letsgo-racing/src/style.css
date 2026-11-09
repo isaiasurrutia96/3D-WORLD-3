@@ -140,3 +140,5 @@
 .touch-mode #npc-start{min-height:44px;font-size:11px}
 .touch-item[data-item="shell"]{color:#9aefb2;border-color:#79d69b}
 .touch-item[data-item="shell"] .item-shell{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.touch-item[data-item="banana"]{color:#ffe575;border-color:#e6c74f}
+.touch-item[data-item="banana"] .item-banana{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
