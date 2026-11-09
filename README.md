@@ -1,5 +1,50 @@
 # LetsGo
 
+This is the shared **`isaiasurrutia96/3D-WORLD-3`** repository for two
+independent games. The repository is consolidated; the worlds are not combined.
+
+| Project | Source | Run locally | GitHub Pages path |
+| --- | --- | --- | --- |
+| Claude's movement and obstacle world | Root `src/`, `index.html` | `npm run dev` | `/3D-WORLD-3/` |
+| LetsGo kart racing | `apps/letsgo-racing/` | `npm run dev:racing` | `/3D-WORLD-3/racing/` |
+
+Use **Node.js 24**. Install each project's pinned dependencies separately:
+
+```bash
+npm ci
+npm ci --prefix apps/letsgo-racing
+```
+
+The games keep their own package files, Three.js/Vite versions, entry points,
+worlds, controls, cameras and saved-game behavior. There is no shared runtime
+or movement/world integration. Open the local address printed by the command
+for the game being tested; racing defaults to port 5174.
+
+`npm run build` builds only the movement world into `dist/`.
+`npm run build:racing` builds only racing into `apps/letsgo-racing/dist/`.
+`npm run test:racing` runs the existing racing checks.
+`npm run build:all` checks the root TypeScript project and builds both sites
+into `dist/`, with racing isolated under `dist/racing/`. The Pages workflow
+publishes that folder. Building or loading one game does not load the other.
+
+Racing was imported unchanged from
+[`isaiasurrutia96/LetsGo@029984f`](https://github.com/isaiasurrutia96/LetsGo/commit/029984f1c4d9a857c93b8a4a8105f1540dd73778),
+including its Git history, assets, previews, tests and lockfile. Its own
+[README](apps/letsgo-racing/README.md) documents the tracks and controls.
+The original LetsGo repository and playable link remain available; no lap
+recordings have been copied, deleted, or uploaded as part of this consolidation.
+Racing retains its existing storage keys and ghost import/export format.
+
+Claude and Codex should make future changes in this shared repository, in the
+appropriate project directory. See [AGENTS.md](AGENTS.md) for the boundary
+between the two games. Restore point before consolidation:
+`checkpoint-before-repo-consolidation-2026-11-09` at `844871f`.
+
+The existing documentation below describes the movement-world project at the
+repository root.
+
+---
+
 A browser-based 3D world for free exploration and platforming, built with
 Three.js, TypeScript and Vite.
 

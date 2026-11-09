@@ -8,7 +8,12 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:racing": "npm --prefix apps/letsgo-racing run dev -- --port 5174",
+    "build:racing": "npm --prefix apps/letsgo-racing run build",
+    "preview:racing": "npm --prefix apps/letsgo-racing run preview -- --port 4174",
+    "test:racing": "npm --prefix apps/letsgo-racing run test",
+    "build:all": "npm run build && npm --prefix apps/letsgo-racing run build -- --outDir ../../dist/racing --emptyOutDir"
   },
   "dependencies": {
     "three": "0.180.0"

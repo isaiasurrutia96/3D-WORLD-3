@@ -8,7 +8,28 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 4 November 2026 — ladders, swimming, Q, unlimited wall kicks.
+Last updated: 9 November 2026 — one shared repository, two independent worlds.
+
+## Repository consolidation — 9 November 2026
+
+**Confirmed by the project owner.** Consolidate Claude's movement project and
+Codex's LetsGo racing project into `isaiasurrutia96/3D-WORLD-3`, while keeping
+the actual games/worlds independent.
+
+Previous arrangement: separate repositories, with selected movement code
+copied into LetsGo. An earlier interpretation of the new request would also
+have combined the playable worlds; the owner explicitly corrected that scope
+before any game source was changed.
+
+New arrangement: the existing movement/obstacle project remains at the root;
+the complete racing game is imported under `apps/letsgo-racing/`, with its
+history and separate dependencies, entry point, runtime and Pages subpath.
+No character, physics, camera, track, obstacle or control integration is part
+of this change. The reason is to let both assistants work from the same
+repository without changing either game's behavior.
+
+Firefox lap backups, personal ghost bundling, online sync and NPCs remain
+deferred. Existing browser-storage keys and ghost exports stay unchanged.
 
 ---
 
