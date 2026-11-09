@@ -20,8 +20,11 @@ the worlds**. Both projects belong in this repository, with separate runtimes.
   `npm run build:all` builds the movement site at `dist/` and racing at
   `dist/racing/`, for one Pages deployment with two separate URLs.
 - Preserve racing course IDs, storage keys and ghost format. The user is
-  still recording laps in Firefox; backups and cross-browser syncing are
-  deferred. Do not clear browser records or upload bundled personal ghosts.
+  recording laps in Firefox. Preserve those browser records; backups and
+  cross-browser syncing remain separate. The user approved the uploaded
+  Original Circuit exports as references for the first NPC practice driver.
+  A derived line/pace profile may be bundled for that driver; raw exports and
+  personal leaderboard tables must not be bundled or seeded into storage.
 - Start from current `main` and review concurrent changes before pushing.
   Keep the original LetsGo site available; do not delete or redirect it as
   part of this consolidation.

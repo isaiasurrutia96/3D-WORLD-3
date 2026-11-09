@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // Static retro kart with colored bodywork and complete wheels. Forward is +Z; wheel groups and the
 // steering assembly are separate so a later driving rig can be built on them.
-export function createKartFrame(){
+export function createKartFrame({bodyColor='#df3438'}={}){
  const kart=new THREE.Group();kart.name='Go-kart prototype';
  kart.userData.drivable=false;
  const material=new THREE.MeshLambertMaterial({color:'#919aa6'});
@@ -55,7 +55,7 @@ export function createKartFrame(){
  for(let i=0;i<3;i++){const angle=i*Math.PI*2/3;tube(wheel,[0,0,0],[Math.cos(angle)*.21,Math.sin(angle)*.21,0],.016,'steering spoke');}
  for(const side of [-1,1])tube(steering,[0,.31,.63],[side*.80,.38,1.03],.02,'steering link');
  const body=new THREE.Group();body.name='body_panels';kart.add(body);
- const panelMaterial=new THREE.MeshLambertMaterial({color:'#df3438',side:THREE.DoubleSide});
+ const panelMaterial=new THREE.MeshLambertMaterial({color:bodyColor,side:THREE.DoubleSide});
  function panel(name,sections,centerX=0){
   const vertices=[],indices=[];
   for(const [z,width,bottom,top] of sections){

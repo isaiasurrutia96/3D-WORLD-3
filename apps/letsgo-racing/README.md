@@ -1,6 +1,6 @@
 # LetsGo — locomotion foundation
 
-Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Items, lap timing, saved top-four records and ghost playback retain their existing implementation.
+Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Lap timing, saved top-four records and ghost playback retain their existing implementation.
 
 ## Controls
 
@@ -25,7 +25,7 @@ Touch devices use a layout based on the mobile racing reference, in portrait or 
 - Hold the bottom-right **Gas** button to accelerate. Moving that finger does not activate another driving mode; lift to release Gas. The kart waits for Gas before starting the lap.
 - The separate **↓ Brake** button, or physical **D / Down Arrow**, brakes and reverses while held; it takes priority over Gas and Nitro. Normal speed is capped at 120 MPH, Nitro at 180 MPH. Quick steering taps are softer; sustained steering has slightly more lock.
 - During gameplay the full game surface prevents native pinch/double-tap webpage zoom, with Safari gesture-event guards. Intentional camera gestures on the canvas remain available; browser zoom on the home screen is unaffected.
-- The upper-right item button shows **Boost** after collecting a Nitro box. One tap uses it, including while other fingers hold steering and Gas. Holding the button cannot automatically consume a later pickup. Shells and their spin-out effect have been removed.
+- The upper-right item button shows **Boost** after collecting a Nitro box. One tap uses it, including while other fingers hold steering and Gas. Holding the button cannot automatically consume a later pickup. The same button shows **Shell** when a green shell is held; one tap fires it. Shells are available in free driving and NPC practice; Time Trials keep Nitro-only pickups.
 - The camera button cycles **TPV → FPV → ISO** while driving. FPV shows the hands steering the wheel; TPV looks slightly higher and ISO shows a wider area. The **Laps & ghosts** disclosure keeps times, replay toggle and restart accessible without covering the driving controls; it opens beside the HUD on short landscape screens.
 - **Exit** brakes to a stop before using the existing safe kart exit. On foot, the left pad becomes **Move** (small movements walk, larger movements run), the right button becomes **Jump**, and the secondary button becomes a standing **Flip**. **Kart** re-enters when nearby.
 - Returning Home, cancelling a touch, changing orientation, losing focus or hiding the page clears held fingers. Background/home simulation does not advance. Play returns to the central slab without deleting records.
@@ -113,13 +113,55 @@ The course ID is `letsgo-winding-v1`; its recordings save under `letsgo.winding.
 
 Restore point before this replacement: `checkpoint-before-winding-track-2026-11-09` at `4a41753`. Earlier restore points: `checkpoint-before-shorter-three-level-2026-11-09` at `d356457` for the original long circuit; `checkpoint-before-three-level-circuit-2026-11-09` at `cf2e6f2` predates the fourth course.
 
+## First NPC practice — Original Circuit
+
+On the **Original Circuit**, open **Laps & ghosts** (already expanded on desktop)
+and choose **Practice with NPC**. The player and one solid blue kart spawn in
+separate positions at the start. Both wait until **E / Gas** is pressed. The NPC
+drives one lap and brakes after finishing. Use **Restart NPC practice** to retry;
+**Time Trial / T**, another course, exiting the kart or Home ends the practice.
+The blue minimap dot follows the same interpolated pose as the visible kart.
+Practice never saves lap times or changes the browser's top-four recordings.
+Other courses still offer their existing Time Trials.
+
+`src/npc/driver.js` reads a distance-indexed racing line and speed profile derived
+from the four approved Original Circuit ghost exports. It returns throttle,
+steering, braking and item-use requests; the unchanged `stepVehicle` controller
+moves the NPC, including wheel smoothing, rail contacts, elevation and Nitro.
+The NPC never gets placed on a time-indexed replay. Pure-pursuit steering,
+look-ahead turn-speed limits and braking adapt the reference to the current
+position. An obstructing kart triggers a held passing-side choice and following
+distance; an empty item slot can target a reachable pickup. A displaced kart
+steers back toward the line. Kart-to-kart contact is damped and preserves heading.
+
+The NPC uses the same shared boxes, item slot, starter Nitro, boost duration and
+speed caps as the player. It can collect and fire shells. Random item draws mean
+its pace varies; it is not forced to finish at the exact recorded ghost time.
+The visible driver uses six opaque geometry batches with independent moving
+wheels and steering, plus the same Nitro exhaust as the player's kart.
+
+`src/npc/original-reference.js` contains only the derived line/pace samples and
+source hash. Raw user exports and personal leaderboard tables are not bundled,
+imported into browser storage, or altered. Reproduce the guide locally with:
+
+```bash
+node scripts/derive-npc-reference.mjs /path/to/letsgo-ghosts-2026-11-09.json
+```
+
+`tests/npc.test.js` drives complete laps through every checkpoint using actual
+kart physics and varied item draws, checks displacement recovery and a passing
+maneuver, verifies practice startup/restart and kart contact, and checks the
+opaque geometry budget. This is the first one-opponent practice pass; a full
+Race menu, multi-kart grid, countdown and race results are deferred for review.
+Restore point: `checkpoint-before-npc-and-shell-2026-11-09` at `6495325`.
+
 ## Colored go-kart prototype
 
 `src/kart.js` builds a static retro go-kart beside the bridge approach. It has cherry-red nose/side/rear panels, a dark navy seat, exposed silver chassis, four full black rubber tires and silver rims with dark hubs. The old skeletal wheel hoops have been replaced. Wheels and steering retain separate named groups for future rigging. The design uses flat material colors without textures or logos. The kart is now drivable. The avatar is seated while mounted; the wheels roll, front wheels steer and the steering wheel turns. H mounts/exits, with proximity and safe-ground checks.
 
 ## Driving foundation
 
-`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 53.6448 m/s (120 MPH), with 24 m/s² acceleration (up from 16); reverse is 8 m/s. Nitro raises the temporary cap to 80.4672 m/s (180 MPH), with 48 m/s² acceleration (up from 36) for the existing two-second burst. From rest, those caps take about 2.24 seconds normally and 1.68 seconds under Nitro on a straight clear road. Steering lock is 0.415 radians, with the existing build/release rates of 6.5/14 per second. A same-direction steering hold above 55% input, while grounded and moving forward above 2 m/s without braking, adds up to 20% steering lock: the first 0.5 seconds preserve the existing tap response, then a smooth 0.8-second ramp adds lock. Releasing, countersteering, braking or leaving the ground resets the hold timer; the actual wheel continues smoothing. The timing and gain are exported tuning constants. D or Down Arrow brakes/reverses; Space has no kart action. There are no CPU opponents or vehicle jumps.
+`src/vehicle-controller.js` implements fixed-step arcade kart movement separately from character locomotion: acceleration/coasting, brake-before-reverse, bounded forward/reverse speed, speed-sensitive steering, guardrail capsule collision and terrain height/pitch/bank. Base forward speed is capped at 53.6448 m/s (120 MPH), with 24 m/s² acceleration (up from 16); reverse is 8 m/s. Nitro raises the temporary cap to 80.4672 m/s (180 MPH), with 48 m/s² acceleration (up from 36) for the existing two-second burst. From rest, those caps take about 2.24 seconds normally and 1.68 seconds under Nitro on a straight clear road. Steering lock is 0.415 radians, with the existing build/release rates of 6.5/14 per second. A same-direction steering hold above 55% input, while grounded and moving forward above 2 m/s without braking, adds up to 20% steering lock: the first 0.5 seconds preserve the existing tap response, then a smooth 0.8-second ramp adds lock. Releasing, countersteering, braking or leaving the ground resets the hold timer; the actual wheel continues smoothing. The timing and gain are exported tuning constants. D or Down Arrow brakes/reverses; Space has no kart action. One NPC is available in the Original Circuit practice mode described below; vehicle jumps remain deferred.
 
 The kart follows its facing direction with speed-sensitive grip steering and smooth wheel input. There is no player-activated drift state, gesture or key binding. Only collisions introduce brief lateral velocity and a damped angular response. Saved replay fields and course identifiers are unchanged, so existing lap records are preserved. Time-trial speed validation accommodates the new legal boosted cap.
 
@@ -133,13 +175,13 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 ## Item boxes
 
-`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box awards Nitro, with one inventory slot. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Shell pickup, launching, collision, rendering and the resulting spin-out are removed.
+`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box awards Nitro or a green shell with equal probability in free driving/NPC practice, with one inventory slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit preserves the kart heading; it does not force a spin. The launching kart has a short owner grace period and can be hit by its own later ricochet.
 
 While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. Each fresh time-trial attempt (entrance start or restart) begins with one Nitro in the normal item slot; rolling over the finish line does not grant another. The existing mobile item button also uses it. Activating this Nitro while waiting does not start the clock or consume boost time; E/Gas starts both the simulation and the lap. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 
 - Nitro lasts two seconds, accelerates toward a 180 MPH cap, and shows blue exhaust. The cap is reached once sufficient speed has built; it does not instantly set speed. Braking still works, and boosted speed eases back toward the normal 120 MPH cap after expiry.
 
-`src/item-view.js` renders the rotating multicolor question boxes and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover Nitro-only collection/respawn, inventory limits, separate road levels, expiry/braking, and rejection of obsolete held items. Browser checks exercise actual box pickup and Shift activation.
+`src/item-view.js` renders the rotating multicolor question boxes, green shells and exhaust using local procedural geometry and textures. No external image assets are required. Tests cover item draws, Nitro-only Time Trials, collection/respawn, inventory limits, separate road levels, expiry/braking, moving-target hits and ricochets. Browser checks exercise actual box pickup and Shift activation.
 
 Camera views: press **V** or tap the camera button to cycle **TPV → FPV → ISO** while driving; on foot, it switches between TPV and ISO. FPV is anchored to the kart at the driver's eye, with visible hands on the actual steering wheel. Locked mouse movement looks around without steering; **R** resets that look. TPV is slightly lower and closer, with more upward tilt: 10 m behind the kart, a 3.5 m rise above the target and 4° upward render tilt. ISO retains its fixed angle and expands the default vertical span from 36 m to 42 m, showing more track ahead and behind. Scroll/pinch adjusts TPV/ISO zoom; **R** resets the selected view. The track entrance bridge covers the entire guardrail opening. Kart contacts use the damped rebound and scrape response described above; neither direct nor oblique hits choose a forced tangent heading.
 

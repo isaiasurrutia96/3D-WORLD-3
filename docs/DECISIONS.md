@@ -31,6 +31,20 @@ repository without changing either game's behavior.
 Firefox lap backups, personal ghost bundling, online sync and NPCs remain
 deferred. Existing browser-storage keys and ghost exports stay unchanged.
 
+## First racing NPC and shell restoration — 9 November 2026
+
+**Confirmed by the project owner.** Implement the first step of NPC development:
+one physics-driven practice opponent on the Original Circuit, based on the four
+approved ghost laps. A full three-opponent Race mode, start countdown, grid and
+results remain later steps. Restore the green ricochet shell alongside Nitro.
+
+This work is confined to `apps/letsgo-racing/`. Time Trials retain their current
+Nitro-only item rules and storage keys, and practice never records personal lap
+times. Shells are available in free driving and NPC practice, use the existing
+item controls, and slow a hit kart without forcing its heading around. Only a
+derived NPC racing-line/pace profile is distributed; personal ghost exports and
+leaderboards stay separate. Claude's root world and movement code are unchanged.
+
 ---
 
 ## A) The project

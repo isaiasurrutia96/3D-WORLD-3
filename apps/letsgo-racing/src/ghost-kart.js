@@ -6,8 +6,8 @@ import {createSeatedPose} from './vehicle-view.js';
 
 // Four replays share a baked chassis/driver and five moving assemblies instead
 // of rendering every frame tube and re-skinning four static seated avatars.
-export function createGhostTemplate(){
- const source=createKartFrame(),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton?.update();
+export function createGhostTemplate({solid=false,bodyColor}={}){
+ const source=createKartFrame({bodyColor}),driver=createAvatar();source.add(driver);createSeatedPose(driver)();source.updateMatrixWorld(true);driver.skeleton?.update();
  const names=['front_axle_left_wheel','front_axle_right_wheel','rear_axle_left_wheel','rear_axle_right_wheel','steering_wheel'];
  const roots=new Set(names.map(name=>source.getObjectByName(name))),batches=new Map([[source,[]],...[...roots].map(root=>[root,[]])]);
  const point=new THREE.Vector3();
@@ -18,9 +18,10 @@ export function createGhostTemplate(){
   if(mesh.isSkinnedMesh){const positions=geometry.attributes.position;for(let i=0;i<positions.count;i++){mesh.getVertexPosition(i,point);positions.setXYZ(i,point.x,point.y,point.z);}geometry.computeVertexNormals();}
   if(geometry.index){const indexed=geometry;geometry=indexed.toNonIndexed();indexed.dispose();}
   for(const name of Object.keys(geometry.attributes))if(name!=='position'&&name!=='normal')geometry.deleteAttribute(name);
+  if(solid){const color=mesh.material.color??new THREE.Color('#ffffff'),colors=new Float32Array(geometry.attributes.position.count*3);for(let i=0;i<colors.length;i+=3){colors[i]=color.r;colors[i+1]=color.g;colors[i+2]=color.b;}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));}
   geometry.applyMatrix4(new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(mesh.matrixWorld));batches.get(root).push(geometry);
  });
- const template=new THREE.Group(),material=new THREE.MeshBasicMaterial();
+ const template=new THREE.Group(),material=solid?new THREE.MeshLambertMaterial({vertexColors:true}):new THREE.MeshBasicMaterial();
  for(const [root,geometries]of batches){
   const mesh=new THREE.Mesh(mergeGeometries(geometries),material);mesh.name=root===source?'Ghost chassis and seated driver':'Ghost moving assembly';
   if(root===source)template.add(mesh);

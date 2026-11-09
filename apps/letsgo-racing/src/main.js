@@ -18,6 +18,8 @@ import {createDriverView} from './driver-view.js';
 import {createLayoutEditor} from './layout-editor.js';
 import {COURSES,ORIGINAL_COURSE,WORLD_START} from './courses.js';
 import {createLapEntranceMarkers,nearestLapEntrance} from './lap-entrances.js';
+import {createNpcPractice} from './npc/practice.js';
+import {createNpcView} from './npc/view.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -41,12 +43,13 @@ kart.userData.drivable=true;
 const kartState=createVehicleState(),applyKart=createVehicleView(kart),seatAvatar=createSeatedPose(avatar);
 const driverView=createDriverView(avatar,kart);
 const itemSystem=createItemSystem(COURSES.map(course=>course.samples)),applyItems=createItemView(scene,itemSystem,kart);
+const npcPractice=createNpcPractice(worldPhysics,itemSystem),npcView=createNpcView(scene);
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
 const trials=new Map(COURSES.map(course=>[course.id,createTimeTrial(trialStorage,course)]));
 let activeCourse=ORIGINAL_COURSE,trial=trials.get(activeCourse.id),nearEntrance=null,dismissedEntrance=null;
-const applyTrial=createTimeTrialView(scene,()=>trial,COURSES);
-const updateMinimap=createMinimap(document.getElementById('minimap'),()=>trial.status==='ready'||trial.status==='running'?activeCourse:null);
+const applyTrial=createTimeTrialView(scene,()=>trial,COURSES,()=>npcPractice.active?npcPractice:null);
+const updateMinimap=createMinimap(document.getElementById('minimap'),()=>npcPractice.active||trial.status==='ready'||trial.status==='running'?activeCourse:null);
 const entrancePrompt=document.getElementById('lap-entrance'),entranceName=document.getElementById('lap-entrance-name');
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y,radius=CHARACTER_RADIUS,height=CHARACTER_HEIGHT)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y,radius,height);
@@ -218,15 +221,17 @@ function toggleVehicle(){
   const exit=findExitPosition(kartState,worldPhysics);
   if(!exit){hint.textContent=Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
   invalidateTimeTrial(trial,'Left the kart — restart lap');
-  driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
+  stopNpcPractice();driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
   driverView.firstPerson(false);if(viewMode==='first-person')viewMode='third-person';
  }
  mobile.clear();mobileExitPending=false;
  jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);return true;
 }
+function stopNpcPractice(){npcPractice.stop();npcView.update(null,0,itemSystem.time);}
 function startTrial(course=activeCourse){
  if(!playing)return;
+ stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];
  clearInputs();mobileExitPending=false;
  if(course!==activeCourse)invalidateTimeTrial(trial,'Switched tracks');
  activeCourse=course;trial=trials.get(course.id);document.getElementById('ghost-transfer-status').hidden=true;
@@ -237,7 +242,16 @@ function startTrial(course=activeCourse){
  armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
  nearEntrance=null;entrancePrompt.hidden=true;
 }
+function startNpcPractice(){
+ if(!playing)return;
+ startTrial(ORIGINAL_COURSE);
+ invalidateTimeTrial(trial,'NPC practice does not save lap times');trial.status='idle';trial.elapsed=0;
+ itemSystem.allowShells=true;
+ Object.assign(kartState,npcPractice.start());previousKart={...kartState};setCameraView(viewMode);
+}
+bindPress(document.getElementById('npc-start'),startNpcPractice);
 function exploreWorld(){
+ stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
  Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
@@ -245,7 +259,7 @@ function exploreWorld(){
 }
 function updateEntrancePrompt(position){
  if(dismissedEntrance&&nearestLapEntrance(position,COURSES,23)!==dismissedEntrance)dismissedEntrance=null;
- nearEntrance=trial.status==='running'?null:nearestLapEntrance(position,COURSES);
+ nearEntrance=npcPractice.active||trial.status==='running'?null:nearestLapEntrance(position,COURSES);
  if(nearEntrance===dismissedEntrance)nearEntrance=null;
  entrancePrompt.hidden=!nearEntrance;if(nearEntrance)entranceName.textContent=nearEntrance.name;
  canvas.dataset.nearTrack=nearEntrance?.id??'';
@@ -293,19 +307,20 @@ function frame(time){
     const drivingInput=readDrivingInput(keys,mobile.consume());
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
     const startForward=drivingInput.throttle>0&&!drivingInput.brake;
-    if(trial.status!=='ready'||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
-    stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
+    const waiting=trial.status==='ready'||npcPractice.active&&!npcPractice.running;
+    if(!waiting||startForward)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
+    if(npcPractice.active)npcPractice.step(STEP,kartState,startForward);else stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
-   stepItems(itemSystem,driving?kartState:null,previousKart,STEP);
+   stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics,npcPractice.actors());
    accumulator-=STEP;
   }
-  if(driving&&kartState.y< -35){invalidateTimeTrial(trial,'Returned to slab — restart lap');Object.assign(kartState,createVehicleState(),WORLD_START);itemQueued=false;previousKart={...kartState};reset();}
+  if(driving&&kartState.y< -35){stopNpcPractice();invalidateTimeTrial(trial,'Returned to slab — restart lap');Object.assign(kartState,createVehicleState(),WORLD_START);itemQueued=false;previousKart={...kartState};reset();}
   if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);const ghostPoses=applyTrial(alpha,STEP);
+  applyKart(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);const npcPose=npcView.update(npcPractice.driver,alpha,itemSystem.time),ghostPoses=applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -316,7 +331,7 @@ function frame(time){
   }
   const focus=driving?kartPose:avatar.position;
   updateEntrancePrompt(driving?kartState:runner);
-  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses);
+  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses,npcPose?[npcPose]:[]);
   if(driving&&viewMode==='first-person')updateFirstPersonCamera();
   else{
    const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
@@ -329,8 +344,9 @@ function frame(time){
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
-  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
+  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
   render();
+  canvas.dataset.npc=npcPractice.active?(npcPractice.driver.finished?'finished':npcPractice.running?'running':'ready'):'off';canvas.dataset.npcElapsed=String(npcPractice.driver?.elapsed??0);canvas.dataset.shells=String(itemSystem.shells.length);
   canvas.dataset.course=activeCourse.id;canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
@@ -341,7 +357,7 @@ function frame(time){
 }
 
 function goHome(){
- playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
+ stopNpcPractice();playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
  nearEntrance=null;entrancePrompt.hidden=true;
  invalidateTimeTrial(trial,'Returned home — restart lap');previousTime=undefined;accumulator=0;
  if(document.pointerLockElement===canvas)document.exitPointerLock();

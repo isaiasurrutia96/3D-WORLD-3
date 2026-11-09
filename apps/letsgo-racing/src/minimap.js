@@ -6,7 +6,7 @@ import {MAX_GHOSTS,GHOST_COLORS} from './time-trial.js';
 export function createMinimap(container,getFocusedCourse=()=>COURSES[0]){
  const width=180,height=150,padding=12,ns='http://www.w3.org/2000/svg';
  const svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');container.append(svg);
- let key=null,project,marker,arrow,ghostMarkers=[];
+ let key=null,project,marker,arrow,ghostMarkers=[],npcMarkers=[];
  function add(tag,attributes,parent=svg){const node=document.createElementNS(ns,tag);for(const [name,value]of Object.entries(attributes))node.setAttribute(name,String(value));parent.append(node);return node;}
  function rebuild(focused){
   const courses=focused?[focused]:COURSES,points=courses.flatMap(c=>c.samples.map(s=>s.point)),outer=14.1;
@@ -34,11 +34,13 @@ export function createMinimap(container,getFocusedCourse=()=>COURSES[0]){
    add('path',{d:start,stroke:'#080e25','stroke-width':3.5});add('path',{d:start,stroke:'#fff','stroke-width':1.8});
   }
   ghostMarkers=Array.from({length:MAX_GHOSTS},(_,i)=>add('circle',{'data-minimap-ghost':i+1,r:3.8,fill:GHOST_COLORS[i],stroke:'#080e25','stroke-width':1.2,visibility:'hidden'}));
+  npcMarkers=[add('circle',{'data-minimap-npc':'1',r:4.2,fill:'#397ee8',stroke:'#ffffff','stroke-width':1.2,visibility:'hidden'})];
   marker=add('g',{'data-minimap-player':''});add('circle',{r:6,fill:'#080e25','fill-opacity':.35},marker);arrow=add('path',{d:'M0 -7 L5 5 L0 2 L-5 5 Z',fill:'#8df5ff',stroke:'#10233b','stroke-width':1,'stroke-linejoin':'round'},marker);
  }
- return function update(position,yaw,ghostPoses=[]){
+ return function update(position,yaw,ghostPoses=[],npcPoses=[]){
   const focused=getFocusedCourse(),next=focused?.id??'world';if(key!==next){key=next;rebuild(focused);}
   const p=project(position);p.x=Math.max(padding,Math.min(width-padding,p.x));p.y=Math.max(padding,Math.min(height-padding,p.y));marker.setAttribute('transform',`translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);arrow.setAttribute('transform',`rotate(${(180-yaw*180/Math.PI).toFixed(2)})`);
+  npcMarkers.forEach((node,i)=>{const pose=npcPoses[i];node.setAttribute('visibility',pose?'visible':'hidden');if(pose){const p=project(pose);node.setAttribute('cx',p.x.toFixed(2));node.setAttribute('cy',p.y.toFixed(2));}});
   ghostMarkers.forEach((node,i)=>{const pose=ghostPoses[i];node.setAttribute('visibility',pose?'visible':'hidden');if(pose){const p=project(pose);node.setAttribute('cx',p.x.toFixed(2));node.setAttribute('cy',p.y.toFixed(2));}});
  };
 }

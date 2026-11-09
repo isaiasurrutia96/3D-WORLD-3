@@ -106,10 +106,10 @@ export function createMobileControls({onDriveIntent,onItem,onInteract,onTouch}){
    text('touch-steer-label',driving?'Steer':'Move');text('touch-secondary-label',driving?'Brake':'Flip');
    secondary.setAttribute('aria-label',driving?'Hold to brake and reverse':'Standing backflip');
    secondary.setAttribute('aria-disabled',String(!driving&&!canFlip));secondary.classList.toggle('is-unavailable',!driving&&!canFlip);
-   const kind=driving?(heldItem==='nitro'?'nitro':boosting?'boosting':'none'):'none';
-   item.dataset.item=kind;item.disabled=!driving||heldItem!=='nitro';
-   text('touch-item-label',kind==='nitro'?'Boost':kind==='boosting'?'Boosting':'Item');
-   item.setAttribute('aria-label',kind==='nitro'?'Use Nitro boost':kind==='boosting'?'Nitro boost active':'No item available');
+   const kind=driving?(heldItem??(boosting?'boosting':'none')):'none';
+   item.dataset.item=kind;item.disabled=!driving||!heldItem;
+   text('touch-item-label',kind==='nitro'?'Boost':kind==='shell'?'Shell':kind==='boosting'?'Boosting':'Item');
+   item.setAttribute('aria-label',kind==='nitro'?'Use Nitro boost':kind==='shell'?'Throw shell':kind==='boosting'?'Nitro boost active':'No item available');
    interact.textContent=interactionText;interact.disabled=!canInteract;
   },
  };
