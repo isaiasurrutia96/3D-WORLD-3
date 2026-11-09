@@ -1,0 +1,31 @@
+{
+  "name": "letsgo",
+  "version": "1.0.0",
+  "description": "interactive world for LifeSheet",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node tests/avatar.test.js && node tests/running.test.js && node tests/world.test.js && node tests/vehicle.test.js && node tests/driver-view.test.js && node tests/layout-state.test.js && node tests/items.test.js && node tests/backflip-preview.test.js && node tests/time-trial.test.js && node tests/second-track.test.js && node tests/suzuka-track.test.js && node tests/winding-track.test.js && node tests/stage1.test.js && node tests/jump-driving.test.js && node tests/mobile-input.test.js && node tests/wall-contact-preview.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/isaiasurrutia96/LetsGo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/isaiasurrutia96/LetsGo/issues"
+  },
+  "homepage": "https://github.com/isaiasurrutia96/LetsGo#readme",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  },
+  "private": true
+}
