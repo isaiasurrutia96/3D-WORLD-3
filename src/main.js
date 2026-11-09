@@ -67,7 +67,7 @@ Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-3,near:0.1,far:20
 sun.shadow.normalBias=0.015;
 let camera=new THREE.PerspectiveCamera(45,1,0.1,3000);
 const thirdPersonCamera=camera;
-const ISO_HALF_HEIGHT=21,TPV_UP_TILT=2*Math.PI/180;
+const ISO_HALF_HEIGHT=21,TPV_FOLLOW_DISTANCE=10,TPV_HEIGHT=3.5,TPV_UP_TILT=4*Math.PI/180;
 const isoCamera=new THREE.OrthographicCamera(-28,28,ISO_HALF_HEIGHT,-ISO_HALF_HEIGHT,.1,3000);
 const firstPersonCamera=new THREE.PerspectiveCamera(76,1,.04,3000);firstPersonCamera.position.set(0,1.32,-.78);kart.add(firstPersonCamera);
 let viewMode='third-person',fpvYaw=0,fpvPitch=0;
@@ -84,7 +84,7 @@ function updateFirstPersonCamera(){
 function reset(){
  fpvYaw=0;fpvPitch=0;
  if(viewMode==='first-person'&&driving){applyKart(kartState);driverView.update();updateFirstPersonCamera();return;}
- const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(viewMode==='isometric'?new THREE.Vector3(28,28,28):driving?new THREE.Vector3(-Math.sin(focus.yaw)*11,4.5,-Math.cos(focus.yaw)*11):new THREE.Vector3(-12,5,0));controls.update();
+ const focus=driving?kartState:runner;controls.target.set(focus.x,focus.y+1.2,focus.z);camera.position.copy(controls.target).add(viewMode==='isometric'?new THREE.Vector3(28,28,28):driving?new THREE.Vector3(-Math.sin(focus.yaw)*TPV_FOLLOW_DISTANCE,TPV_HEIGHT,-Math.cos(focus.yaw)*TPV_FOLLOW_DISTANCE):new THREE.Vector3(-12,5,0));controls.update();
 }
 reset();
 canvas.addEventListener('keydown',event=>{if(event.code==='KeyR')reset();});
@@ -322,7 +322,7 @@ function frame(time){
    const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
    const offset=target.sub(controls.target);controls.target.add(offset);camera.position.add(offset);
    if(driving&&viewMode==='third-person'&&!orbiting&&time>manualCameraUntil){
-    const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*11,4.5,-Math.cos(kartPose.yaw)*11));
+    const desired=controls.target.clone().add(new THREE.Vector3(-Math.sin(kartPose.yaw)*TPV_FOLLOW_DISTANCE,TPV_HEIGHT,-Math.cos(kartPose.yaw)*TPV_FOLLOW_DISTANCE));
     camera.position.lerp(desired,1-Math.exp(-5*dt));
    }
    controls.update();
