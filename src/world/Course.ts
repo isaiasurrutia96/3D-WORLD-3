@@ -118,7 +118,14 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
       new BoxGeometry(w + 0.12, 0.16, d + 0.12, Math.max(1, Math.round(w)), 1, Math.max(1, Math.round(d))),
       new MeshStandardMaterial({ color: TRIM, roughness: 0.85 }),
     );
-    lip.position.set(x, top - 0.08, z);
+    // Just below the top rather than flush with it. Flush, the lip's upper
+    // face and the platform's own occupy exactly the same plane across the
+    // whole top, and two coplanar faces fight over every pixel: it came out
+    // as a mottled grey patchwork of triangles in two colours, which is
+    // what gave station 5 its strange lighter roof. Dropping it by a
+    // centimetre costs nothing to look at — what shows of the lip is the
+    // band standing proud around the sides — and ends the argument.
+    lip.position.set(x, top - 0.09, z);
     lip.castShadow = true;
     lip.receiveShadow = true;
     solid.add(lip);

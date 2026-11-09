@@ -198,6 +198,8 @@ export class Player {
    * How far through the hand-over-hand cycle he is, and which way he is
    * going along the edge (0 when he is holding still with both hands).
    */
+  /** How far past the edge this climb ends, kept for moving along it. */
+  private ledgeStand = 0;
   private gripPhase = 0;
   private gripMoving = 0;
   private readonly ledgeFrom = new Vector3();
@@ -689,6 +691,23 @@ export class Player {
     );
     if (floor && top - floor.y < TUNING.ledgeMinDrop) return why('only a step');
 
+    // Square up to the wall before anything else is measured against it.
+    //
+    // He used to keep whatever heading he arrived on. Reaching an edge at an
+    // angle therefore left him hanging at that angle — and since "along the
+    // edge" is worked out from the way he faces, shuffling sideways then
+    // carried him diagonally into the stone. It also measured the top along
+    // that diagonal, which is longer than the wall is thick, so a wall met
+    // at an angle could be taken for somewhere to stand. The wall itself
+    // knows which way it faces, so ask it: the face under the edge gives a
+    // normal, and he is turned square to it. Nothing here knows or cares
+    // which wall it is.
+    const squared = this.ledgeWallFacing(forward, top);
+    if (squared !== null) {
+      this.facing = squared;
+      this.forwardVector(forward);
+    }
+
     // How far the surface carries on past the edge decides which of the
     // three it is: somewhere to stand just past the edge, somewhere to stand
     // well past it, or nothing at all — a top too thin to stand on, which is
@@ -713,6 +732,7 @@ export class Player {
       : this.ledgeVault
         ? TUNING.ledgeVaultOver
         : TUNING.ledgeStandNarrow;
+    this.ledgeStand = stand;
 
     // Come in to the edge before taking hold of it.
     //
@@ -826,6 +846,34 @@ export class Player {
   }
 
   /**
+   * The heading that squares him up to the wall beneath an edge, or null if
+   * there is no wall there to square up to.
+   *
+   * It looks at the face a little way below the top, at three depths, and
+   * takes the first that answers with something upright. Three rather than
+   * one because an edge is not always a clean right angle: a lip stands
+   * proud of the wall it belongs to, and a sloped or stepped face can miss
+   * a single probe entirely.
+   */
+  private ledgeWallFacing(forward: Vector3, top: number): number | null {
+    const reach = TUNING.ledgeReach + TUNING.ledgeReachExtra + TUNING.ledgeWallProbe;
+    for (const drop of TUNING.ledgeWallDrops) {
+      const from = this.scratchProbe.set(
+        this.object.position.x,
+        top - drop,
+        this.object.position.z,
+      );
+      const hit = this.world.surfaceProbe(from, forward, reach);
+      if (!hit) continue;
+      const flat = Math.hypot(hit.normal.x, hit.normal.z);
+      // Upright enough to be a wall rather than a floor or a soffit.
+      if (flat < TUNING.ledgeWallUpright) continue;
+      return Math.atan2(-hit.normal.x / flat, -hit.normal.z / flat);
+    }
+    return null;
+  }
+
+  /**
    * Hanging off an edge, waiting to be told what to do.
    *
    * Three answers, and they are kept apart on purpose. Sideways moves him
@@ -932,17 +980,54 @@ export class Player {
 
     const step = direction * TUNING.ledgeShimmySpeed * delta;
     const edgeY = this.ledgeFrom.y + this.ledgeLift;
+    const stop = () => {
+      this.object.position.copy(this.ledgeFrom);
+      this.syncCapsuleFromPosition();
+      this.gripMoving = 0;
+    };
 
     // Look where the hand is going before the body follows it.
     const probeAt = Math.sign(step) * TUNING.ledgeShimmyProbe;
-    const saved = this.scratchProbe.copy(this.object.position);
-    this.object.position.x += side.x * probeAt;
-    this.object.position.z += side.z * probeAt;
+    this.object.position.x = this.ledgeFrom.x + side.x * probeAt;
+    this.object.position.z = this.ledgeFrom.z + side.z * probeAt;
     const ahead = this.ledgeSurfaceAt(forward, TUNING.ledgeReach, this.object.position.y);
-    this.object.position.copy(saved);
-    this.syncCapsuleFromPosition();
     if (ahead === null || Math.abs(ahead - edgeY) > 0.2) {
-      this.gripMoving = 0;
+      stop();
+      return;
+    }
+
+    // Take the step, then put right what taking it changed. The edge is not
+    // promised to be straight, and anything that is not straight slowly
+    // walks him into the wall or out of reach of it.
+    this.object.position.x = this.ledgeFrom.x + side.x * step;
+    this.object.position.z = this.ledgeFrom.z + side.z * step;
+
+    // Square up to the face again, in case the edge has turned under him.
+    const squared = this.ledgeWallFacing(forward, edgeY);
+    if (squared !== null) {
+      this.facing = this.turnThrough(
+        this.facing,
+        squared,
+        Math.min(1, TUNING.ledgeSquareRate * delta),
+      );
+      this.forwardVector(forward);
+    }
+
+    // And hold the same arm's length from it, measured afresh rather than
+    // assumed: this is what keeps a hand on the edge all the way along one,
+    // and what stops a corner dragging him through the stone.
+    const gap = this.ledgeEdgeDistance(forward, edgeY, this.object.position.y);
+    const correct = gap - TUNING.ledgeHandForward;
+    this.object.position.x += forward.x * correct;
+    this.object.position.z += forward.z * correct;
+
+    // Last of all, ask the world. Nothing above can see a second wall
+    // meeting this one, and an inside corner is exactly where sliding along
+    // a face puts a shoulder into stone.
+    this.syncCapsuleFromPosition();
+    const hit = this.world.capsuleIntersect(this.capsule);
+    if (hit && hit.depth > TUNING.ledgeClipAllow) {
+      stop();
       return;
     }
 
@@ -952,12 +1037,12 @@ export class Player {
     this.gripPhase += step / TUNING.ledgeGripStride;
     this.gripMoving = Math.sign(step);
 
-    this.ledgeFrom.x += side.x * step;
-    this.ledgeFrom.z += side.z * step;
-    this.ledgeTo.x += side.x * step;
-    this.ledgeTo.z += side.z * step;
-    this.object.position.copy(this.ledgeFrom);
-    this.syncCapsuleFromPosition();
+    this.ledgeFrom.copy(this.object.position);
+    this.ledgeTo.set(
+      this.object.position.x + forward.x * (TUNING.ledgeHandForward + this.ledgeStand),
+      edgeY,
+      this.object.position.z + forward.z * (TUNING.ledgeHandForward + this.ledgeStand),
+    );
   }
 
   /**

@@ -265,6 +265,36 @@ export const TUNING = {
    */
   ledgeEdgeStep: 0.05,
   /**
+   * How far past the edge the look for the wall's own facing may travel,
+   * beyond the reach that found the edge in the first place.
+   */
+  ledgeWallProbe: 0.5,
+  /**
+   * How far below the top to look for that face. Several depths, because an
+   * edge is not always a clean right angle: a lip stands proud of the wall
+   * it belongs to, and a stepped or sloped face can miss a single probe.
+   */
+  ledgeWallDrops: [0.35, 0.7, 0.12],
+  /**
+   * How upright a face has to be before it counts as a wall to square up
+   * to, measured as the flat part of its normal. Below this it is a floor
+   * or a soffit, and says nothing about which way the edge runs.
+   */
+  ledgeWallUpright: 0.55,
+  /**
+   * How quickly he turns to follow a wall that bends under him while he is
+   * moving along its edge. Fast enough to keep up with a corner, slow
+   * enough that a single odd probe does not snap him round.
+   */
+  ledgeSquareRate: 7,
+  /**
+   * How far the body may sink into geometry before a step along an edge is
+   * refused. Not zero: hanging holds him a couple of centimetres off the
+   * face, which is close enough that a seam between two triangles can read
+   * as a graze.
+   */
+  ledgeClipAllow: 0.05,
+  /**
    * How far above his feet the edge sits once he has taken hold.
    *
    * Without settling him onto a hang, he keeps whatever height he happened

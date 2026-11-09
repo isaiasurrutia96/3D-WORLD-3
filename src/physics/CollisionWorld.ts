@@ -54,13 +54,24 @@ export interface WaterVolume {
 export class CollisionWorld {
   readonly octree = new Octree();
   readonly waters: WaterVolume[] = [];
+  /** Everything handed to `addSolid`, in the order it was given. */
+  readonly solids: Object3D[] = [];
   readonly ladders: LadderVolume[] = [];
 
   private readonly scratchRay = new Ray();
   private readonly scratchVector = new Vector3();
 
-  /** Bakes every mesh under `root` into the collision octree. */
+  /**
+   * Bakes every mesh under `root` into the collision octree.
+   *
+   * The roots are kept as well as baked. The octree takes a copy of the
+   * triangles as they stand, so what is solid and what is drawn can only
+   * agree if they came from the same meshes and nothing has moved since —
+   * and that is something a test can check rather than assume, as long as
+   * it can see what was handed over.
+   */
   addSolid(root: Object3D): void {
+    this.solids.push(root);
     this.octree.fromGraphNode(root);
   }
 
@@ -85,6 +96,32 @@ export class CollisionWorld {
     const hit = this.octree.rayIntersect(this.scratchRay);
     if (!hit || hit.distance > maxDistance) return maxDistance;
     return hit.distance;
+  }
+
+  /**
+   * The first surface along a ray, with the normal of the face that was hit,
+   * turned to point back at where the ray came from.
+   *
+   * `raycast` answers how far away something is, which is all a camera or a
+   * shadow needs. Catching hold of a ledge needs to know which way the wall
+   * under it faces, so that he can be squared up to it however he arrived:
+   * approached at an angle, he used to hang at that angle, and then shuffle
+   * along it diagonally into the stone.
+   */
+  surfaceProbe(
+    origin: Vector3,
+    direction: Vector3,
+    maxDistance: number,
+  ): { distance: number; normal: Vector3 } | null {
+    this.scratchRay.set(origin, direction);
+    const hit = this.octree.rayIntersect(this.scratchRay);
+    if (!hit || hit.distance > maxDistance) return null;
+
+    const normal = hit.triangle.getNormal(new Vector3());
+    // Triangles may be wound either way, so the face is taken to be the
+    // side the ray came from.
+    if (normal.dot(direction) > 0) normal.negate();
+    return { distance: hit.distance, normal };
   }
 
   /** Registers a ladder. `facing` is the way a climber on it looks. */

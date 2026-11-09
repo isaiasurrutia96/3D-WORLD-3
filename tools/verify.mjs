@@ -558,6 +558,26 @@ await resetPlayer(page);
 // eye.
 const course = await page.evaluate(() => window.__letsgo.debug.simulateCourse(1 / 60));
 
+// What is solid and what can be seen have to be the same thing. Collision is
+// baked from the meshes the world hands over, so they can only part company
+// in a few ways — a mesh that is solid but never drawn, one drawn only from
+// its far side, one moved after the bake — and each of those is an invisible
+// wall or a surface you walk through.
+const audit = await page.evaluate(() => window.__letsgo.debug.collisionAudit());
+for (const fault of audit.faults) problems.push(`collision and geometry disagree: ${fault}`);
+
+// And the only things with any body to them that are deliberately not solid.
+// Anything else appearing here is something a player would expect to stop
+// them and would walk straight through.
+const ALLOWED_WALK_THROUGH = ['sky', 'slab-body', 'crate'];
+for (const name of Object.keys(audit.walkThrough)) {
+  if (!ALLOWED_WALK_THROUGH.includes(name)) {
+    problems.push(
+      `"${name}" has body but is not solid — either make it solid or say why it is not`,
+    );
+  }
+}
+
 if (!course.longJumpGap.cleared) {
   problems.push(
     `station 4: the long jump took off at z=${course.longJumpGap.tookOffAt} as ` +
@@ -671,6 +691,47 @@ if (!course.ledgeGap.handsOnIt) {
     `caught the edge from a stretch and stayed there — close in he ended ` +
       `${course.ledgeGap.near.gap}m from the wall, at full stretch ` +
       `${course.ledgeGap.far.gap}m`,
+  );
+}
+
+// Square to the wall however he arrives at it, and along it without
+// wandering in or out of the face.
+if (!course.angledLedges.caughtAll) {
+  problems.push('an edge approached at an angle was not caught at all');
+}
+if (!course.angledLedges.heldAll) {
+  problems.push('moving along an edge let go of it on one of the test walls');
+}
+if (!course.angledLedges.squaresUp) {
+  problems.push(
+    `catching an edge left him up to ${course.angledLedges.worstFacing}° off square ` +
+      `to the wall, and moving along it wandered ${course.angledLedges.worstDrift}m ` +
+      `in or out of the face`,
+  );
+}
+
+// Where an edge runs out, and where it runs into something else.
+if (!course.ledgeEnds.stopsAtTheEnd) {
+  problems.push(
+    `moving along the beam did not stop at its free end — ended at ` +
+      `${JSON.stringify(course.ledgeEnds.offTheEnd)}`,
+  );
+}
+if (!course.ledgeEnds.stopsAtTheCorner) {
+  problems.push(
+    `moving along an edge went through the structure it runs into — ended at ` +
+      `${JSON.stringify(course.ledgeEnds.intoTheCorner)}`,
+  );
+}
+
+// Nothing solid can be fallen through, however coarse the frame.
+if (!course.fallThrough.allCaught) {
+  const missed = course.fallThrough.rows.filter((r) => !r.landed);
+  problems.push(
+    `fell through solid ground: ` +
+      missed
+        .map((r) => `${r.thickness}m slab at ${r.top}m, ${r.rate}fps, ended at ${r.ended}m`)
+        .join('; '),
   );
 }
 
@@ -933,6 +994,26 @@ console.log(
     `${course.gripHands.heldStill} of ${course.gripHands.steps} frames, the other ` +
     `travelling for ${course.gripHands.reached}, both together for ` +
     `${course.gripHands.together}`,
+);
+console.log(
+  ` angled grabs   ${course.angledLedges.rows.length} on five walls, worst ` +
+    `${course.angledLedges.worstFacing}° off square, wandering ` +
+    `${course.angledLedges.worstDrift}m in or out of the face`,
+);
+console.log(
+  ` edge ends      off the end of the beam: stopped at x=${course.ledgeEnds.offTheEnd?.x} ` +
+    `still hanging · into the corner at station 8: stopped at ` +
+    `z=${course.ledgeEnds.intoTheCorner?.z}, the platform starts at 6.5`,
+);
+console.log(
+  ` solid ground   ${course.fallThrough.tried} free-standing slabs, thinnest ` +
+    `${course.fallThrough.thinnest}m, dropped onto at 60/30/20/15fps — all caught ` +
+    `${course.fallThrough.allCaught}`,
+);
+console.log(
+  ` collision      ${audit.solidMeshes} solid meshes, ${audit.solidTriangles} triangles, ` +
+    `${audit.faults.length} disagreeing with what is drawn · walk-through: ` +
+    `${Object.keys(audit.walkThrough).join(', ') || 'nothing'}`,
 );
 console.log(
   ` boost          plain ${course.airBoost.plain}m, boosted ${course.airBoost.boosted}m ` +
