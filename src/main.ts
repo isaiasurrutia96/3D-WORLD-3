@@ -1874,6 +1874,11 @@ class Game {
             // going through: a lip on top of a block is caught by the block
             // whether the lip itself works or not.
             if (holds(x, box.min.y - 0.1, z)) continue;
+            // And its top really is where its box says. A box is only a
+            // guide to where a mesh is; a band around an edge is a shell,
+            // and the middle of its box is open air.
+            const surface = this.collision.groundProbe(new Vector3(x, box.max.y + 0.5, z), 1);
+            if (!surface || Math.abs(surface.y - box.max.y) > 0.05) continue;
             slabs.push({ top: box.max.y, thickness: size.y, x, z });
           }
           slabs.sort((a, b) => a.thickness - b.thickness);
@@ -2130,6 +2135,103 @@ class Game {
             walkThrough[name] = (walkThrough[name] ?? 0) + 1;
           }
         });
+
+        // The lighter band along a top edge has to run the whole way along
+        // the surface it marks. Where two structures are built flush at the
+        // same height they read as one, and a band that belongs to only one
+        // of them stops dead half way along — which is what made the ledge
+        // at station 5 look half missing. So: gather every run of solid
+        // that joins up at one height, walk its open edge, and if any of
+        // that edge carries a band then all of it has to.
+        const bandFaults: string[] = [];
+        {
+          const blocks: Box3[] = [];
+          const bands: Box3[] = [];
+          for (const root of solidRoots) {
+            root.traverse((object) => {
+              if (!(object instanceof Mesh)) return;
+              if (object.name === 'edge-band') {
+                // A band is one mesh covering many separate runs of edge,
+                // so its own bounding box says nothing useful; the runs it
+                // was built from are kept on it for exactly this.
+                for (const run of (object.userData.bands ?? []) as Box3[]) bands.push(run);
+                return;
+              }
+              blocks.push(new Box3().setFromObject(object));
+            });
+          }
+          const joined = (a: Box3, b: Box3) =>
+            Math.abs(a.max.y - b.max.y) < 0.02 &&
+            a.min.x < b.max.x + 0.01 &&
+            b.min.x < a.max.x + 0.01 &&
+            a.min.z < b.max.z + 0.01 &&
+            b.min.z < a.max.z + 0.01;
+
+          const taken = new Set<Box3>();
+          for (const seed of blocks) {
+            if (taken.has(seed)) continue;
+            const group = [seed];
+            taken.add(seed);
+            for (let i = 0; i < group.length; i += 1) {
+              for (const other of blocks) {
+                if (taken.has(other) || !joined(group[i], other)) continue;
+                taken.add(other);
+                group.push(other);
+              }
+            }
+            const top = seed.max.y;
+            const covered = (x: number, z: number) =>
+              group.some(
+                (b) => x > b.min.x + 0.01 && x < b.max.x - 0.01 && z > b.min.z + 0.01 && z < b.max.z - 0.01,
+              );
+            let open = 0;
+            let marked = 0;
+            for (const b of group) {
+              const sides = [
+                { axis: 'x', from: b.min.x, to: b.max.x, at: b.min.z, out: -1 },
+                { axis: 'x', from: b.min.x, to: b.max.x, at: b.max.z, out: 1 },
+                { axis: 'z', from: b.min.z, to: b.max.z, at: b.min.x, out: -1 },
+                { axis: 'z', from: b.min.z, to: b.max.z, at: b.max.x, out: 1 },
+              ] as const;
+              for (const side of sides) {
+                const span = side.to - side.from;
+                const steps = Math.max(1, Math.round(span / 0.5));
+                for (let i = 0; i < steps; i += 1) {
+                  const middle = side.from + ((i + 0.5) * span) / steps;
+                  const beyond = side.at + side.out * 0.1;
+                  const x = side.axis === 'x' ? middle : beyond;
+                  const z = side.axis === 'x' ? beyond : middle;
+                  if (covered(x, z)) continue;
+                  open += 1;
+                  const on = side.at + side.out * 0.02;
+                  const bx = side.axis === 'x' ? middle : on;
+                  const bz = side.axis === 'x' ? on : middle;
+                  const y = top - 0.08;
+                  if (
+                    bands.some(
+                      (band) =>
+                        bx > band.min.x - 0.02 &&
+                        bx < band.max.x + 0.02 &&
+                        bz > band.min.z - 0.02 &&
+                        bz < band.max.z + 0.02 &&
+                        y > band.min.y - 0.02 &&
+                        y < band.max.y + 0.02,
+                    )
+                  ) {
+                    marked += 1;
+                  }
+                }
+              }
+            }
+            if (marked > 0 && marked < open) {
+              bandFaults.push(
+                `the band at ${Math.round(top * 10) / 10}m covers ${marked} of ${open} ` +
+                  `open steps of one joined surface`,
+              );
+            }
+          }
+        }
+        for (const fault of bandFaults) faults.push(fault);
 
         return {
           solidRoots: solidRoots.length,
