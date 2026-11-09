@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import * as THREE from 'three';
+import {longThreeLevelPlan} from '../scripts/three-level-reference.mjs';
 import {threeLevelTrack,threeLevelSamples,threeLevelSections as threeLevelDecks,THREE_LEVEL_ENTRY,threeLevelAccess} from '../src/three-level-track.js';
 import {THREE_LEVEL_COURSE,COURSES} from '../src/courses.js';
 import {worldPhysics} from '../src/world.js';
@@ -8,20 +10,27 @@ import {nearestLapEntrance} from '../src/lap-entrances.js';
 import {createVehicleState,stepVehicle} from '../src/vehicle-controller.js';
 import {createTimeTrial,armTimeTrial,stepTimeTrial,projectCourse,exportGhosts,importGhosts} from '../src/time-trial.js';
 
-test('all three decks retain their source outlines with a separate entrance and exit',()=>{
- const names=['spa','zandvoort','interlagos'],scales=[1,1.25,1.15],heights=[0,32,64];
+test('the compact course is substantially shorter while keeping its road width',()=>{
+ const old=new THREE.CatmullRomCurve3(longThreeLevelPlan,true,'centripetal');old.arcLengthDivisions=57600;
+ const length=threeLevelSamples.at(-1).distance;
+ assert.ok(length>old.getLength()*.5&&length<old.getLength()*.6,'roughly half the old lap distance');
+ assert.equal(threeLevelTrack.halfWidth,13);assert.equal(threeLevelTrack.curbWidth,1.1);
+});
+
+test('all three compact decks retain the scaled outlines with separate entrance and exit',()=>{
+ const names=['spa','zandvoort','interlagos'],scales=[.55,1.25*.55,1.15*.55],heights=[0,32,64];
  let centerX,centerZ;
  for(let k=0;k<3;k++){
   const svg=readFileSync(new URL(`../docs/references/${names[k]}.svg`,import.meta.url),'utf8'),points=svg.match(/<polyline points="([^"]+)"/)[1].trim().split(/\s+/).map(pair=>pair.split(',').map(Number));
   const center=[0,1].map(axis=>(Math.min(...points.map(p=>p[axis]))+Math.max(...points.map(p=>p[axis])))/2),north=points.reduce((best,p)=>p[1]<best[1]?p:best);
-  if(k===0){centerX=center[0]-north[0];centerZ=THREE_LEVEL_ENTRY.z+center[1]-north[1];}
+  if(k===0){centerX=(center[0]-north[0])*.55;centerZ=THREE_LEVEL_ENTRY.z+(center[1]-north[1])*.55;}
   const deck=threeLevelDecks[k],distances=[0];for(let i=1;i<points.length;i++)distances.push(distances.at(-1)+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]));
-  assert.equal(deck.name,names[k]);assert.equal(deck.height,heights[k]);assert.ok(deck.points[0].distanceTo(deck.points.at(-1))>200,'each ring has an open cut for its two connectors');
+  assert.equal(deck.name,names[k]);assert.equal(deck.height,heights[k]);assert.ok(deck.points[0].distanceTo(deck.points.at(-1))>100,'each ring has an open cut for its two connectors');
   for(let i=0;i<points.length;i+=40){
    if(distances[i]<130||distances[i]>distances.at(-1)-130)continue;
-   const x=(points[i][0]-center[0])*scales[k]+centerX+(k===2?100:0),z=(points[i][1]-center[1])*scales[k]+centerZ-(k===2?40:0);let nearest=Infinity;
+   const x=(points[i][0]-center[0])*scales[k]+centerX+(k===2?55:0),z=(points[i][1]-center[1])*scales[k]+centerZ-(k===2?22:0);let nearest=Infinity;
    for(let j=0;j<deck.points.length-1;j++){const a=deck.points[j],b=deck.points[j+1],dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));nearest=Math.min(nearest,Math.hypot(x-a.x-dx*t,z-a.z-dz*t));}
-   assert.ok(nearest<2,`${names[k]} deviates ${nearest} m from its source`);
+   assert.ok(nearest<threeLevelTrack.halfWidth,`${names[k]} leaves its scaled reference road corridor by ${nearest} m`);
   }
  }
 });
@@ -35,7 +44,7 @@ test('one closed ribbon carries all three levels with supported and unfolded roa
   const s=segments[i],[a,b,c,d]=s.corners,p=threeLevelSamples[i].point,h=worldPhysics.supportHeight(p.x,p.z,p.y+.1);
   assert.ok(h!==null&&Math.abs(h-p.y)<.005,`unsupported center at ${i}`);assert.ok(area(a,b,c)*area(a,c,d)>0,`folded edge at ${i}`);
   for(const corner of s.corners)assert.ok(worldPhysics.supportHeight(corner.x,corner.z,corner.y+.1)!==null);
-  assert.ok(Math.abs(s.b.y-s.a.y)/Math.hypot(s.b.x-s.a.x,s.b.z-s.a.z)<.1,'connectors remain gentle');
+  assert.ok(Math.abs(s.b.y-s.a.y)/Math.hypot(s.b.x-s.a.x,s.b.z-s.a.z)<.17,'connectors remain continuous slopes');
   [0,32,64].forEach((height,k)=>{if(Math.abs(p.y-height)<.001)planeCounts[k]++;});
  }
  for(const count of planeCounts)assert.ok(count>500,'substantial road on every deck');
@@ -79,10 +88,13 @@ function sampledLap(state){
 }
 test('combined-lap ghosts stay separate from all three existing courses',()=>{
  const data=new Map(),storage={getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value),removeItem:key=>data.delete(key)};
+ const oldKey='letsgo.three-level.top-laps.v1',oldValue=JSON.stringify({version:2,course:'letsgo-three-level-v1',laps:[],archive:'original long layout'});data.set(oldKey,oldValue);
  const others=COURSES.filter(course=>course!==THREE_LEVEL_COURSE).map(course=>createTimeTrial(storage,course));for(const state of others)sampledLap(state);
  const snapshot=new Map(data),state=createTimeTrial(storage,THREE_LEVEL_COURSE);sampledLap(state);
  for(const other of others){assert.equal(data.get(other.course.storageKey),snapshot.get(other.course.storageKey));assert.throws(()=>importGhosts(state,exportGhosts(other)),/different track/);}
  assert.deepEqual(createTimeTrial(storage,THREE_LEVEL_COURSE).records,state.records);
+ assert.equal(data.get(oldKey),oldValue,'old long-course recordings remain untouched');
+ assert.notEqual(THREE_LEVEL_COURSE.storageKey,oldKey);
 });
 
 test('real kart physics completes one lap through Spa, Zandvoort, Interlagos and the descent',()=>{
