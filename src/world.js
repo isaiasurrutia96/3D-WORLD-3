@@ -3,7 +3,7 @@ import {createKartFrame,KART_POSITION} from './kart.js';
 import {createTrack,trackSegments,railSegments,access,TRACK_HALF_WIDTH,CURB_WIDTH} from './track.js';
 import {createSkylineTrack,skylineTrack,skylineAccess} from './skyline-track.js';
 import {createSuzukaTrack,suzukaTrack,suzukaAccess} from './suzuka-track.js';
-import {createThreeLevelTrack,threeLevelTrack,threeLevelAccess} from './three-level-track.js';
+import {createWindingTrack,windingTrack,windingAccess} from './winding-track.js';
 export const FLOOR_WIDTH=260,FLOOR_LENGTH=460;
 export const SPAWN={x:120,y:0,z:-150,yaw:Math.PI/2};
 const CELL=24;
@@ -16,7 +16,7 @@ function spatialIndex(segments,padding){
  }
  return (x,z)=>cells.get(`${Math.floor(x/CELL)},${Math.floor(z/CELL)}`)??[];
 }
-const nearbyRoad=spatialIndex([...trackSegments,...skylineTrack.segments,...suzukaTrack.segments,...threeLevelTrack.segments],TRACK_HALF_WIDTH+CURB_WIDTH+1),nearbyRails=spatialIndex([...railSegments,...skylineTrack.rails,...suzukaTrack.rails,...threeLevelTrack.rails],2);
+const nearbyRoad=spatialIndex([...trackSegments,...skylineTrack.segments,...suzukaTrack.segments,...windingTrack.segments],TRACK_HALF_WIDTH+CURB_WIDTH+1),nearbyRails=spatialIndex([...railSegments,...skylineTrack.rails,...suzukaTrack.rails,...windingTrack.rails],2);
 function projection(segment,x,z){
  const dx=segment.b.x-segment.a.x,dz=segment.b.z-segment.a.z;
  const rawT=((x-segment.a.x)*dx+(z-segment.a.z)*dz)/(dx*dx+dz*dz);
@@ -35,7 +35,7 @@ function triangleHeight(x,z,a,b,c){
 export function supportHeight(x,z,maximum=Infinity){
  let height=null;
  if(Math.abs(x)<=FLOOR_WIDTH/2&&Math.abs(z)<=FLOOR_LENGTH/2&&maximum>=0)height=0;
- for(const bridge of [access,skylineAccess,suzukaAccess,threeLevelAccess])if(x>=bridge.minX&&x<=bridge.maxX&&z>=bridge.minZ&&z<=bridge.maxZ&&maximum>=0)height=0;
+ for(const bridge of [access,skylineAccess,suzukaAccess,windingAccess])if(x>=bridge.minX&&x<=bridge.maxX&&z>=bridge.minZ&&z<=bridge.maxZ&&maximum>=0)height=0;
  for(const segment of nearbyRoad(x,z)){
   const [a,b,c,d]=segment.corners;
   const roadY=triangleHeight(x,z,a,b,c)??triangleHeight(x,z,a,c,d);
@@ -59,5 +59,5 @@ export function createWorld(){
  const floor=new THREE.Mesh(new THREE.BoxGeometry(FLOOR_WIDTH,.25,FLOOR_LENGTH),new THREE.MeshLambertMaterial({color:'#303238'}));
  floor.name='Charcoal floor slab';floor.receiveShadow=true;floor.position.y=-.125;
  const kart=createKartFrame();kart.position.set(KART_POSITION.x,KART_POSITION.y,KART_POSITION.z);kart.rotation.y=Math.PI/2;
- group.add(floor,createTrack(),createSkylineTrack(),createSuzukaTrack(),createThreeLevelTrack(),kart);return group;
+ group.add(floor,createTrack(),createSkylineTrack(),createSuzukaTrack(),createWindingTrack(),kart);return group;
 }
