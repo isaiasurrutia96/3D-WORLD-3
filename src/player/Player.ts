@@ -713,11 +713,28 @@ export class Player {
       : this.ledgeVault
         ? TUNING.ledgeVaultOver
         : TUNING.ledgeStandNarrow;
+
+    // Come in to the edge before taking hold of it.
+    //
+    // The search reaches a good deal further than his arms do — it has to,
+    // or a surface that begins a hand's width past the first probe is missed
+    // — but nothing used to bring him in afterwards. Caught at full stretch
+    // he stayed exactly where he was and the hands were drawn at their usual
+    // place in front of his chest, holding nothing: a metre of clear air
+    // between him and the wall, which is what hanging in midair beside the
+    // ground pound platform was. So find where the edge actually is and put
+    // him at arm's length from it, which is the one distance at which the
+    // drawn hands and the real edge are the same place.
+    const edge = this.ledgeEdgeDistance(forward, top, feet);
+    const pullIn = edge - TUNING.ledgeHandForward;
+    this.object.position.x += forward.x * pullIn;
+    this.object.position.z += forward.z * pullIn;
+
     this.ledgeFrom.copy(this.object.position);
     this.ledgeTo.set(
-      this.object.position.x + forward.x * (TUNING.ledgeReach + stand),
+      this.object.position.x + forward.x * (TUNING.ledgeHandForward + stand),
       top,
-      this.object.position.z + forward.z * (TUNING.ledgeReach + stand),
+      this.object.position.z + forward.z * (TUNING.ledgeHandForward + stand),
     );
 
     // Settle him onto the hang rather than leaving him at whatever height he
@@ -739,6 +756,9 @@ export class Player {
     // He holds the edge and waits. Nothing happens until the jump button
     // says so, which is what makes it a hold rather than an escalator.
     this.ledgeHanging = true;
+    // Both hands go on together, so the cycle starts from the top.
+    this.gripPhase = 0;
+    this.gripMoving = 0;
     this.ledgeSeconds = this.ledgeWide
       ? TUNING.ledgeMantleSeconds
       : this.ledgeVault
@@ -774,6 +794,35 @@ export class Player {
       return ground.y;
     }
     return null;
+  }
+
+  /**
+   * How far in front of him the edge he is about to catch actually is.
+   *
+   * `ledgeSurfaceAt` answers how high the surface is, not how far away: it
+   * takes two looks at fixed distances and returns the first that lands on
+   * something. That is enough to decide whether there is a ledge, and no use
+   * at all for putting his hands on it. This walks outward from his chest
+   * until the surface appears, so the answer is the near edge of it rather
+   * than wherever a probe happened to fall.
+   */
+  private ledgeEdgeDistance(forward: Vector3, top: number, feet: number): number {
+    const far = TUNING.ledgeReach + TUNING.ledgeReachExtra;
+    for (let at = TUNING.ledgeEdgeStep; at <= far; at += TUNING.ledgeEdgeStep) {
+      const from = this.scratchB.set(
+        this.object.position.x + forward.x * at,
+        feet + TUNING.ledgeGrabHigh + 0.4,
+        this.object.position.z + forward.z * at,
+      );
+      const ground = this.world.groundProbe(from, TUNING.ledgeGrabHigh + 0.4);
+      if (!ground) continue;
+      if (ground.normal.y < MAX_WALKABLE_NORMAL_Y) continue;
+      if (Math.abs(ground.y - top) > 0.12) continue;
+      return at;
+    }
+    // Nothing found walking out, which should not happen when a surface was
+    // just found: leave him where he is rather than shunt him anywhere.
+    return TUNING.ledgeHandForward;
   }
 
   /**
@@ -836,7 +885,30 @@ export class Player {
     const side = this.edgeSide(this.scratchSide);
     const sideways = MathUtils.clamp(wish.x * side.x + wish.z * side.z, -1, 1);
     if (Math.abs(sideways) > 0.2) this.shimmy(sideways, delta);
-    else this.gripMoving = 0;
+    else this.settleGrip(delta);
+  }
+
+  /**
+   * Lets a hand already on its way finish its reach.
+   *
+   * Stopping used to freeze whichever hand was in the air halfway to its
+   * next hold, hanging off nothing. Nobody stops like that: the hand that is
+   * moving arrives and takes hold, and only then does everything stand
+   * still. So the cycle carries on to the next change-over — the body does
+   * not move, only the hand — and stops there.
+   */
+  private settleGrip(delta: number): void {
+    if (this.gripMoving === 0) return;
+    const rate = (TUNING.ledgeShimmySpeed / TUNING.ledgeGripStride) * delta;
+    const ahead = this.gripPhase * 2 * this.gripMoving;
+    const target = (Math.ceil(ahead - 1e-6) / 2) * this.gripMoving;
+    const left = (target - this.gripPhase) * this.gripMoving;
+    if (left <= rate) {
+      this.gripPhase = target;
+      this.gripMoving = 0;
+      return;
+    }
+    this.gripPhase += rate * this.gripMoving;
   }
 
   /** His right along the edge: the way he is facing, crossed with up. */

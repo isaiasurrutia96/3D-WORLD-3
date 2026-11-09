@@ -96,6 +96,13 @@ interface Pose {
 
 const pose: Pose = createPose();
 const current: Pose = createPose();
+/**
+ * What is actually drawn: the blended pose plus anything added on top of it
+ * afterwards. Kept apart from `current` because adding to `current` feeds
+ * the addition back into the next frame's blend, which quietly multiplies
+ * it — a lean of five degrees became fifteen that way.
+ */
+const shown: Pose = createPose();
 let initialised = false;
 
 /**
@@ -158,6 +165,15 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
     }
   }
 
+  // Moving along an edge is added after the blending, for the same reason
+  // the somersault is: easing toward it would smear it. A hand that is
+  // holding on has to be exactly still, and a pose eased toward its target
+  // is by definition always a little behind it — which is precisely the
+  // creep that makes hands look as though they are sliding rather than
+  // gripping.
+  Object.assign(shown, current);
+  handOverHand(input, 1 - Math.exp(-14 * input.delta));
+
   // The somersault is added after blending. Easing toward it like any other
   // pose value would smooth a full rotation into almost no rotation at all.
   // A somersault and a backflip turn him head over heels; a side flip takes
@@ -165,34 +181,34 @@ export function animateCharacter(rig: CharacterRig, input: AnimationInputs): voi
   const pitchFlip = input.flipAxis === 'pitch' ? input.flipAngle : 0;
   const rollFlip = input.flipAxis === 'roll' ? input.flipAngle : 0;
   rig.body.rotation.set(
-    current.bodyPitch + pitchFlip,
-    current.bodyYaw,
-    current.bodyRoll + rollFlip,
+    shown.bodyPitch + pitchFlip,
+    shown.bodyYaw,
+    shown.bodyRoll + rollFlip,
   );
-  rig.body.position.y = HIP_HEIGHT + current.bodyHeight;
+  rig.body.position.y = HIP_HEIGHT + shown.bodyHeight;
   rig.body.scale.set(
-    1 / Math.sqrt(current.bodySquash),
-    current.bodySquash,
-    1 / Math.sqrt(current.bodySquash),
+    1 / Math.sqrt(shown.bodySquash),
+    shown.bodySquash,
+    1 / Math.sqrt(shown.bodySquash),
   );
 
-  rig.head.rotation.set(current.headPitch, current.headYaw, 0);
+  rig.head.rotation.set(shown.headPitch, shown.headYaw, 0);
 
   // Rotating a downward-hanging arm about +Z swings it toward +X, so the left
   // arm needs a negative roll and the right a positive one to move *away*
   // from the body. With the signs the other way round, every increase in roll
   // tucked both arms further into the torso.
-  rig.shoulderLeft.rotation.set(current.shoulderLeftPitch, 0, -current.shoulderLeftRoll);
-  rig.shoulderRight.rotation.set(current.shoulderRightPitch, 0, current.shoulderRightRoll);
-  rig.elbowLeft.rotation.x = current.elbowLeft;
-  rig.elbowRight.rotation.x = current.elbowRight;
+  rig.shoulderLeft.rotation.set(shown.shoulderLeftPitch, 0, -shown.shoulderLeftRoll);
+  rig.shoulderRight.rotation.set(shown.shoulderRightPitch, 0, shown.shoulderRightRoll);
+  rig.elbowLeft.rotation.x = shown.elbowLeft;
+  rig.elbowRight.rotation.x = shown.elbowRight;
 
-  rig.hipLeft.rotation.x = current.hipLeft;
-  rig.hipRight.rotation.x = current.hipRight;
-  rig.kneeLeft.rotation.x = current.kneeLeft;
-  rig.kneeRight.rotation.x = current.kneeRight;
-  rig.ankleLeft.rotation.x = current.ankleLeft;
-  rig.ankleRight.rotation.x = current.ankleRight;
+  rig.hipLeft.rotation.x = shown.hipLeft;
+  rig.hipRight.rotation.x = shown.hipRight;
+  rig.kneeLeft.rotation.x = shown.kneeLeft;
+  rig.kneeRight.rotation.x = shown.kneeRight;
+  rig.ankleLeft.rotation.x = shown.ankleLeft;
+  rig.ankleRight.rotation.x = shown.ankleRight;
 }
 
 function buildTargetPose(input: AnimationInputs): void {
@@ -585,59 +601,114 @@ function reachForTheEdge(input: AnimationInputs): void {
     if (released >= 1) return;
   }
 
-  const solved = solveArm(up, ahead);
+  // Hands a little wider than the shoulders, as they would be on an edge.
+  const solved = solveArmTo(TUNING.ledgeHandOut, up, ahead);
   pose.shoulderLeftPitch = solved.shoulder;
   pose.shoulderRightPitch = solved.shoulder;
   pose.elbowLeft = solved.elbow;
   pose.elbowRight = solved.elbow;
-  // Hands a little wider than the shoulders, as they would be on an edge.
-  pose.shoulderLeftRoll = 0.14;
-  pose.shoulderRightRoll = 0.14;
-
-  if (input.ledgeShimmy !== 0) handOverHand(input, up, ahead);
+  pose.shoulderLeftRoll = solved.roll;
+  pose.shoulderRightRoll = solved.roll;
 }
+
+/** How much of the hand-over-hand is showing: 0 at rest, 1 moving. */
+let gripGain = 0;
 
 /**
  * Moving along an edge, one hand at a time.
  *
- * Both hands used to slide along it together, which is not how anybody has
- * ever moved along a ledge. Here the cycle alternates: through the first
- * half the left hand holds while the right lets go, lifts, reaches the way
- * he is going and takes hold again; through the second half they swap. The
- * holding hand is solved onto the edge exactly as it is when he hangs
- * still, so it never drifts, and the body leans onto whichever hand has
- * the weight.
+ * Both hands used to slide along it together. The attempt after that lifted
+ * the free hand and rolled the shoulder out, which reads as reaching
+ * *upward*: an arm posed by angle alone can swing forward and back, so the
+ * one direction the hand could not go was the direction he was travelling.
+ *
+ * This decides where each hand has to be — out along the edge — and solves
+ * all three joints for it. One hand holds while the other lets go, drops
+ * clear, travels a stride the way he is going and takes hold again; then
+ * they swap. The holding hand is given a position that slides back along
+ * his body exactly as fast as his body slides forward, so it stands
+ * perfectly still on the edge while he moves underneath it. That stillness
+ * is the whole thing: a hand that creeps is a hand that is not holding
+ * anything.
+ *
+ * It writes to the blended pose rather than to the target, so nothing eases
+ * the hands away from where they have to be. What does ease is how much of
+ * it shows, which is what keeps starting and stopping from snapping.
  */
-function handOverHand(input: AnimationInputs, up: number, ahead: number): void {
-  const cycle = input.ledgeGrip - Math.floor(input.ledgeGrip);
-  // Which hand is in the air, and how far through its reach it is.
-  const rightMoving = cycle < 0.5;
-  const t = rightMoving ? cycle / 0.5 : (cycle - 0.5) / 0.5;
-  const swing = Math.sin(t * Math.PI);
-
-  // The free hand comes off the edge, so its hold is shorter by the lift.
-  const free = solveArm(up - swing * 0.17, ahead - swing * 0.06);
-  // And it swings the way he is travelling, which is what reads as reaching
-  // for the next hold rather than merely letting go.
-  const reach = input.ledgeShimmy * swing * 0.4;
-
-  if (rightMoving) {
-    pose.shoulderRightPitch = free.shoulder;
-    pose.elbowRight = free.elbow;
-    pose.shoulderRightRoll = 0.14 + Math.max(0, reach) + Math.max(0, -reach) * 0.2;
-  } else {
-    pose.shoulderLeftPitch = free.shoulder;
-    pose.elbowLeft = free.elbow;
-    pose.shoulderLeftRoll = 0.14 + Math.max(0, -reach) + Math.max(0, reach) * 0.2;
+function handOverHand(input: AnimationInputs, ease: number): void {
+  const wanted = input.state === 'ledge' && input.ledgeHanging && input.ledgeShimmy !== 0 ? 1 : 0;
+  gripGain = MathUtils.lerp(gripGain, wanted, ease);
+  if (gripGain < 0.002) {
+    gripGain = 0;
+    return;
   }
 
-  // Weight hangs from the hand still holding on.
-  pose.bodyRoll += (rightMoving ? -1 : 1) * swing * 0.1;
-  pose.bodyYaw += input.ledgeShimmy * swing * 0.08;
-  pose.headYaw = input.ledgeShimmy * 0.22;
-  // The legs trail, swinging a little behind the body.
-  pose.hipLeft -= swing * 0.12;
-  pose.hipRight -= swing * 0.12;
+  // Where the edge is, measured from the shoulder, as the hang has it.
+  const up = input.ledgeLift - (SHOULDER_HEIGHT + shown.bodyHeight);
+  const ahead = TUNING.ledgeHandForward;
+
+  // Which way along his own body he is going. His right is -x, so going to
+  // his right is going toward -x.
+  const travel = -Math.sign(input.ledgeShimmy) || 1;
+  const cycle = input.ledgeGrip - Math.floor(input.ledgeGrip);
+
+  // The weight hangs from whichever hand is holding, and crosses over as
+  // they swap. Positive body roll tips him toward -x, so leaning onto the
+  // hand at +x is a negative roll. Worked out before the hands, because
+  // leaning the body swings them along the edge too, and a hand that is
+  // supposed to be holding still cannot afford it: half of the creep left
+  // in the first version of this was his own lean carrying his hands about.
+  const weight = travel * Math.cos(cycle * Math.PI * 2) * gripGain;
+  shown.bodyRoll -= weight * 0.085;
+  const lean = Math.sin(shown.bodyRoll) * (ARM.shoulderY + up);
+  // A quarter of a stride either side of the resting hold. Over half a
+  // cycle his body covers exactly twice that, which is what lets a planted
+  // hand stay put.
+  const half = (TUNING.ledgeGripStride / 4) * gripGain;
+
+  for (const sideX of [-1, 1] as const) {
+    // The hand on the side he is heading for leads; the other follows it.
+    const lead = sideX === travel;
+    const u = lead ? cycle : (cycle + 0.5) % 1;
+    const reaching = u >= 0.5;
+    const t = reaching ? (u - 0.5) * 2 : u * 2;
+    const ramp = t * t * (3 - 2 * t);
+
+    // Where it sits along the edge, measured from its resting hold. Holding
+    // on, it drifts back through his body at the speed his body advances;
+    // reaching, it crosses a whole stride to its next hold.
+    const along = half * (reaching ? -1 + 2 * ramp : 1 - 2 * t);
+    // And how far off the edge it is while it travels.
+    const clear = reaching ? Math.sin(t * Math.PI) * gripGain : 0;
+
+    const solved = solveArmTo(
+      // Sideways from the shoulder, measured away from his centre line,
+      // and put back wherever the lean has just taken it.
+      TUNING.ledgeHandOut + sideX * (travel * along + lean),
+      up - clear * TUNING.ledgeGripLift,
+      ahead - clear * TUNING.ledgeGripLift * 0.45,
+    );
+    if (sideX < 0) {
+      shown.shoulderLeftPitch = solved.shoulder;
+      shown.shoulderLeftRoll = solved.roll;
+      shown.elbowLeft = solved.elbow;
+    } else {
+      shown.shoulderRightPitch = solved.shoulder;
+      shown.shoulderRightRoll = solved.roll;
+      shown.elbowRight = solved.elbow;
+    }
+  }
+
+  // He turns a little into the way he is going, and looks that way.
+  shown.bodyYaw += travel * 0.05 * gripGain;
+  shown.headYaw += travel * 0.2 * gripGain;
+
+  // And the legs hang and sway rather than staying still underneath him.
+  const sway = Math.sin(cycle * Math.PI * 2) * gripGain;
+  shown.hipLeft -= 0.09 * gripGain + sway * 0.07;
+  shown.hipRight -= 0.09 * gripGain - sway * 0.07;
+  shown.kneeLeft += 0.1 * gripGain - sway * 0.06;
+  shown.kneeRight += 0.1 * gripGain + sway * 0.06;
 }
 
 const solvedArm = { shoulder: 0, elbow: 0 };
@@ -681,6 +752,50 @@ function solveArm(up: number, ahead: number): typeof solvedArm {
   solvedArm.shoulder = direction + atShoulder;
   solvedArm.elbow = -(Math.PI - atElbow);
   return solvedArm;
+}
+
+const solvedArm3 = { shoulder: 0, roll: 0, elbow: 0 };
+
+/**
+ * The same, with the third direction: the shoulder, its roll and the elbow
+ * that put the hand `out` to the side of the shoulder, `up` above it and
+ * `ahead` in front of it.
+ *
+ * `out` is measured away from his centre line, so the same positive number
+ * means "outward" for either arm — the rig already flips the roll between
+ * them. The rig rolls the shoulder first and swings it second, so the roll
+ * is read off the sideways distance and the swing off whatever is left.
+ */
+function solveArmTo(out: number, up: number, ahead: number): typeof solvedArm3 {
+  const reach = ARM.upper + ARM.lower;
+  const distance = MathUtils.clamp(Math.hypot(out, up, ahead), 0.1, reach - 0.012);
+
+  // How far away the hand is decides the elbow, exactly as it does in the
+  // plane: the two bones and the line to the hand are a triangle.
+  const atElbow = Math.acos(
+    MathUtils.clamp(
+      (ARM.upper * ARM.upper + ARM.lower * ARM.lower - distance * distance) /
+        (2 * ARM.upper * ARM.lower),
+      -1,
+      1,
+    ),
+  );
+  const elbow = -(Math.PI - atElbow);
+
+  // With the elbow bent that far, the hand sits `down` below the shoulder
+  // and `out of line` behind it, before the shoulder has turned at all.
+  const down = -(ARM.upper - ARM.lower * Math.cos(atElbow));
+  const back = ARM.lower * Math.sin(atElbow);
+
+  // Roll takes it sideways...
+  const roll = Math.asin(MathUtils.clamp(out / Math.max(-down, 1e-4), -1, 1));
+  // ...and the swing puts what is left of it where it has to be.
+  const level = down * Math.cos(roll);
+
+  solvedArm3.roll = roll;
+  solvedArm3.elbow = elbow;
+  solvedArm3.shoulder = Math.atan2(ahead, up) - Math.atan2(back, level);
+  return solvedArm3;
 }
 
 /**

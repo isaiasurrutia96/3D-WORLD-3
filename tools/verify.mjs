@@ -664,6 +664,26 @@ if (!course.ledgeWork.pushedBack) {
   problems.push('jumping off the edge did not push him away from the wall');
 }
 
+// Hands on the edge, not on air. The search reaches further than his arms,
+// so a catch at full stretch must still bring him in to the wall.
+if (!course.ledgeGap.handsOnIt) {
+  problems.push(
+    `caught the edge from a stretch and stayed there — close in he ended ` +
+      `${course.ledgeGap.near.gap}m from the wall, at full stretch ` +
+      `${course.ledgeGap.far.gap}m`,
+  );
+}
+
+// And moving along it is hand over hand: one holding, one travelling.
+if (!course.gripHands.alternates) {
+  problems.push(
+    `the hands did not take turns on the edge — of ${course.gripHands.steps} frames, ` +
+      `one hand was still for ${course.gripHands.heldStill}, the other covered ground ` +
+      `for ${course.gripHands.reached}, and both drifted together for ` +
+      `${course.gripHands.together}`,
+  );
+}
+
 // A one metre plinth is a step, not a ledge: he lands on it and walks up.
 if (course.lowStep.grabbed) {
   problems.push(
@@ -906,6 +926,13 @@ console.log(
     `z=${course.ledgeWork.shimmiedZ} to z=${course.ledgeWork.backZ}, held forward did nothing ` +
     `${course.ledgeWork.heldForwardDidNothing}, E pulled up ${course.ledgeWork.pulledUp}, ` +
     `Space gave "${course.ledgeWork.afterLedgeJump}"`,
+);
+console.log(
+  `                caught it at ${course.ledgeGap.far.gap}m from the wall from a stretch ` +
+    `and ${course.ledgeGap.near.gap}m from close in · hand over hand: one still for ` +
+    `${course.gripHands.heldStill} of ${course.gripHands.steps} frames, the other ` +
+    `travelling for ${course.gripHands.reached}, both together for ` +
+    `${course.gripHands.together}`,
 );
 console.log(
   ` boost          plain ${course.airBoost.plain}m, boosted ${course.airBoost.boosted}m ` +

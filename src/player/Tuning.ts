@@ -259,6 +259,12 @@ export const TUNING = {
    */
   ledgeHandForward: 0.36,
   /**
+   * How finely the search for the near edge steps outward. Small enough
+   * that his hands land on the edge rather than near it, and coarse enough
+   * that the whole search is a dozen probes.
+   */
+  ledgeEdgeStep: 0.05,
+  /**
    * How far above his feet the edge sits once he has taken hold.
    *
    * Without settling him onto a hang, he keeps whatever height he happened
@@ -294,6 +300,16 @@ export const TUNING = {
   ledgeShimmySpeed: 1.3,
   /** How far he travels sideways per complete hand-over-hand cycle. */
   ledgeGripStride: 0.62,
+  /**
+   * How far outside the shoulder a hand sits on the edge. A little wider
+   * than the shoulders, as anyone hanging from something holds it.
+   */
+  ledgeHandOut: 0.07,
+  /**
+   * How far a hand drops clear of the edge while it travels to its next
+   * hold. Enough to read as letting go, not so much that the arm straightens.
+   */
+  ledgeGripLift: 0.13,
   /**
    * How far to the side the check for more edge looks before he shuffles
    * onto it. A shoulder's width, so he stops at a corner rather than

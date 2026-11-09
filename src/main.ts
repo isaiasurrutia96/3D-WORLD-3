@@ -15,6 +15,7 @@ import { loadSettings, saveSettings, type UserSettings } from './core/Settings.t
 import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
+import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab, type SlabWorld } from './world/Slab.ts';
 import { COURSE_POOL, COURSE_SPAWN, COURSE_FACING, buildCourse, type CourseWorld } from './world/Course.ts';
@@ -1482,8 +1483,54 @@ class Game {
           // Along the edge in both directions. Facing the wall at x = 26.9,
           // his right runs toward +z, where the roof carries on.
           stick.x = 1;
-          for (let i = 0; i < frames(1.2); i += 1) step();
+          // Watch the gloves themselves while he goes: hand over hand means
+          // the hand that is holding does not move, and the hand that is
+          // free covers a whole stride while it is in the air. Both sliding
+          // along together is the thing this is here to catch.
+          const glove = (elbow: { localToWorld(v: Vector3): Vector3 }) =>
+            elbow.localToWorld(new Vector3(0, -ARM.lower, 0));
+          const hands: Array<{ left: number; right: number; body: number }> = [];
+          for (let i = 0; i < frames(1.2); i += 1) {
+            step();
+            hands.push({
+              left: glove(player.rig.elbowLeft).z,
+              right: glove(player.rig.elbowRight).z,
+              body: player.position.z,
+            });
+          }
           stick.x = 0;
+          {
+            // How far each glove travelled between frames, against how far
+            // his body did.
+            let bodyWent = 0;
+            let heldStill = 0;
+            let reached = 0;
+            let together = 0;
+            for (let i = 1; i < hands.length; i += 1) {
+              const body = hands[i].body - hands[i - 1].body;
+              const moves = [
+                hands[i].left - hands[i - 1].left,
+                hands[i].right - hands[i - 1].right,
+              ].sort((a, b) => a - b);
+              bodyWent += body;
+              // The slower glove should be still, and the quicker one
+              // should be covering the ground for both of them.
+              if (Math.abs(moves[0]) < body * 0.35) heldStill += 1;
+              if (moves[1] > body * 1.4) reached += 1;
+              if (Math.abs(moves[0] - moves[1]) < body * 0.5) together += 1;
+            }
+            const steps = hands.length - 1;
+            results.gripHands = {
+              bodyWent: round(bodyWent),
+              heldStill,
+              reached,
+              together,
+              steps,
+              // One hand holding and the other covering ground, most of the
+              // time, and never both drifting along at the same rate.
+              alternates: heldStill > steps * 0.55 && reached > steps * 0.55 && together < steps * 0.2,
+            };
+          }
           const shimmiedZ = round(player.position.z);
           const wentRight = shimmiedZ > caughtZ + 0.6;
           stick.x = -1;
@@ -1567,6 +1614,45 @@ class Game {
             dropped,
             flipped,
             grabbed: dropped.states.includes('hanging') || flipped.states.includes('hanging'),
+          };
+        }
+
+        // Hands on the edge rather than on air. The search for a ledge
+        // reaches a good deal further than his arms do, and nothing used to
+        // bring him in afterwards: caught at full stretch he hung a arm's
+        // length clear of the wall, holding nothing. That is what being
+        // "stuck in midair" beside the ground pound platform was.
+        {
+          // The west face of the station 7 platform, lip included, and the
+          // height of its top.
+          const FACE = 23.44;
+          const grabFrom = (offset: number) => {
+            place(FACE - offset, 6.6, -15, Math.PI / 2);
+            for (let i = 0; i < frames(2.5); i += 1) {
+              step();
+              if (player.stateName === 'hanging') break;
+            }
+            const caught = player.stateName === 'hanging';
+            const out = {
+              caught,
+              gap: caught ? round(FACE - player.position.x) : null,
+              y: round(player.position.y),
+            };
+            held.clear();
+            return out;
+          };
+          const near = grabFrom(0.45);
+          const far = grabFrom(1.0);
+          results.ledgeGap = {
+            near,
+            far,
+            // Whatever the stretch it was caught at, the edge ends up the
+            // same short distance in front of him.
+            handsOnIt:
+              near.caught &&
+              far.caught &&
+              Math.abs((near.gap ?? 9) - (far.gap ?? 0)) < 0.08 &&
+              Math.abs((far.gap ?? 9) - 0.36) < 0.12,
           };
         }
 
@@ -1672,6 +1758,10 @@ class Game {
         stick: { x: number; y: number } = { x: 0, y: 0 },
         keys: string[] = [],
         dt = 1 / 60,
+        // Where the camera is looking. Movement is camera-relative, so
+        // driving "right" with this left at zero while he faces along +x
+        // presses into the wall rather than along it.
+        yaw = 0,
       ) => {
         const held = new Set(keys);
         const stub = {
@@ -1682,7 +1772,7 @@ class Game {
           wasReleased: () => false,
         } as unknown as Input;
         for (let i = 0; i < Math.max(1, Math.round(seconds / dt)); i += 1) {
-          this.player.update(dt, stub, 0);
+          this.player.update(dt, stub, yaw);
         }
         return {
           state: this.player.stateName,
