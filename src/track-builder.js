@@ -2,8 +2,9 @@ import * as THREE from 'three';
 
 // One sampled closed ribbon supplies both the visible road and collision
 // triangles. Access openings affect the outside curb/rail only.
-export function buildTrackData({name,points,count=1800,halfWidth=13,curbWidth=1.1,access,opening}){
- const path=new THREE.CatmullRomCurve3(points,true,'centripetal'),length=path.getLength(),outer=halfWidth+curbWidth;
+export function buildTrackData({name,points,count=1800,halfWidth=13,curbWidth=1.1,access,opening,arcLengthDivisions}){
+ const path=new THREE.CatmullRomCurve3(points,true,'centripetal');if(arcLengthDivisions)path.arcLengthDivisions=arcLengthDivisions;
+ const length=path.getLength(),outer=halfWidth+curbWidth;
  const samples=Array.from({length:count+1},(_,i)=>{
   const point=path.getPointAt(i/count),tangent=path.getTangentAt(i/count);point.y=Math.max(0,point.y);
   return{point,normal:new THREE.Vector3(-tangent.z,0,tangent.x).normalize(),distance:i/count*length};
@@ -15,7 +16,8 @@ export function buildTrackData({name,points,count=1800,halfWidth=13,curbWidth=1.
   const a=samples[i],b=samples[i+1];segments.push({a:a.point,b:b.point,halfWidth:outer,corners:[offset(a,-outer),offset(b,-outer),offset(b,outer),offset(a,outer)]});
   for(const side of [-1,1]){const a=offset(samples[i],side*(outer+.15)),b=offset(samples[i+1],side*(outer+.15));if(!opening(a)&&!opening(b))rails.push({a,b});}
  }
- for(const z of [access.minZ,access.maxZ])rails.push({a:new THREE.Vector3(access.railStartX,0,z),b:new THREE.Vector3(access.maxX,0,z)});
+ if(access.axis==='z')for(const x of [access.minX,access.maxX])rails.push({a:new THREE.Vector3(x,0,access.railStartZ),b:new THREE.Vector3(x,0,access.railEndZ)});
+ else for(const z of [access.minZ,access.maxZ])rails.push({a:new THREE.Vector3(access.railStartX,0,z),b:new THREE.Vector3(access.maxX,0,z)});
  return{name,samples,segments,rails,halfWidth,curbWidth,outer,access,opening,offset};
 }
 
@@ -32,7 +34,7 @@ export function createTrackRibbon(data){
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));if(colored)geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();return geometry;
  }
  const asphalt=new THREE.MeshLambertMaterial({color:'#25272b',side:THREE.DoubleSide}),curb=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
- const road=new THREE.Mesh(strip(-outer,outer),asphalt);road.name='Skyline road surface';road.receiveShadow=true;group.add(road);
+ const road=new THREE.Mesh(strip(-outer,outer),asphalt);road.name=`${data.name} road surface`;road.receiveShadow=true;group.add(road);
  group.add(new THREE.Mesh(strip(-outer,outer,-.65),new THREE.MeshLambertMaterial({color:'#424750',side:THREE.DoubleSide})));
  const sides=[];
  for(let i=0;i<count;i++)for(const side of [-1,1]){
@@ -41,10 +43,14 @@ export function createTrackRibbon(data){
  }
  const sideGeometry=new THREE.BufferGeometry();sideGeometry.setAttribute('position',new THREE.Float32BufferAttribute(sides,3));sideGeometry.computeVertexNormals();group.add(new THREE.Mesh(sideGeometry,new THREE.MeshLambertMaterial({color:'#555b65',side:THREE.DoubleSide})));
  for(const side of [-1,1])group.add(new THREE.Mesh(strip(side*halfWidth,side*outer,.04,true,true),curb));
- const bridge=new THREE.Mesh(new THREE.BoxGeometry(access.maxX-access.minX,.65,access.maxZ-access.minZ),asphalt);bridge.name='Skyline access bridge';bridge.position.set((access.minX+access.maxX)/2,-.325,(access.minZ+access.maxZ)/2);bridge.receiveShadow=true;group.add(bridge);
- const accessCurbs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.06,.9),new THREE.MeshLambertMaterial({color:'#ffffff'}),Math.ceil((access.maxX-access.railStartX)/3)*2),curbDummy=new THREE.Object3D();let curbIndex=0;
- for(const side of [-1,1])for(let x=access.railStartX;x<access.maxX;x+=3){
-  const width=Math.min(3,access.maxX-x);curbDummy.position.set(x+width/2,.03,side<0?access.minZ+.45:access.maxZ-.45);curbDummy.scale.set(width,1,1);curbDummy.updateMatrix();accessCurbs.setMatrixAt(curbIndex,curbDummy.matrix);accessCurbs.setColorAt(curbIndex++,new THREE.Color(Math.floor((x-access.railStartX)/3)%2?'#dc2828':'#f4f3ef'));
+ const bridge=new THREE.Mesh(new THREE.BoxGeometry(access.maxX-access.minX,.65,access.maxZ-access.minZ),asphalt);bridge.name=`${data.name} access bridge`;bridge.position.set((access.minX+access.maxX)/2,-.325,(access.minZ+access.maxZ)/2);bridge.receiveShadow=true;group.add(bridge);
+ const alongZ=access.axis==='z',curbStart=alongZ?access.railStartZ:access.railStartX,curbEnd=alongZ?access.railEndZ:access.maxX;
+ const accessCurbs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.06,.9),new THREE.MeshLambertMaterial({color:'#ffffff'}),Math.ceil((curbEnd-curbStart)/3)*2),curbDummy=new THREE.Object3D();let curbIndex=0;
+ for(const side of [-1,1])for(let position=curbStart;position<curbEnd;position+=3){
+  const width=Math.min(3,curbEnd-position);
+  if(alongZ){curbDummy.position.set(side<0?access.minX+.45:access.maxX-.45,.03,position+width/2);curbDummy.rotation.y=Math.PI/2;}
+  else curbDummy.position.set(position+width/2,.03,side<0?access.minZ+.45:access.maxZ-.45);
+  curbDummy.scale.set(width,1,1);curbDummy.updateMatrix();accessCurbs.setMatrixAt(curbIndex,curbDummy.matrix);accessCurbs.setColorAt(curbIndex++,new THREE.Color(Math.floor((position-curbStart)/3)%2?'#dc2828':'#f4f3ef'));
  }
  accessCurbs.count=curbIndex;accessCurbs.instanceMatrix.needsUpdate=true;group.add(accessCurbs);
  const material=new THREE.MeshLambertMaterial({color:'#a5adb8'}),beams=new THREE.InstancedMesh(new THREE.BoxGeometry(.16,.16,1),material,rails.length*2),posts=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,1.18,.18),material,Math.ceil(rails.length/3));

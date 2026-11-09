@@ -261,7 +261,8 @@ bindPress(document.getElementById('ghost-export'),()=>{
  if(!trial.records.length)return;
  clearInputs();
  const url=URL.createObjectURL(new Blob([exportGhosts(trial)],{type:'application/json'}));
- const link=document.createElement('a');link.href=url;link.download=`letsgo-${activeCourse===ORIGINAL_COURSE?'':'skyline-'}ghosts-${new Date().toISOString().slice(0,10)}.json`;
+ const prefix=activeCourse===ORIGINAL_COURSE?'':`${activeCourse.name.split(' ')[0].toLowerCase()}-`;
+ const link=document.createElement('a');link.href=url;link.download=`letsgo-${prefix}ghosts-${new Date().toISOString().slice(0,10)}.json`;
  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  ghostTransferMessage('Ghost file saved. Import it in your other browser.');
  canvas.focus({preventScroll:true});

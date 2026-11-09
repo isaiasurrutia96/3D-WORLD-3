@@ -129,6 +129,7 @@
 .lap-entrance button:focus-visible{outline:2px solid #8af2ff;outline-offset:3px}
 .touch-mode .lap-entrance{bottom:220px}.touch-mode #lap-entrance-start kbd{display:none}
 @media(orientation:portrait) and (max-width:382px){.touch-mode .lap-entrance{width:140px;left:12px;transform:none;bottom:180px}}
+@media(orientation:portrait) and (max-width:382px){.touch-mode #touch-controls[data-mode="on-foot"] + .lap-entrance{width:164px;bottom:200px}}
 @media(orientation:landscape) and (max-height:550px){.touch-mode .lap-entrance{bottom:120px;padding-top:11px;padding-bottom:11px;width:280px}.touch-mode #lap-entrance-start{margin-top:8px}}
 @media(orientation:landscape) and (max-height:550px) and (max-width:650px){.touch-mode .lap-entrance{width:220px}}
 @media(orientation:landscape) and (max-height:350px) and (max-width:600px){.touch-mode .lap-entrance{width:188px;bottom:min(158px,calc(100dvh - 125px))}}

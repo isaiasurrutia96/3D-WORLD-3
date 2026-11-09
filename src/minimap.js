@@ -1,7 +1,7 @@
 import {COURSES} from './courses.js';
 import {MAX_GHOSTS,GHOST_COLORS} from './time-trial.js';
 
-// Explore with both circuits visible; focus the selected route during a lap.
+// Explore with every circuit visible; focus the selected route during a lap.
 // Ghost dots use the same sampled poses as the visible replay karts.
 export function createMinimap(container,getFocusedCourse=()=>COURSES[0]){
  const width=180,height=150,padding=12,ns='http://www.w3.org/2000/svg';
