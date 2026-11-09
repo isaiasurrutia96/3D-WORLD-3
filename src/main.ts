@@ -8,7 +8,7 @@
  */
 
 import './styles.css';
-import { Box3, Vector3 } from 'three';
+import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { Engine } from './core/Engine.ts';
 import { CameraRig } from './core/CameraRig.ts';
 import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
@@ -1656,6 +1656,274 @@ class Game {
           };
         }
 
+        // Catching an edge square to it however he arrives, and moving
+        // along it without walking into the wall. Five faces, different
+        // sizes and orientations, each approached head on and leaning a
+        // third of a turn either way. Nothing here is specific to any of
+        // them: the controller is told none of these numbers.
+        {
+          const faces = [
+            { name: 'roof, west face', x: 26.9, z: 41, nx: -1, nz: 0, top: 11.6 },
+            { name: 'platform lip, north', x: 12, z: -12.94, nx: 0, nz: 1, top: 2.6 },
+            { name: 'kick wall, east face', x: 29.6, z: 2, nx: 1, nz: 0, top: 9 },
+            { name: 'thin beam, south face', x: 31.4, z: 31.45, nx: 0, nz: -1, top: 11.5 },
+            { name: 'far platform, west', x: -37.86, z: -30, nx: -1, nz: 0, top: 10 },
+          ];
+          const wrap = (a: number) => {
+            let v = a;
+            while (v > Math.PI) v -= Math.PI * 2;
+            while (v < -Math.PI) v += Math.PI * 2;
+            return v;
+          };
+          const degrees = (r: number) => Math.round((r * 180) / Math.PI);
+          const rows: unknown[] = [];
+          let worstFacing = 0;
+          let worstDrift = 0;
+          let caughtAll = true;
+          let heldAll = true;
+
+          for (const face of faces) {
+            // The heading that looks straight at this wall.
+            const square = Math.atan2(-face.nx, -face.nz);
+            // Distance out from the face, along its own normal.
+            const out = () =>
+              (player.position.x - face.x) * face.nx + (player.position.z - face.z) * face.nz;
+            for (const lean of [-0.6, 0, 0.6]) {
+              place(
+                face.x + face.nx * 0.45,
+                face.top - 0.5,
+                face.z + face.nz * 0.45,
+                square + lean,
+              );
+              for (let i = 0; i < frames(1.4); i += 1) {
+                step();
+                if (player.stateName === 'hanging') break;
+              }
+              const caught = player.stateName === 'hanging';
+              if (!caught) {
+                caughtAll = false;
+                rows.push({ face: face.name, lean: degrees(lean), caught });
+                continue;
+              }
+              const facingOff = Math.abs(degrees(wrap(player.facing - square)));
+              const gap = round(out());
+
+              // Along the edge both ways, watching how far he wanders in
+              // toward the wall or out away from it.
+              camera.yaw = square + Math.PI;
+              let nearest = gap;
+              let furthest = gap;
+              const travel = (towards: number) => {
+                stick.x = towards;
+                for (let i = 0; i < frames(1); i += 1) {
+                  step();
+                  if (player.stateName !== 'hanging') break;
+                  nearest = Math.min(nearest, out());
+                  furthest = Math.max(furthest, out());
+                }
+                stick.x = 0;
+              };
+              travel(1);
+              travel(-1);
+              const stillHanging = player.stateName === 'hanging';
+              if (!stillHanging) heldAll = false;
+              const drift = round(Math.max(furthest - gap, gap - nearest));
+              worstFacing = Math.max(worstFacing, facingOff);
+              worstDrift = Math.max(worstDrift, drift);
+              rows.push({
+                face: face.name,
+                lean: degrees(lean),
+                caught,
+                facingOff,
+                gap,
+                drift,
+                held: stillHanging,
+              });
+              camera.yaw = 0;
+            }
+          }
+          stick.x = 0;
+          held.clear();
+          camera.yaw = 0;
+          results.angledLedges = {
+            rows,
+            caughtAll,
+            heldAll,
+            worstFacing,
+            worstDrift,
+            // Square to the wall within a couple of degrees however he
+            // arrived, and never wandering a hand's width in or out of it.
+            squaresUp: caughtAll && worstFacing <= 3 && worstDrift <= 0.12,
+          };
+        }
+
+        // Where an edge runs out, and where it runs into something else.
+        //
+        // Two different endings. The beam at station 9 stops in mid air, so
+        // there is nothing to hold and nothing to hit: he should simply
+        // stop. The kick wall at station 8 runs into the side of the
+        // platform beside it, and the two tops are level — so the search
+        // for somewhere to hold goes on finding one, around a corner that
+        // his shoulder cannot follow.
+        {
+          // His own body against the world, without needing his capsule:
+          // the boxes everything solid is built from.
+          const solids: Box3[] = [];
+          for (const root of this.collision.solids) {
+            root.traverse((object) => {
+              if (object instanceof Mesh) solids.push(new Box3().setFromObject(object));
+            });
+          }
+          const buried = () => {
+            const chest = player.position.y + 0.9;
+            return solids.some(
+              (b) =>
+                player.position.x > b.min.x + 0.05 &&
+                player.position.x < b.max.x - 0.05 &&
+                player.position.z > b.min.z + 0.05 &&
+                player.position.z < b.max.z - 0.05 &&
+                chest > b.min.y &&
+                chest < b.max.y,
+            );
+          };
+
+          const run = (
+            x: number,
+            y: number,
+            z: number,
+            facing: number,
+            towards: number,
+            seconds: number,
+          ) => {
+            place(x, y, z, facing);
+            // Drop onto the edge from just under its top.
+            for (let i = 0; i < frames(1.4); i += 1) {
+              step();
+              if (player.stateName === 'hanging') break;
+            }
+            if (player.stateName !== 'hanging') return null;
+            camera.yaw = facing + Math.PI;
+            stick.x = towards;
+            for (let i = 0; i < frames(seconds); i += 1) {
+              step();
+              if (player.stateName !== 'hanging') break;
+            }
+            stick.x = 0;
+            camera.yaw = 0;
+            const out = {
+              ...where(),
+              hanging: player.stateName === 'hanging',
+              inside: buried(),
+            };
+            held.clear();
+            return out;
+          };
+
+          // The free end of the thin beam. Its south face is at z = 31.45
+          // and its top at 11.5, so he faces +z to catch it; the top runs
+          // from x = 28.4 to 34.4 and then stops in mid air. Facing +z his
+          // right is -x, so the stick goes right to travel toward 28.4.
+          const offTheEnd = run(31.4, 11, 31, 0, 1, 5);
+          // The kick wall's east face at x = 29.6, top at 9. Facing -x his
+          // right is -z, so the stick goes left to travel toward +z, where
+          // the platform beside it begins at z = 6.5 with its own top at
+          // exactly the same height.
+          const intoTheCorner = run(30.05, 8.5, 4, -Math.PI / 2, -1, 5);
+
+          results.ledgeEnds = {
+            offTheEnd,
+            intoTheCorner,
+            // Stopped on the beam rather than sliding off the end of it...
+            stopsAtTheEnd:
+              !!offTheEnd && offTheEnd.hanging && offTheEnd.x > 28.2 && !offTheEnd.inside,
+            // ...and stopped at the corner rather than inside the platform.
+            stopsAtTheCorner:
+              !!intoTheCorner && intoTheCorner.z < 6.7 && !intoTheCorner.inside,
+          };
+        }
+
+        // Nothing solid can be fallen through, however coarse the frame.
+        //
+        // Movement is sub-stepped so that a fast frame cannot teleport him
+        // past a thin surface, and a ground pound is the fastest thing in
+        // the game. The slabs to try are measured out of the world rather
+        // than named: the thinnest few that have air under them are the
+        // ones with the least to catch him.
+        {
+          const every: Box3[] = [];
+          for (const root of this.collision.solids) {
+            root.traverse((object) => {
+              if (object instanceof Mesh) every.push(new Box3().setFromObject(object));
+            });
+          }
+          const holds = (x: number, y: number, z: number) =>
+            every.some(
+              (b) =>
+                x > b.min.x && x < b.max.x && y > b.min.y && y < b.max.y && z > b.min.z && z < b.max.z,
+            );
+          const slabs: Array<{ top: number; thickness: number; x: number; z: number }> = [];
+          const size = new Vector3();
+          for (const box of every) {
+            box.getSize(size);
+            // Flat, broad enough to aim at, and standing above the floor.
+            if (size.y > 1.2 || size.x < 1.5 || size.z < 1) continue;
+            if (box.max.y < 2) continue;
+            const x = (box.min.x + box.max.x) / 2;
+            const z = (box.min.z + box.max.z) / 2;
+            // And with air under it, so that going through it really is
+            // going through: a lip on top of a block is caught by the block
+            // whether the lip itself works or not.
+            if (holds(x, box.min.y - 0.1, z)) continue;
+            // And its top really is where its box says. A box is only a
+            // guide to where a mesh is; a band around an edge is a shell,
+            // and the middle of its box is open air.
+            const surface = this.collision.groundProbe(new Vector3(x, box.max.y + 0.5, z), 1);
+            if (!surface || Math.abs(surface.y - box.max.y) > 0.05) continue;
+            slabs.push({ top: box.max.y, thickness: size.y, x, z });
+          }
+          slabs.sort((a, b) => a.thickness - b.thickness);
+          const tried = slabs.slice(0, 4);
+
+          const rows: unknown[] = [];
+          let allCaught = true;
+          for (const slab of tried) {
+            for (const rate of [60, 30, 20, 15]) {
+              const d = 1 / rate;
+              player.teleport(new Vector3(slab.x, slab.top + 24, slab.z), Math.PI);
+              held.clear();
+              pressed.clear();
+              stick.x = 0;
+              stick.y = 0;
+              let lowest = slab.top + 24;
+              for (let i = 0; i < Math.round(4 / d); i += 1) {
+                player.update(d, stub, 0);
+                pressed.clear();
+                lowest = Math.min(lowest, player.position.y);
+                if (player.stateName === 'idle' || player.stateName === 'pound-land') break;
+              }
+              const landed = player.position.y > slab.top - 0.2;
+              if (!landed) allCaught = false;
+              rows.push({
+                thickness: round(slab.thickness),
+                top: round(slab.top),
+                rate,
+                ended: round(player.position.y),
+                lowest: round(lowest),
+                landed,
+              });
+            }
+          }
+          stick.x = 0;
+          stick.y = 0;
+          held.clear();
+          results.fallThrough = {
+            rows,
+            thinnest: tried.length ? round(tried[0].thickness) : null,
+            tried: tried.length,
+            allCaught,
+          };
+        }
+
         // C crouches on land. Q dives in water, where there is nothing to
         // crouch for.
         place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
@@ -1778,6 +2046,200 @@ class Game {
           state: this.player.stateName,
           y: Math.round(this.player.position.y * 100) / 100,
           speed: Math.round(this.player.speed * 100) / 100,
+        };
+      },
+
+      /**
+       * Checks that what is solid and what can be seen are the same thing.
+       *
+       * Collision is baked from the meshes handed to `addSolid`, so the two
+       * can only part company in a handful of ways, and each of them is
+       * worth catching rather than assuming away: a mesh that is solid but
+       * never drawn is an invisible wall; one drawn only from the far side
+       * is an invisible wall from this one; one that was moved after the
+       * bake leaves its collision behind where it used to be; and anything
+       * added to the scene after the bake is a surface you walk through.
+       *
+       * It reports rather than judges, so a deliberate difference — a sign,
+       * a marker, a ladder, something to pick up — shows as what it is.
+       */
+      collisionAudit: () => {
+        const solidRoots = this.collision.solids;
+        const inSolid = new Set<Object3D>();
+        let solidMeshes = 0;
+        let solidTriangles = 0;
+        const faults: string[] = [];
+        const tris = (mesh: Mesh) => {
+          const g = mesh.geometry;
+          if (g.index) return g.index.count / 3;
+          return (g.attributes.position?.count ?? 0) / 3;
+        };
+        const describe = (mesh: Mesh) => {
+          const p = mesh.getWorldPosition(new Vector3());
+          const round1 = (v: number) => Math.round(v * 10) / 10;
+          return `${mesh.name || mesh.geometry.type} at ${round1(p.x)}, ${round1(p.y)}, ${round1(p.z)}`;
+        };
+
+        for (const root of solidRoots) {
+          root.updateWorldMatrix(true, true);
+          root.traverse((object) => {
+            inSolid.add(object);
+            if (!(object instanceof Mesh)) return;
+            solidMeshes += 1;
+            solidTriangles += tris(object);
+            // Solid but never drawn, or drawn see-through: an invisible wall.
+            let hidden = !object.visible;
+            for (let a: Object3D | null = object.parent; a; a = a.parent) {
+              if (!a.visible) hidden = true;
+            }
+            if (hidden) faults.push(`solid but not drawn: ${describe(object)}`);
+            const material = object.material as { transparent?: boolean; opacity?: number; side?: number } | undefined;
+            if (material?.transparent && (material.opacity ?? 1) < 0.9) {
+              faults.push(`solid but see-through: ${describe(object)}`);
+            }
+            // THREE.BackSide is 1: drawn only from behind, so from in front
+            // it is a wall you cannot see.
+            if (material?.side === 1) faults.push(`solid but inside-out: ${describe(object)}`);
+            // Moved since the bake: its collision stayed where it was.
+            const baked = (object.userData.bakedAt as Vector3 | undefined) ?? null;
+            const here = object.getWorldPosition(new Vector3());
+            if (baked && baked.distanceTo(here) > 0.001) {
+              faults.push(`moved since it was made solid: ${describe(object)}`);
+            }
+          });
+        }
+
+        // Everything else that is drawn, so a deliberate difference can be
+        // read off rather than guessed at. The ones worth naming are the
+        // ones with enough body to walk into: a sign panel, a painted
+        // marker or a ladder rung is thin enough that passing through it
+        // is not what anyone would call a solid surface, while a crate is
+        // not, and has to be a deliberate choice rather than an oversight.
+        const loose: Record<string, number> = {};
+        const walkThrough: Record<string, number> = {};
+        const box = new Box3();
+        this.engine.scene.traverse((object) => {
+          if (!(object instanceof Mesh)) return;
+          if (inSolid.has(object)) return;
+          if (this.player.rig.root.getObjectById(object.id)) return;
+          const name = object.name || object.geometry.type;
+          loose[name] = (loose[name] ?? 0) + 1;
+          // Measured on the geometry itself rather than on a world box: a
+          // flat board turned at an angle has a fat world box and no body
+          // at all, and a board is not something anyone expects to stop
+          // them.
+          object.geometry.computeBoundingBox();
+          box.copy(object.geometry.boundingBox ?? box.makeEmpty());
+          const size = box.getSize(new Vector3()).multiply(object.getWorldScale(new Vector3()));
+          if (Math.min(size.x, size.y, size.z) > 0.3) {
+            walkThrough[name] = (walkThrough[name] ?? 0) + 1;
+          }
+        });
+
+        // The lighter band along a top edge has to run the whole way along
+        // the surface it marks. Where two structures are built flush at the
+        // same height they read as one, and a band that belongs to only one
+        // of them stops dead half way along — which is what made the ledge
+        // at station 5 look half missing. So: gather every run of solid
+        // that joins up at one height, walk its open edge, and if any of
+        // that edge carries a band then all of it has to.
+        const bandFaults: string[] = [];
+        {
+          const blocks: Box3[] = [];
+          const bands: Box3[] = [];
+          for (const root of solidRoots) {
+            root.traverse((object) => {
+              if (!(object instanceof Mesh)) return;
+              if (object.name === 'edge-band') {
+                // A band is one mesh covering many separate runs of edge,
+                // so its own bounding box says nothing useful; the runs it
+                // was built from are kept on it for exactly this.
+                for (const run of (object.userData.bands ?? []) as Box3[]) bands.push(run);
+                return;
+              }
+              blocks.push(new Box3().setFromObject(object));
+            });
+          }
+          const joined = (a: Box3, b: Box3) =>
+            Math.abs(a.max.y - b.max.y) < 0.02 &&
+            a.min.x < b.max.x + 0.01 &&
+            b.min.x < a.max.x + 0.01 &&
+            a.min.z < b.max.z + 0.01 &&
+            b.min.z < a.max.z + 0.01;
+
+          const taken = new Set<Box3>();
+          for (const seed of blocks) {
+            if (taken.has(seed)) continue;
+            const group = [seed];
+            taken.add(seed);
+            for (let i = 0; i < group.length; i += 1) {
+              for (const other of blocks) {
+                if (taken.has(other) || !joined(group[i], other)) continue;
+                taken.add(other);
+                group.push(other);
+              }
+            }
+            const top = seed.max.y;
+            const covered = (x: number, z: number) =>
+              group.some(
+                (b) => x > b.min.x + 0.01 && x < b.max.x - 0.01 && z > b.min.z + 0.01 && z < b.max.z - 0.01,
+              );
+            let open = 0;
+            let marked = 0;
+            for (const b of group) {
+              const sides = [
+                { axis: 'x', from: b.min.x, to: b.max.x, at: b.min.z, out: -1 },
+                { axis: 'x', from: b.min.x, to: b.max.x, at: b.max.z, out: 1 },
+                { axis: 'z', from: b.min.z, to: b.max.z, at: b.min.x, out: -1 },
+                { axis: 'z', from: b.min.z, to: b.max.z, at: b.max.x, out: 1 },
+              ] as const;
+              for (const side of sides) {
+                const span = side.to - side.from;
+                const steps = Math.max(1, Math.round(span / 0.5));
+                for (let i = 0; i < steps; i += 1) {
+                  const middle = side.from + ((i + 0.5) * span) / steps;
+                  const beyond = side.at + side.out * 0.1;
+                  const x = side.axis === 'x' ? middle : beyond;
+                  const z = side.axis === 'x' ? beyond : middle;
+                  if (covered(x, z)) continue;
+                  open += 1;
+                  const on = side.at + side.out * 0.02;
+                  const bx = side.axis === 'x' ? middle : on;
+                  const bz = side.axis === 'x' ? on : middle;
+                  const y = top - 0.08;
+                  if (
+                    bands.some(
+                      (band) =>
+                        bx > band.min.x - 0.02 &&
+                        bx < band.max.x + 0.02 &&
+                        bz > band.min.z - 0.02 &&
+                        bz < band.max.z + 0.02 &&
+                        y > band.min.y - 0.02 &&
+                        y < band.max.y + 0.02,
+                    )
+                  ) {
+                    marked += 1;
+                  }
+                }
+              }
+            }
+            if (marked > 0 && marked < open) {
+              bandFaults.push(
+                `the band at ${Math.round(top * 10) / 10}m covers ${marked} of ${open} ` +
+                  `open steps of one joined surface`,
+              );
+            }
+          }
+        }
+        for (const fault of bandFaults) faults.push(fault);
+
+        return {
+          solidRoots: solidRoots.length,
+          solidMeshes,
+          solidTriangles,
+          faults,
+          loose,
+          walkThrough,
         };
       },
 

@@ -75,6 +75,9 @@ export class Sky extends Group {
     });
 
     const dome = new Mesh(new SphereGeometry(1, 24, 16), material);
+    // Named so that the check for things you can walk through can say what
+    // this one is, rather than reporting an unexplained sphere.
+    dome.name = 'sky';
     dome.frustumCulled = false;
     dome.renderOrder = -1000;
     this.add(dome);

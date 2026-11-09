@@ -30,6 +30,7 @@ import {
   Vector3,
 } from 'three';
 import { Box3 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../physics/CollisionWorld.ts';
 import { Carryable } from './Carryable.ts';
 import { Water } from './Water.ts';
@@ -83,6 +84,11 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   const checkpoints: Vector3[] = [];
   const carryables: Carryable[] = [];
 
+  /** Every solid box in the course, for working out where its edges run. */
+  const footprints: Footprint[] = [];
+  /** The ones whose top edge is to be picked out with a lighter band. */
+  const banded: Footprint[] = [];
+
   /** A solid block, sitting on its own centre. */
   const block = (
     x: number,
@@ -108,20 +114,14 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     solid.add(mesh);
+    footprints.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, top: y + h });
     return mesh;
   };
 
-  /** A platform: a block with a lighter lip, so its top edge reads. */
+  /** A platform: a block whose top edge is picked out with a lighter band. */
   const platform = (x: number, top: number, z: number, w: number, d: number): Mesh => {
     const mesh = block(x, 0, z, w, top, d);
-    const lip = new Mesh(
-      new BoxGeometry(w + 0.12, 0.16, d + 0.12, Math.max(1, Math.round(w)), 1, Math.max(1, Math.round(d))),
-      new MeshStandardMaterial({ color: TRIM, roughness: 0.85 }),
-    );
-    lip.position.set(x, top - 0.08, z);
-    lip.castShadow = true;
-    lip.receiveShadow = true;
-    solid.add(lip);
+    banded.push(footprints[footprints.length - 1]);
     return mesh;
   };
 
@@ -369,6 +369,9 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   pad(-24, 0, -38.5, 3);
   sign(-20.5, 0, -38.5, Math.PI * 0.5, 'FINISH', 'Ground pound to land on it', 'Backspace returns you to the last pad');
 
+  // The bands go on last, once everything they have to follow exists.
+  for (const strip of edgeBands(footprints, banded)) solid.add(strip);
+
   collision.addSolid(solid);
 
   let triangleCount = 0;
@@ -383,6 +386,187 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
 }
 
 /** The walls and bottom of the pool, set into the hole cut in the floor. */
+/** One run of band: its geometry, already in world coordinates, and where. */
+interface BandRun {
+  geometry: BoxGeometry;
+  box: Box3;
+}
+
+/** A solid box's footprint and the height of its top. */
+interface Footprint {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+  top: number;
+}
+
+/** How far the band stands proud of the face it runs along. */
+const BAND_OUT = 0.06;
+/** How deep it is, top to bottom. */
+const BAND_DEEP = 0.16;
+/** How far below the top it sits. */
+const BAND_DROP = 0.01;
+
+/**
+ * The lighter band along the top edge of a platform.
+ *
+ * It used to be a single box the size of the platform, which is right only
+ * when the platform stands alone. Several are not: a run of obstacles is
+ * made continuous by building the next one flush against the last, and two
+ * boxes of the same height standing against each other read as one surface.
+ * The band then stopped dead half way along that surface — which is the
+ * ledge that looked half missing at station 5, where the backflip platform
+ * meets the side flip's run-up.
+ *
+ * So the band is not a property of one box any more. Everything a banded
+ * box is joined to at the same height is gathered up, however indirectly,
+ * and the band follows the outline of the whole of it — along the parts
+ * that are actually open, and not along the seams where one piece meets
+ * the next. It is told nothing about which structures these are, so it
+ * holds for whatever gets built next.
+ */
+function edgeBands(all: Footprint[], banded: Footprint[]): Mesh[] {
+  const material = new MeshStandardMaterial({ color: TRIM, roughness: 0.85 });
+  const strips: Mesh[] = [];
+  const taken = new Set<Footprint>();
+
+  const joined = (a: Footprint, b: Footprint) =>
+    Math.abs(a.top - b.top) < 0.002 &&
+    a.x0 < b.x1 + 0.002 &&
+    b.x0 < a.x1 + 0.002 &&
+    a.z0 < b.z1 + 0.002 &&
+    b.z0 < a.z1 + 0.002;
+
+  for (const seed of banded) {
+    if (taken.has(seed)) continue;
+    const group: Footprint[] = [seed];
+    taken.add(seed);
+    for (let i = 0; i < group.length; i += 1) {
+      for (const other of all) {
+        if (taken.has(other) || !joined(group[i], other)) continue;
+        taken.add(other);
+        group.push(other);
+      }
+    }
+    const runs = outlineOf(group);
+    if (runs.length === 0) continue;
+    // One mesh for the whole run, not one per piece of it. A long open edge
+    // can be twenty separate strips, and twenty draw calls for a decorative
+    // band is twenty too many on the machine this is played on.
+    const merged = mergeGeometries(runs.map((run) => run.geometry));
+    if (!merged) continue;
+    const mesh = new Mesh(merged, material);
+    mesh.name = 'edge-band';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    // The pieces it was made of, so a test can ask whether the band really
+    // does cover the whole of the edge it is meant to mark.
+    mesh.userData.bands = runs.map((run) => run.box);
+    strips.push(mesh);
+    for (const run of runs) run.geometry.dispose();
+  }
+  return strips;
+}
+
+/**
+ * The band around one joined group, as a strip per open run of edge.
+ *
+ * Each side of each box is walked in short steps, and a step is kept when
+ * the ground just outside it belongs to nothing else in the group. Runs of
+ * kept steps become one strip each, so a straight open edge is one box
+ * however many pieces it was built from.
+ */
+function outlineOf(group: Footprint[]): BandRun[] {
+  const STEP = 0.25;
+  const strips: BandRun[] = [];
+  const covered = (x: number, z: number) =>
+    group.some((b) => x > b.x0 + 0.002 && x < b.x1 - 0.002 && z > b.z0 + 0.002 && z < b.z1 - 0.002);
+
+  for (const box of group) {
+    const sides = [
+      { axis: 'x' as const, from: box.x0, to: box.x1, at: box.z0, out: -1 },
+      { axis: 'x' as const, from: box.x0, to: box.x1, at: box.z1, out: 1 },
+      { axis: 'z' as const, from: box.z0, to: box.z1, at: box.x0, out: -1 },
+      { axis: 'z' as const, from: box.z0, to: box.z1, at: box.x1, out: 1 },
+    ];
+
+    for (const side of sides) {
+      const span = side.to - side.from;
+      const steps = Math.max(1, Math.round(span / STEP));
+      const length = span / steps;
+      let runFrom: number | null = null;
+
+      const close = (runTo: number) => {
+        if (runFrom === null) return;
+        // Reach around the corner where the run meets the end of the side,
+        // so the four sides of an open corner join up.
+        const a = runFrom - (Math.abs(runFrom - side.from) < 0.001 ? BAND_OUT : 0);
+        const b = runTo + (Math.abs(runTo - side.to) < 0.001 ? BAND_OUT : 0);
+        strips.push(bandStrip(side.axis, a, b, side.at, box.top));
+        runFrom = null;
+      };
+
+      for (let i = 0; i < steps; i += 1) {
+        const from = side.from + i * length;
+        const middle = from + length / 2;
+        const outside = side.at + side.out * (BAND_OUT + 0.02);
+        const open =
+          side.axis === 'x' ? !covered(middle, outside) : !covered(outside, middle);
+        if (open) {
+          if (runFrom === null) runFrom = from;
+        } else {
+          close(from);
+        }
+      }
+      close(side.to);
+    }
+  }
+  return strips;
+}
+
+/**
+ * One run of band, straddling the face it marks: half of it standing proud
+ * of the face and half buried in the block behind, so what shows is the
+ * same band as before and the corners of two runs meet without a gap.
+ */
+function bandStrip(
+  axis: 'x' | 'z',
+  from: number,
+  to: number,
+  at: number,
+  top: number,
+): BandRun {
+  const run = Math.max(0.01, to - from);
+  const thick = BAND_OUT * 2;
+  const width = axis === 'x' ? run : thick;
+  const depth = axis === 'x' ? thick : run;
+  const middle = (from + to) / 2;
+  // Sitting just under the top rather than flush with it. Flush, the band's
+  // upper face and the platform's own occupy the same plane, and two
+  // coplanar faces fight over every pixel between them: it came out as a
+  // mottled patchwork of triangles in two colours, which is what gave
+  // station 5 its strange lighter roof.
+  const y = top - BAND_DROP - BAND_DEEP / 2;
+  const x = axis === 'x' ? middle : at;
+  const z = axis === 'x' ? at : middle;
+  const geometry = new BoxGeometry(
+    width,
+    BAND_DEEP,
+    depth,
+    Math.max(1, Math.round(width)),
+    1,
+    Math.max(1, Math.round(depth)),
+  ).translate(x, y, z);
+  return {
+    geometry,
+    box: new Box3(
+      new Vector3(x - width / 2, y - BAND_DEEP / 2, z - depth / 2),
+      new Vector3(x + width / 2, y + BAND_DEEP / 2, z + depth / 2),
+    ),
+  };
+}
+
 function poolBasin(): Mesh[] {
   const material = new MeshStandardMaterial({ color: new Color('#3a4350'), roughness: 0.9 });
   const size = COURSE_POOL.half * 2;
