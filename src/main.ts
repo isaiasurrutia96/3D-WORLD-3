@@ -867,8 +867,12 @@ class Game {
         } as unknown as Input;
 
         const player = this.player;
+        // Where the camera is looking. Movement is camera-relative, so a
+        // test that leaves this at zero while the character faces along +x
+        // is pressing "right" into the wall, not along it.
+        const camera = { yaw: 0 };
         const step = () => {
-          player.update(dt, stub, 0);
+          player.update(dt, stub, camera.yaw);
           pressed.clear();
         };
         const frames = (s: number) => Math.max(1, Math.round(s / dt));
@@ -1093,8 +1097,12 @@ class Game {
         } as unknown as Input;
 
         const player = this.player;
+        // Where the camera is looking. Movement is camera-relative, so a
+        // test that leaves this at zero while the character faces along +x
+        // is pressing "right" into the wall, not along it.
+        const camera = { yaw: 0 };
         const step = () => {
-          player.update(dt, stub, 0);
+          player.update(dt, stub, camera.yaw);
           pressed.clear();
         };
         const frames = (s: number) => Math.max(1, Math.round(s / dt));
@@ -1457,6 +1465,9 @@ class Game {
 
         // Hanging off an edge: along it, up off it, and away from it.
         {
+          // Camera behind him, looking at the wall he is facing, which is
+          // how anyone meets this edge.
+          camera.yaw = -Math.PI / 2;
           const catchTheRoof = (z: number) => {
             place(26.25, 9.95, z, Math.PI / 2);
             for (let i = 0; i < frames(1.4); i += 1) {
@@ -1505,6 +1516,7 @@ class Game {
           stick.x = 0;
           held.clear();
 
+          camera.yaw = 0;
           results.ledgeWork = {
             hung,
             caughtZ,
