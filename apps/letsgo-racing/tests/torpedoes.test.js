@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import {createItemSystem,useHeldItem,stepItems} from '../src/items.js';
 import {TORPEDO_SPEED,TORPEDO_LIFETIME,TORPEDO_CRUISE_LIFETIME,TORPEDO_BURST_SECONDS,findTorpedoTarget,torpedoWarning,trackTorpedoPositions,resetTorpedoes} from '../src/torpedoes.js';
 import {createTorpedoModel,createTorpedoBursts} from '../src/torpedo-view.js';
-import {ITEM_UNDER_TEST} from '../src/item-test-mode.js';
 import {createVehicleState,stepVehicle} from '../src/vehicle-controller.js';
 import {createNpcDriver,readNpcInput} from '../src/npc/driver.js';
 import {createNpcPractice} from '../src/npc/practice.js';
@@ -17,10 +16,10 @@ const kart=extra=>({...createVehicleState(),x:0,y:0,z:0,yaw:0,...extra});
 function system(courses=[]){const s=createItemSystem(undefined,Math.random,courses);s.boxes=[];return s;}
 function at(course,progress,offset=0,extra={}){const p=coursePoint(course,progress,offset);return kart({...p,yaw:Math.atan2(p.fx,p.fz),...extra});}
 
-test('the active test item replaces every normal box draw and Time Trials remain Nitro-only',()=>{
+test('an explicit torpedo-only override replaces mixed draws while Time Trials remain Nitro-only',()=>{
  for(const draw of [0,.3,.62,.99]){
-  const s=createItemSystem(()=>draw);s.testItem=ITEM_UNDER_TEST;const box=s.boxes[0],owner=kart({x:box.x,y:box.y,z:box.z});
-  stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,ITEM_UNDER_TEST);
+  const s=createItemSystem(()=>draw);s.testItem='torpedo';const box=s.boxes[0],owner=kart({x:box.x,y:box.y,z:box.z});
+  stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,'torpedo');
   owner.heldItem=null;box.cooldown=0;s.allowShells=false;stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,'nitro');
  }
 });

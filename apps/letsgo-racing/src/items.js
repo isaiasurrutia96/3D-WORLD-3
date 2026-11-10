@@ -5,6 +5,7 @@ import {launchTorpedo,stepTorpedoes,trackTorpedoPositions} from './torpedoes.js'
 import {activateShield,absorbShieldImpact} from './shield.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
+export const MYSTERY_ITEMS=Object.freeze(['nitro','shell','banana','torpedo','shield']);
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
  if(typeof tracks==='function'){random=tracks;tracks=[trackSamples];}
  if(!Array.isArray(tracks))tracks=[trackSamples];
@@ -38,7 +39,9 @@ function pickup(system,kart,previous){
   if(box.cooldown>0||Math.abs(kart.y-box.y)>1.4)continue;
   if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){
    box.cooldown=BOX_RESPAWN;const draw=system.allowShells?system.random():0;
-   kart.heldItem=system.allowShells&&system.testItem?system.testItem:draw<.5?'nitro':draw<.75?'banana':'shell';break;
+   kart.heldItem=system.allowShells
+    ?system.testItem??MYSTERY_ITEMS[Math.min(MYSTERY_ITEMS.length-1,Math.floor(draw*MYSTERY_ITEMS.length))]
+    :'nitro';break;
   }
  }
 }

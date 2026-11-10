@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createItemSystem,stepItems,useHeldItem,BOX_RESPAWN} from '../src/items.js';
 import {createVehicleState,stepVehicle,VEHICLE_TOP_SPEED,NITRO_TOP_SPEED} from '../src/vehicle-controller.js';
+import {ITEM_UNDER_TEST} from '../src/item-test-mode.js';
 import {worldPhysics} from '../src/world.js';
 const flat={supportHeight:()=>0,resolveHorizontal:(x,z,nx,nz)=>({x:nx,z:nz})};
 
@@ -20,6 +21,18 @@ test('swept pickup grants Nitro, preserves a full slot and respawns a box',()=>{
  kart.heldItem=null;kart.x=box.x;
  stepItems(system,kart,kart,.01,flat);assert.equal(kart.heldItem,'nitro');
 });
+test('the live mixed pool awards every item equally to players and NPCs without consuming full slots',()=>{
+ assert.equal(ITEM_UNDER_TEST,null);
+ const outcomes=['nitro','shell','banana','torpedo','shield'];
+ for(let bucket=0;bucket<5;bucket++)for(const draw of [bucket/5,(bucket+.5)/5,(bucket+1)/5-1e-9])for(const rival of [false,true]){
+  const system=createItemSystem(()=>draw);system.testItem=ITEM_UNDER_TEST;
+  const box=system.boxes[0],kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};system.boxes=[box];
+  const collect=()=>stepItems(system,rival?null:kart,rival?null:kart,.01,flat,rival?[{state:kart,previous:kart}]:[]);
+  collect();assert.equal(kart.heldItem,outcomes[bucket]);assert.equal(box.cooldown,BOX_RESPAWN);
+  box.cooldown=0;collect();assert.equal(kart.heldItem,outcomes[bucket]);assert.equal(box.cooldown,0);
+  kart.heldItem=null;system.allowShells=false;collect();assert.equal(kart.heldItem,'nitro');
+ }
+});
 test('lower-road kart cannot collect an upper-road box',()=>{
  const system=createItemSystem(()=>0),box=system.boxes.find(b=>b.y>7);system.boxes=[box];
  const kart=Object.assign(createVehicleState(),{x:box.x,y:0,z:box.z});
@@ -34,7 +47,7 @@ test('nitro is consumed once, boosts past the faster base speed and wears off sm
  assert.equal(kart.boostTime,0);assert.ok(Math.abs(kart.speed-VEHICLE_TOP_SPEED)<1e-8);
  kart.heldItem='nitro';useHeldItem(system,kart);for(let i=0;i<180;i++)stepVehicle(kart,{brake:true},1/120,flat);assert.equal(kart.speed,0);
 });
-test('time-trial pickup rows retain Nitro even when the item draw would be a shell',()=>{
+test('time-trial pickup rows retain Nitro even when the item draw would be a shield',()=>{
  const system=createItemSystem(()=>.99);system.allowShells=false;
  for(const box of system.boxes){
   const kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};stepItems(system,kart,kart,.01);
@@ -42,7 +55,7 @@ test('time-trial pickup rows retain Nitro even when the item draw would be a she
  }
 });
 test('free-drive boxes can award shells without replacing a full slot',()=>{
- const system=createItemSystem(()=>.99),box=system.boxes[0],kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};
+ const system=createItemSystem(()=>.3),box=system.boxes[0],kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};
  stepItems(system,kart,kart,.01);assert.equal(kart.heldItem,'shell');
  assert.equal(useHeldItem(system,kart),true);assert.equal(kart.heldItem,null);assert.equal(system.shells.length,1);
  kart.heldItem='nitro';box.cooldown=0;stepItems(system,kart,kart,.01,flat);assert.equal(kart.heldItem,'nitro');

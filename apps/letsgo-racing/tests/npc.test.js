@@ -7,6 +7,7 @@ import {createNpcPractice} from '../src/npc/practice.js';
 import {resolveKartContact} from '../src/npc/contact.js';
 import {createGhostTemplate} from '../src/ghost-kart.js';
 import {createVehicleState,stepVehicle,NITRO_TOP_SPEED} from '../src/vehicle-controller.js';
+import {stepShield} from '../src/shield.js';
 import {createItemSystem,useHeldItem,stepItems} from '../src/items.js';
 import {ORIGINAL_COURSE,SUZUKA_COURSE} from '../src/courses.js';
 import {worldPhysics} from '../src/world.js';
@@ -31,7 +32,7 @@ test('actual kart physics completes laps, crosses every gate and stays grounded 
  for(const seed of [1,2,5]){
   const npc=createNpcDriver({progress:0}),items=createItemSystem(undefined,seeded(seed)),trial=createTimeTrial(null,ORIGINAL_COURSE);armTimeTrial(trial);let railFrames=0;
   for(let frame=0;frame<14000&&!trial.completed;frame++){
-   npc.previous={...npc.state};const input=readNpcInput(npc,DT,{boxes:items.boxes});if(npc.state.heldItem==='nitro'&&input.brake)assert.equal(input.useItem,false);if(input.useItem)useHeldItem(items,npc.state);
+   stepShield(npc.state,DT);npc.previous={...npc.state};const input=readNpcInput(npc,DT,{boxes:items.boxes});if(npc.state.heldItem==='nitro'&&input.brake)assert.equal(input.useItem,false);if(input.useItem)useHeldItem(items,npc.state);
    stepVehicle(npc.state,input,DT,worldPhysics);stepTimeTrial(trial,npc.previous,npc.state,true,DT);stepItems(items,npc.state,npc.previous,DT,worldPhysics);
    assert.equal(trial.status,'running',`${trial.reason} at ${npc.progress}`);assert.equal(npc.state.grounded,true);assert.ok(npc.state.speed<=NITRO_TOP_SPEED+.001);
    if(npc.state.railContactTime>0)railFrames++;

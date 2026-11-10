@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 9 November 2026 — one shared repository, two independent worlds.
+Last updated: 10 November 2026 — mixed mystery boxes restored for shield testing.
 
 ## Repository consolidation — 9 November 2026
 
@@ -97,6 +97,17 @@ Add real hazards and another driver on the floor slab with desktop/mobile
 controls to restore protection and repeat tests. Verify no-hit expiry, mixed
 standard pairs, and torpedoes with two or one impacts remaining. Keep scored
 Time Trials and personal ghosts unchanged; do not modify the movement world.
+
+## Mixed mystery boxes for shield testing — 10 November 2026
+
+**Latest instruction from the project owner; supersedes single-item testing.**
+Restore all five existing items in free driving/NPC practice boxes: Nitro,
+shell, banana, torpedo and shield, with equal chances. Play opens normal free
+driving; keep the controlled shield test area accessible from the existing menu.
+The player starts protected in free driving and NPC practice. Preserve shield
+duration, impact rules, weapon behavior, controls, physics and ghosts. Scored
+Time Trials keep their established Nitro-only rules. No movement-world changes.
+Restore point: `checkpoint-before-mixed-shield-items-2026-11-10`.
 
 ---
 

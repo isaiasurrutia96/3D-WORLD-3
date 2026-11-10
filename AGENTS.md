@@ -28,10 +28,12 @@ the worlds**. Both projects belong in this repository, with separate runtimes.
 - Start from current `main` and review concurrent changes before pushing.
   Keep the original LetsGo site available; do not delete or redirect it as
   part of this consolidation.
-- During each new combat-item test, boxes should award only the item being
-  tested in free driving/NPC practice. Set `src/item-test-mode.js` inside the
-  racing app for this; do not delete the other items' implementations. Scored
-  Time Trials retain their separate Nitro-only rules and ghost format.
+- The user's latest shield-testing instruction restores the full mystery-box
+  pool in free driving/NPC practice: Nitro, shell, banana, torpedo and shield,
+  equally likely. Keep `src/item-test-mode.js` set to null unless explicitly
+  asked for a single-item test again. Scored Time Trials retain their separate
+  Nitro-only rules and ghost format. Keep the controlled shield test area
+  available as an optional tool rather than forcing Play into it.
 
 The import commit retains both Git histories. LetsGo's old provenance and
 project notes inside its folder describe its original development history;

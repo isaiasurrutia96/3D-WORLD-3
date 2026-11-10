@@ -12,7 +12,7 @@ const driver=extra=>({...createVehicleState(),x:0,y:0,z:0,yaw:0,...extra});
 const items=()=>{const system=createItemSystem();system.boxes=[];return system;};
 
 test('boxes award bananas in combat modes while Time Trials remain Nitro-only',()=>{
- const system=createItemSystem(()=>.62),box=system.boxes[0],kart=driver({x:box.x,y:box.y,z:box.z});
+ const system=createItemSystem(()=>.5),box=system.boxes[0],kart=driver({x:box.x,y:box.y,z:box.z});
  stepItems(system,kart,kart,.01);assert.equal(kart.heldItem,'banana');
  kart.heldItem=null;box.cooldown=0;system.allowShells=false;stepItems(system,kart,kart,.01);assert.equal(kart.heldItem,'nitro');
 });

@@ -280,7 +280,7 @@ function startNpcPractice(){
  invalidateTimeTrial(trial,'NPC practice does not save lap times');trial.status='idle';trial.elapsed=0;
  itemSystem.allowShells=true;
  Object.assign(kartState,npcPractice.start(),{heldItem:itemSystem.testItem??'nitro'});previousKart={...kartState};setCameraView(viewMode);
- if(ITEM_UNDER_TEST==='shield')activateShield(kartState);
+ activateShield(kartState);
 }
 bindPress(document.getElementById('npc-start'),startNpcPractice);
 function exploreWorld(){
@@ -288,7 +288,7 @@ function exploreWorld(){
  stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
- Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
+ Object.assign(kartState,createVehicleState(),WORLD_START);activateShield(kartState);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
  accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
 }
 function updateEntrancePrompt(position){
