@@ -1,7 +1,7 @@
 import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
 import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
-import {launchTorpedo,stepTorpedoes} from './torpedoes.js';
+import {launchTorpedo,stepTorpedoes,trackTorpedoPositions} from './torpedoes.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
@@ -12,7 +12,7 @@ export function createItemSystem(tracks=[trackSamples],random=Math.random,course
   const count=samples.length-1,index=(Math.floor(count*.985)+row*Math.floor(count/16))%count,sample=samples[index];
   for(const lane of [-6,0,6])boxes.push({id:boxes.length,x:sample.point.x+sample.normal.x*lane,y:sample.point.y,z:sample.point.z+sample.normal.z*lane,cooldown:0});
  }
- return{boxes,shells:[],bananas:[],torpedoes:[],courses,time:0,nextShell:0,nextBanana:0,nextTorpedo:0,random,allowShells:true,testItem:null,itemMessage:'',itemMessageUntil:0,hits:[]};
+ return{boxes,shells:[],bananas:[],torpedoes:[],torpedoBursts:[],torpedoPositions:new WeakMap(),torpedoAnchors:new Map(),courses,time:0,nextShell:0,nextBanana:0,nextTorpedo:0,random,allowShells:true,testItem:null,itemMessage:'',itemMessageUntil:0,hits:[]};
 }
 function sweptDistance(a,b,x,z){
  const dx=b.x-a.x,dz=b.z-a.z,denominator=dx*dx+dz*dz,t=denominator?Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/denominator)):0;
@@ -45,6 +45,7 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
  system.time+=dt;system.hits=[];
  for(const box of system.boxes)box.cooldown=Math.max(0,box.cooldown-dt);
  const actors=[...(kart?[{state:kart,previous:previous??kart}]:[]),...rivals];
+ trackTorpedoPositions(system,actors.map(actor=>actor.state));
  clearFinishedBananas(system,previous,kart);
  for(const actor of actors)pickup(system,actor.state,actor.previous);
  stepBananas(system,actors,dt,world);

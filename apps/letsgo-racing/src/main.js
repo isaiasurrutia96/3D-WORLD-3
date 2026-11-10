@@ -23,6 +23,7 @@ import {createNpcView} from './npc/view.js';
 import {interpolateHitSpin} from './kart-hit.js';
 import {ITEM_UNDER_TEST} from './item-test-mode.js';
 import {createTorpedoWarning} from './torpedo-view.js';
+import {resetTorpedoes} from './torpedoes.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -236,7 +237,7 @@ function toggleVehicle(){
 function stopNpcPractice(){npcPractice.stop();npcView.update(null,0,itemSystem.time);}
 function startTrial(course=activeCourse){
  if(!playing)return;
- stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];itemSystem.torpedoes=[];itemSystem.itemMessage='';
+ stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;
  if(course!==activeCourse)invalidateTimeTrial(trial,'Switched tracks');
  activeCourse=course;trial=trials.get(course.id);document.getElementById('ghost-transfer-status').hidden=true;
@@ -256,7 +257,7 @@ function startNpcPractice(){
 }
 bindPress(document.getElementById('npc-start'),startNpcPractice);
 function exploreWorld(){
- stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];itemSystem.torpedoes=[];itemSystem.itemMessage='';
+ stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
  Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;

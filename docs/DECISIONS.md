@@ -73,6 +73,19 @@ The torpedo follows the road, commits to a straight final attack, can be juked
 by a late steering input, and uses the existing hit spin/recovery. Add no shield,
 kart jump, handling changes or other moves. Personal ghost files stay unchanged.
 
+## Continuous torpedo homing — 10 November 2026
+
+**Latest instruction from the project owner; supersedes the dodge/retarget plan.**
+Reduce actual torpedo travel to 200 MPH. Always launch forward: if only a rival
+behind (or nobody) is available, follow the circuit for 20 seconds and explode.
+Pursue rivals far ahead without the old 360-metre cap, with a fixed 30-second
+total chase lifetime. Keep homing through steering changes and remove the
+straight final attack/dodge window. The shield will be the counter in a later
+chunk; do not implement it yet. Expiry uses a brief visual explosion with no
+area damage. Preserve normal kart handling, tracks, avatar, camera, controls,
+Time Trial item rules, saved lap/ghost format, and the separate movement world.
+The earlier environment-start failures did not publish any changes.
+
 ---
 
 ## A) The project

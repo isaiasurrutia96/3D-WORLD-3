@@ -23,7 +23,7 @@ export function createNpcPractice(world,items){
     if(npc.state.spinTime>0)stepVehicle(npc.state,{},dt,world);
     return;
    }
-   const input=readNpcInput(npc,dt,{traffic:[player],boxes:items.boxes});
+   const input=readNpcInput(npc,dt,{traffic:[player],boxes:items.boxes,torpedoSystem:items});
    if(input.useItem)useHeldItem(items,npc.state,world,[player]);
    stepVehicle(npc.state,input,dt,world);resolveKartContact(player,npc.state,world);
   },

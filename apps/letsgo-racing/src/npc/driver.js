@@ -20,7 +20,7 @@ function curvature(a,b,c){
  return 2*Math.abs((b.x-a.x)*(c.z-a.z)-(b.z-a.z)*(c.x-a.x))/Math.max(.001,ab*bc*ca);
 }
 // The brain returns ordinary controls. Only stepVehicle moves the kart.
-export function readNpcInput(driver,dt,{traffic=[],boxes=[]}={}){
+export function readNpcInput(driver,dt,{traffic=[],boxes=[],torpedoSystem=null}={}){
  const {state,course,reference}=driver,projection=projectRaceCourse(state,course);
  driver.torpedoCooldown=Math.max(0,(driver.torpedoCooldown??0)-dt);
  if(!projection)return{throttle:0,steer:0,brake:true,useItem:false};
@@ -80,7 +80,7 @@ export function readNpcInput(driver,dt,{traffic=[],boxes=[]}={}){
  if(state.heldItem==='nitro'&&input.brake)input.useItem=false;
  if(state.heldItem==='banana'&&!driver.finished)input.useItem=state.speed>12&&alignment<.2&&!input.brake;
  if(state.heldItem==='torpedo'&&!driver.finished){
-  const lock=findTorpedoTarget({courses:[course]},state,traffic);
+  const lock=findTorpedoTarget(torpedoSystem??{courses:[course]},state,traffic);
   input.useItem=!!lock&&lock.gap>=65&&driver.torpedoCooldown===0&&state.speed>10&&alignment<.4&&!input.brake;
  }
  if(state.spinTime>0)input.useItem=false;

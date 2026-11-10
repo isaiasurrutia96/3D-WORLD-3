@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {torpedoWarning} from './torpedoes.js';
+import {torpedoWarning,TORPEDO_BURST_SECONDS} from './torpedoes.js';
 
 export function createTorpedoModel(){
  const group=new THREE.Group();group.name='Homing torpedo';
@@ -16,7 +16,21 @@ export function createTorpedoWarning(node,system){
  return kart=>{
   const threat=kart?torpedoWarning(system,kart):null,notice=kart&&system.itemMessage&&system.time<system.itemMessageUntil;
   node.hidden=!threat&&!notice;if(node.hidden)return;
-  const kind=threat?(threat.committed?'committed':'incoming'):'notice',text=threat?(threat.committed?'DODGE — LINE LOCKED':'TORPEDO INCOMING'):system.itemMessage,detail=threat?`${threat.arrow} ${Math.ceil(threat.distance)} m`:'';
+  const kind=threat?(threat.imminent?'imminent':'incoming'):'notice',text=threat?(threat.imminent?'IMPACT IMMINENT':'TORPEDO LOCKED'):system.itemMessage,detail=threat?`${threat.arrow} ${Math.ceil(threat.distance)} m`:'';
   node.dataset.kind=kind;if(label.textContent!==text)label.textContent=text;if(distance.textContent!==detail)distance.textContent=detail;
+ };
+}
+
+export function createTorpedoBursts(root,system){
+ const geometry=new THREE.SphereGeometry(1,10,6),nodes=new Map();
+ return()=>{
+  const active=new Set();
+  for(const burst of system.torpedoBursts){
+   active.add(burst.id);
+   if(!nodes.has(burst.id)){const node=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:'#ffb451',transparent:true,depthWrite:false}));node.name='Torpedo explosion';root.add(node);nodes.set(burst.id,node);}
+   const node=nodes.get(burst.id),t=burst.age/TORPEDO_BURST_SECONDS;
+   node.position.set(burst.x,burst.y,burst.z);node.scale.setScalar(.15+1.2*t);node.material.opacity=.8*(1-t);
+  }
+  for(const [id,node]of nodes)if(!active.has(id)){root.remove(node);node.material.dispose();nodes.delete(id);}
  };
 }

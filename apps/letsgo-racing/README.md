@@ -196,35 +196,44 @@ The banana delivery was a separate review chunk. Shields and kart jumping
 remain pending; the torpedo chunk follows below. Restore point:
 `checkpoint-before-bananas-2026-11-09` at `74355da`.
 
-### Homing torpedo — third combat chunk
+### Torpedo — continuous homing revision (10 November 2026)
 
 The user requested **only the item being tested** in free-drive/NPC boxes.
-`src/item-test-mode.js` now selects Torpedo for every combat pickup and both
-practice starter slots. Set its value to null to restore the normal mixed pool,
-or select the next test item. Nitro/shell/banana implementations remain intact.
-Scored Time Trials retain Nitro-only pickups, starter Nitro and unchanged ghosts.
+`src/item-test-mode.js` selects Torpedo for every combat pickup and both practice
+starter slots. The other item implementations remain intact. Scored Time Trials
+retain Nitro-only pickups, starter Nitro and unchanged ghosts.
 
-Shift or the mobile Torpedo button launches at the nearest opponent ahead on
-the same circuit, up to 360 road metres away. Ghosts and the firing kart are
-never targets. Without a legal rival the item stays held and a short notice
-explains why it did not fire. Use Original Circuit NPC practice to test combat.
+Shift or the mobile Torpedo button always fires forward on supported ground.
+With no rival ahead, including when the only rival is behind, the shot follows
+the circuit for 20 seconds and explodes. It does not reverse to acquire a driver
+behind. A rival ahead on the same circuit can be targeted beyond the old
+360-metre limit. Internal unwrapped race progress preserves ordering through
+finish-line crossings and large gaps; it is not saved in ghost files.
 
-`src/torpedoes.js` follows the actual road route and target lane at 110 m/s,
-including curves and ramps. At 32 road metres it commits to a predicted straight
-attack; it cannot turn back, reacquire, or chase a late dodge. A hit cancels
-Nitro, slows the kart and uses the existing spin/recovery. Rails, unsupported
-road, a missing target, or its 12-second lifetime remove the projectile. Swept
-contact and road heights protect fast crossings and separate overpass decks.
-At most 16 torpedoes exist at once. The NPC waits for at least 65 road metres
-of warning room and spaces firing attempts by five seconds.
+`src/torpedoes.js` now moves at **200 MPH (89.408 m/s)**. Homing stays active
+through the entire chase, including near the target. There is no committed
+straight attack, dodge window, or retarget-on-juke state. Guidance shares its
+movement budget between forward travel and lane correction, stops overshooting
+at the target's road progress, and continues correcting when the target turns
+or brakes. Normal steering cannot cancel the lock. The requested shield is the
+next combat chunk and is **not implemented here**.
 
-`src/torpedo-view.js` supplies a shared three-mesh model and a target-only
-incoming warning with direction and distance. The warning changes to **DODGE —
-LINE LOCKED** during the straight attack, then clears after a miss. Distance
-text is excluded from live announcements to avoid reading every metre aloud.
-Restart, course changes and Home/re-entry clear active shots. Shields and kart
-jumping remain deferred. Restore point:
-`checkpoint-before-torpedo-2026-11-09` at `ecd5a20`.
+A locked shot has a fixed 30-second total lifetime; a sufficiently distant
+rival can still remain out of reach before that timeout. Hits cancel Nitro,
+slow the kart, and use the existing spin/recovery. Road-height and swept-contact
+checks separate overpasses and handle fast crossings. A locked shot cannot
+pass through guardrails; rails do not immediately cancel its lock. Untargeted
+shots that hit a rail or leave supported road expire. Target loss, unsupported
+road or lifetime expiry also ends a shot. Each end produces a brief visual
+explosion without area damage. At most 16 torpedoes and 32 brief bursts exist.
+
+`src/torpedo-view.js` keeps the shared three-mesh model and target-only warning
+with direction and distance. Close warnings now say **IMPACT IMMINENT**, with
+no instruction to dodge. Burst materials are disposed after fading. Restart,
+course changes and Home/re-entry clear shots, bursts and position history. The
+NPC retains its five-second firing interval and 65-metre warning gap.
+
+Restore point: `checkpoint-before-torpedo-continuous-2026-11-10` at `b00aabd`.
 
 ## Colored go-kart prototype
 

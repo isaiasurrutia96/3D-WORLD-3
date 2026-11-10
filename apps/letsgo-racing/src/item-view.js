@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createBananaModel} from './banana-view.js';
-import {createTorpedoModel} from './torpedo-view.js';
+import {createTorpedoModel,createTorpedoBursts} from './torpedo-view.js';
 
 function questionFace(color){
  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
@@ -38,7 +38,7 @@ export function createItemView(scene,system,kart){
   const cube=new THREE.Mesh(cubeGeometry,faces);pivot.add(cube,new THREE.LineSegments(edgeGeometry,new THREE.LineBasicMaterial({color:'#e8faff'})));return pivot;
  });
  const template=shellModel(),shells=new Map(),bananaTemplate=createBananaModel(),bananas=new Map(),torpedoTemplate=createTorpedoModel(),torpedoes=new Map();
- const exhaust=createNitroExhaust(kart);
+ const exhaust=createNitroExhaust(kart),bursts=createTorpedoBursts(root,system);
  return function update(state,driving){
   system.boxes.forEach((box,i)=>{const node=boxes[i];node.visible=box.cooldown<=0;node.position.y=box.y+1.15+Math.sin(system.time*2+i)*.12;node.rotation.set(.12,system.time*1.1+i,.12);});
   const active=new Set();
@@ -59,6 +59,7 @@ export function createItemView(scene,system,kart){
    const node=torpedoes.get(torpedo.id);node.position.set(torpedo.x,torpedo.y+.6,torpedo.z);node.rotation.y=torpedo.yaw;
   }
   for(const [id,node]of torpedoes)if(!activeTorpedoes.has(id)){root.remove(node);torpedoes.delete(id);}
+  bursts();
   exhaust(state,driving,system.time);
  };
 }
