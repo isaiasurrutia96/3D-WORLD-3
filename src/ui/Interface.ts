@@ -51,8 +51,8 @@ const CONTROLS: Array<[string, string]> = [
   ['Walk', 'Hold Shift  /  ease the stick'],
   ['Jump', 'Space  /  A'],
   ['Pick up, throw', 'E  /  X'],
-  ['Dive, swim down', 'Ctrl  /  B'],
-  ['Swim stroke', 'Space  /  A'],
+  ['Dive, swim down', 'C  /  Q  /  B'],
+  ['Swim up, stroke', 'Space  /  A'],
   ['Pause', 'Esc  /  Start'],
 ];
 

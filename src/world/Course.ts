@@ -320,7 +320,7 @@ export function buildCourse(scene: Scene, collision: CollisionWorld): CourseWorl
   // =========================================================================
   // 12 — The pool
   // =========================================================================
-  sign(-15, 0, 30, Math.PI * 0.6, '12 · SWIM', 'Space strokes · C dives', 'Under: look where you want, hold E · Space climbs out');
+  sign(-15, 0, 30, Math.PI * 0.6, '12 · SWIM', 'C dives · you stay at that depth', 'Under: E swims where you look · Space up · C down');
   // A board to dive from, on the near side.
   block(-19.5, 0, 30, 4, 6, 4, STONE_DARK);
   block(-23.5, 5.4, 30, 5, 0.5, 2.2, ACCENT);

@@ -933,33 +933,63 @@ if (!course.boostThenPound.poundsLater) {
   );
 }
 
-// Swimming where he looks: C takes him under, the camera steers, and the
-// forward key is what turns looking into going.
-if (!course.lookSwim.dives) {
-  problems.push('one press of C in the water did not take him under');
-}
-if (!course.lookSwim.steers) {
-  problems.push(
-    `looking did not steer him — down gave ${course.lookSwim.down.dy}m and up gave ` +
-      `${course.lookSwim.up.dy}m`,
-  );
-}
-if (!course.lookSwim.turns) {
-  problems.push(
-    `looking sideways did not turn him — he went ${course.lookSwim.across.dx}m across ` +
-      `and ${course.lookSwim.across.dz}m along`,
-  );
-}
-if (!course.lookSwim.needsAKey) {
-  problems.push(
-    `looking around underwater propelled him on its own — ${course.lookSwim.idle.dx}m, ` +
-      `${course.lookSwim.idle.dy}m, ${course.lookSwim.idle.dz}m with nothing held`,
-  );
-}
-if (!course.lookSwim.surfaceIsFree) {
-  problems.push(
-    `looking down at the surface pulled him ${course.lookSwim.surfaceDrop}m under`,
-  );
+// Underwater. Once dived he holds the depth he is left at, steers every way
+// by the camera and the two buttons, and comes back up only by swimming.
+{
+  const u = course.underwater;
+  const each = (h) => `${h.how}: ${h.depth}m down, rose ${h.rose}m, sank ${h.sank}m, slid ${h.slid}m`;
+  if (!u.dives) {
+    problems.push(`diving did not take him under — ${u.holds.map(each).join(' · ')}`);
+  }
+  if (!u.holdsDepth) {
+    problems.push(
+      `he did not hold his depth with nothing pressed — ${u.holds.map(each).join(' · ')} ` +
+        `(${u.holds.map((h) => h.states.join('>')).join(' · ')})`,
+    );
+  }
+  if (!u.steers) {
+    problems.push(`underwater steering went the wrong way — ${JSON.stringify(u.steer)}`);
+  }
+  if (!u.buttons) {
+    problems.push(
+      `the up and down buttons underwater: up ${JSON.stringify(u.steer.upButton)}, ` +
+        `down ${JSON.stringify(u.steer.downButton)}, Q ${JSON.stringify(u.steer.downKey)}, ` +
+        `along and up ${JSON.stringify(u.steer.alongAndUp)}`,
+    );
+  }
+  if (!u.rightIsRight) {
+    problems.push(
+      `right underwater (${u.steer.right.dx}m) is the other way from right at the ` +
+        `surface (${u.surfaceRight}m)`,
+    );
+  }
+  if (!u.proportional) {
+    problems.push(
+      `underwater speed does not follow the stick — ` +
+        u.response.map((r) => `${r.amount} gave ${r.cruise} m/s`).join(', '),
+    );
+  }
+  if (!u.quick) {
+    problems.push(
+      `underwater steering is slow to answer — ${u.response[0].toHalf}s to half speed, ` +
+        `${u.response[0].toMost}s to nine tenths`,
+    );
+  }
+  if (!u.comesToRest) {
+    problems.push(
+      `he never came to rest underwater after letting go — ` +
+        u.response.map((r) => `${r.amount}: ${r.rest}s`).join(', '),
+    );
+  }
+  if (!u.comesUp) {
+    problems.push(
+      `swimming up did not put him back on the surface — Space: ` +
+        `${JSON.stringify(u.surfacing.button)}, looking: ${JSON.stringify(u.surfacing.looking)}`,
+    );
+  }
+  if (!u.surfaceIsFree) {
+    problems.push(`looking down at the surface pulled him ${u.surfaceDrop}m under`);
+  }
 }
 
 // And floating still is floating still: coming up from the bottom with
@@ -1213,12 +1243,46 @@ console.log(
   `                floating still: "${course.floating.state}" at ${course.floating.at}m, ` +
     `then "${course.floating.stayed}"`,
 );
-console.log(
-  `                C then look: down ${course.lookSwim.down.dy}m, up ` +
-    `${course.lookSwim.up.dy}m, across ${course.lookSwim.across.dx}m · looking alone ` +
-    `${course.lookSwim.idle.dx}/${course.lookSwim.idle.dy}/${course.lookSwim.idle.dz}m · ` +
-    `at the surface ${course.lookSwim.surfaceDrop}m`,
-);
+{
+  const u = course.underwater;
+  const d = (v) => `${v.dx}/${v.dy}/${v.dz}`;
+  console.log('                underwater, nothing pressed for 10s with the camera swinging:');
+  for (const h of u.holds) {
+    console.log(
+      `                  ${h.how.padEnd(7)} ${h.depth}m down · rose ${h.rose}m · sank ${h.sank}m · ` +
+        `slid ${h.slid}m · ${h.states.join(' > ')}`,
+    );
+  }
+  console.log(
+    `                steering, 1s each (x/y/z): forward ${d(u.steer.forward)} · back ${d(u.steer.back)} · ` +
+      `right ${d(u.steer.right)} · left ${d(u.steer.left)}`,
+  );
+  console.log(
+    `                  look down ${d(u.steer.lookDown)} · look up ${d(u.steer.lookUp)} · ` +
+      `look aside ${d(u.steer.lookAside)}`,
+  );
+  console.log(
+    `                  Space ${d(u.steer.upButton)} · C ${d(u.steer.downButton)} · Q ${d(u.steer.downKey)} · ` +
+      `forward+Space ${d(u.steer.alongAndUp)} · right at the surface ${u.surfaceRight}m`,
+  );
+  for (const r of u.response) {
+    console.log(
+      `                  stick ${r.amount}: ${r.cruise} m/s · half speed in ${r.toHalf}s, ` +
+        `nine tenths in ${r.toMost}s · sharpest change ${r.sharpest} m/s² · glides ${r.glide}m, ` +
+        `still after ${r.rest}s`,
+    );
+  }
+  console.log(
+    `                  a 0.1s nudge carries ${u.nudge}m · full ahead to going astern in ${u.reversed}s`,
+  );
+  for (const [name, r] of Object.entries(u.surfacing)) {
+    console.log(
+      `                surfacing by ${name}: from ${r.depth}m in ${r.took}s · ended ${r.endedAt}m ` +
+        `from the float line · never more than ${r.overshot}m above it · ${r.states.join(' > ')}`,
+    );
+  }
+  console.log(`                looking down at the surface: ${u.surfaceDrop}m`);
+}
 console.log(
   `                8x Space at the surface: rose ${course.strokeSpam.surface.rose}m, ` +
     `${course.strokeSpam.surface.states.join(' > ')}`,

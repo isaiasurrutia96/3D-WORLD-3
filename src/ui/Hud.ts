@@ -60,9 +60,9 @@ export class Hud {
       Hanging: <b>S</b>/<b>F</b> along the edge · <b>Space</b> pulls up, and
       <b>again</b> straight away to push up higher · <b>D</b> pushes off ·
       <b>C</b> lets go<br />
-      Water: <b>Space</b> strokes and climbs out · <b>C</b> dives, then look
-      where you want to go and hold <b>E</b> to swim there · <b>Q</b> or
-      <b>Ctrl</b> sinks<br />
+      Water: <b>C</b> or <b>Q</b> dives, and you stay at that depth ·
+      under it <b>E S D F</b> swim where you look, <b>Space</b> goes up and
+      <b>C</b>/<b>Q</b> down · on top <b>Space</b> strokes and climbs out<br />
       <b>R</b> pick up and throw · let go at a run to <b>skid</b> ·
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
       Quality <b>1</b>/<b>2</b>/<b>3</b>

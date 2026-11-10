@@ -30,7 +30,7 @@ const BUTTONS: Array<{
   {
     id: 'jump',
     label: 'JUMP',
-    hint: 'Jump · hold for a higher one · again on landing for a combo · again in the air to boost, and again to pound',
+    hint: 'Jump · hold for a higher one · again on landing for a combo · again in the air to boost, and again to pound · underwater, hold to swim up',
     // Not wound up, unlike the other three. Jump is the button pressed most
     // and the one everything else is timed against, and a move that waits
     // for the finger to come off is a move that answers late: measured, it
@@ -65,7 +65,7 @@ const BUTTONS: Array<{
   {
     id: 'dive',
     label: 'DIVE',
-    hint: 'Forward dive · hold to wind up, let go to launch · in water, dive and steer by looking · lets go of a ledge',
+    hint: 'Forward dive · hold to wind up, let go to launch · in water, dives and swims down — you stay at the depth you let go at · lets go of a ledge',
     // Crouch goes with it: in water that is the dive, on a ledge it is the
     // way down, and on land it is the crouch there is otherwise no room for.
     actions: ['diveJump', 'crouch'],

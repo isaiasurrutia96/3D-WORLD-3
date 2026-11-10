@@ -15,6 +15,7 @@ import { loadSettings, saveSettings, type UserSettings } from './core/Settings.t
 import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
+import { TUNING } from './player/Tuning.ts';
 import {
   TouchControls,
   suppressPageGestures,
@@ -226,6 +227,7 @@ class Game {
       engine: this.engine,
       player: this.player,
       input: this.input,
+      cameraRig: this.cameraRig,
       touch: this.touch,
       touchControls: this.touchControls,
       /** Lets go of the page's gesture handling, for a test that wants to. */
@@ -1298,7 +1300,14 @@ class Game {
         }
         held.delete('dive');
         stick.x = 0;
-        for (let i = 0; i < frames(3.5); i += 1) step();
+        // Nothing brings him back up from a dive but swimming there.
+        held.add('jump');
+        for (let i = 0; i < frames(6); i += 1) {
+          step();
+          if (player.stateName === 'swim-surface') break;
+        }
+        held.delete('jump');
+        for (let i = 0; i < frames(1.5); i += 1) step();
         const surfaced = player.stateName === 'swim-surface';
 
         // Out along the pool first, clear of the diving tower, which stands
@@ -1364,6 +1373,7 @@ class Game {
         const floatState = player.stateName;
         const floatY2 = round(player.position.y);
         for (let i = 0; i < frames(3); i += 1) step();
+        const floatStayed = player.stateName;
         // Space pressed over and over in the water: it must stay a stroke.
         // It used to walk him up out of the pool and then hand the next
         // press to the land combo — a boost, and then a ground pound.
@@ -1383,7 +1393,8 @@ class Game {
               tap('jump');
               for (let i = 0; i < frames(0.18); i += 1) {
                 step();
-                held.delete('jump');
+                // Down for a tenth of a second, which is what a tap is.
+                if (i >= frames(0.1) - 1) held.delete('jump');
                 highest = Math.max(highest, player.position.y);
                 const name = player.stateName;
                 if (states[states.length - 1] !== name) states.push(name);
@@ -1404,8 +1415,8 @@ class Game {
         results.floating = {
           state: floatState,
           at: floatY2,
-          stayed: player.stateName,
-          treads: floatState === 'swim-surface' && player.stateName === 'swim-surface',
+          stayed: floatStayed,
+          treads: floatState === 'swim-surface' && floatStayed === 'swim-surface',
         };
 
         // The ladder, every way on and off it: climb it, jump off partway
@@ -2381,90 +2392,277 @@ class Game {
           };
         }
 
-        // Swimming where he looks. C takes him under and hands the
-        // steering to the camera; the forward key is what turns looking
-        // into going. Driven here with the camera pointed in several
-        // directions, with and without a hand on the stick.
+        // Underwater. Once he has dived he stays at the depth he is left
+        // at, steers by the camera in every direction, and comes back to the
+        // surface only by swimming to it. Each of those is driven here the
+        // way a player would: go under, let go, and see what he does.
         {
           const pool = { x: -35, z: 12 };
-          const dive = (pitch: number, yaw: number, forward: boolean, seconds: number) => {
-            camera.yaw = yaw;
-            camera.pitch = 0;
-            place(pool.x, 0, pool.z, Math.PI);
-            for (let i = 0; i < frames(2.5); i += 1) step();
-            const floatY = player.position.y;
-            // One tap of C, released at once.
-            tap('crouch');
-            step();
-            held.delete('crouch');
-            for (let i = 0; i < frames(0.6); i += 1) step();
-            const wentUnder = player.position.y < floatY - 0.4;
-
-            // Now look, and only then ask to move.
-            camera.pitch = pitch;
-            const from = { ...where() };
-            stick.y = forward ? -1 : 0;
-            for (let i = 0; i < frames(seconds); i += 1) step();
-            stick.y = 0;
-            const to = { ...where() };
-            const out = {
-              wentUnder,
-              dy: round(to.y - from.y),
-              dx: round(to.x - from.x),
-              dz: round(to.z - from.z),
-              moved: round(Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z)),
-              state: player.stateName,
-            };
+          const run = (seconds: number, each?: () => void) => {
+            for (let i = 0; i < frames(seconds); i += 1) {
+              step();
+              each?.();
+            }
+          };
+          const quiet = () => {
             held.clear();
             stick.x = 0;
             stick.y = 0;
-            camera.pitch = 0;
+          };
+          /** Floating at the surface, facing along -z, camera level. */
+          const float = () => {
             camera.yaw = 0;
-            return out;
+            camera.pitch = 0;
+            place(pool.x, 0, pool.z, Math.PI);
+            run(2.5);
+            return player.position.y;
+          };
+          /** Under by one of the three ways there are, then everything let go. */
+          const goUnder = (how: 'tap C' | 'hold C' | 'hold Q', seconds = 1) => {
+            const floatY = float();
+            if (how === 'tap C') {
+              tap('crouch');
+              run(0.08);
+              held.delete('crouch');
+            } else {
+              tap(how === 'hold C' ? 'crouch' : 'dive');
+              run(seconds);
+            }
+            quiet();
+            // Long enough for the glide to have run out.
+            run(1.6);
+            return floatY;
           };
 
-          // Looking down and holding forward goes down; looking up goes up.
-          const down = dive(0.95, 0, true, 1.4);
-          const up = dive(-0.55, 0, true, 1.4);
-          // Looking down and *not* holding forward must do nothing of the
-          // kind: a glance is a glance.
-          const idle = dive(0.95, 0, false, 1.4);
-          // And looking sideways takes him sideways rather than along the
-          // way he happened to be facing when he went under.
-          const across = dive(0, Math.PI / 2, true, 1.4);
+          // ---- Holding depth with nothing pressed ----
+          const holds = (['tap C', 'hold C', 'hold Q'] as const).map((how) => {
+            const floatY = goUnder(how);
+            const from = { ...where() };
+            let highest = from.y;
+            let lowest = from.y;
+            const states = new Set<string>();
+            // Ten seconds, with the camera swung about the whole time: a
+            // glance is a glance, and must not move him either.
+            let t = 0;
+            run(10, () => {
+              t += dt;
+              camera.pitch = Math.sin(t * 1.7) * 0.9;
+              camera.yaw = Math.sin(t * 0.9) * 1.4;
+              highest = Math.max(highest, player.position.y);
+              lowest = Math.min(lowest, player.position.y);
+              states.add(player.stateName);
+            });
+            const to = { ...where() };
+            camera.pitch = 0;
+            camera.yaw = 0;
+            return {
+              how,
+              depth: round(floatY - from.y),
+              rose: round(highest - from.y, 3),
+              sank: round(from.y - lowest, 3),
+              slid: round(Math.hypot(to.x - from.x, to.z - from.z), 3),
+              states: [...states],
+            };
+          });
 
-          // Coming back to the surface hands the steering back: looking
-          // down there must not drag him under again.
-          camera.yaw = 0;
-          place(pool.x, 0, pool.z, Math.PI);
-          for (let i = 0; i < frames(2.5); i += 1) step();
-          const surfaceY = player.position.y;
+          // ---- Steering, each way in turn from a standstill ----
+          // Started deep for the ones that go up and shallow for the ones
+          // that go down, so that neither the surface nor the floor of the
+          // pool gets in the way of what is being measured.
+          const push = (
+            set: () => void,
+            under = 0.8,
+            seconds = 1,
+          ): { dx: number; dy: number; dz: number } => {
+            goUnder('hold C', under);
+            const from = { ...where() };
+            set();
+            run(seconds);
+            const to = { ...where() };
+            quiet();
+            camera.pitch = 0;
+            camera.yaw = 0;
+            return {
+              dx: round(to.x - from.x),
+              dy: round(to.y - from.y),
+              dz: round(to.z - from.z),
+            };
+          };
+          const steer = {
+            forward: push(() => { stick.y = -1; }),
+            back: push(() => { stick.y = 1; }),
+            right: push(() => { stick.x = 1; }),
+            left: push(() => { stick.x = -1; }),
+            lookDown: push(() => { camera.pitch = 0.95; stick.y = -1; }, 0.35),
+            lookUp: push(() => { camera.pitch = -0.55; stick.y = -1; }, 1.3),
+            lookAside: push(() => { camera.yaw = Math.PI / 2; stick.y = -1; }),
+            upButton: push(() => { held.add('jump'); }, 1.3),
+            downButton: push(() => { held.add('crouch'); }, 0.35),
+            downKey: push(() => { held.add('dive'); }, 0.35),
+            // Two at once: along and up together, as a thumb on each side does.
+            alongAndUp: push(() => { stick.y = -1; held.add('jump'); }, 1.3),
+          };
+          // Right has to mean the same thing under the water as on top of it.
+          float();
+          const surfaceFrom = { ...where() };
+          stick.x = 1;
+          run(1);
+          const surfaceRight = round(where().x - surfaceFrom.x);
+          quiet();
+
+          // ---- How quickly it answers, and how gently ----
+          const speedNow = () =>
+            Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
+          const answer = (amount: number) => {
+            goUnder('hold C', 1.2);
+            stick.y = -amount;
+            let toHalf = -1;
+            let toMost = -1;
+            let sharpest = 0;
+            let last = speedNow();
+            let t = 0;
+            run(1.5, () => {
+              t += dt;
+              const now = speedNow();
+              sharpest = Math.max(sharpest, Math.abs(now - last) / dt);
+              last = now;
+              if (toHalf < 0 && now >= 0.5 * amount * TUNING.swimSpeed) toHalf = t;
+              if (toMost < 0 && now >= 0.9 * amount * TUNING.swimSpeed) toMost = t;
+            });
+            const cruise = speedNow();
+            // Let go, and see how far he carries on.
+            const at = { ...where() };
+            quiet();
+            let rest = -1;
+            t = 0;
+            run(3, () => {
+              t += dt;
+              if (rest < 0 && speedNow() === 0) rest = t;
+            });
+            const stopped = { ...where() };
+            return {
+              amount,
+              cruise: round(cruise),
+              toHalf: round(toHalf, 3),
+              toMost: round(toMost, 3),
+              sharpest: round(sharpest, 1),
+              glide: round(Math.hypot(stopped.x - at.x, stopped.y - at.y, stopped.z - at.z)),
+              rest: round(rest, 2),
+            };
+          };
+          const response = [1, 0.5, 0.15].map(answer);
+
+          // A nudge: the stick held for a tenth of a second and let go.
+          goUnder('hold C', 1.2);
+          const nudgeFrom = { ...where() };
+          stick.y = -1;
+          run(0.1);
+          quiet();
+          run(2);
+          const nudge = round(Math.hypot(where().x - nudgeFrom.x, where().z - nudgeFrom.z));
+
+          // Turning round: full ahead, then full astern.
+          goUnder('hold C', 1.2);
+          stick.y = -1;
+          run(1.2);
+          stick.y = 1;
+          let reversed = -1;
+          {
+            let t = 0;
+            run(1.5, () => {
+              t += dt;
+              if (reversed < 0 && player.velocity.z > 0) reversed = t;
+            });
+          }
+          quiet();
+
+          // ---- Coming back up, on purpose ----
+          const surface = (set: () => void) => {
+            const floatY = goUnder('hold C', 1.2);
+            const depth = round(floatY - player.position.y);
+            set();
+            const states: string[] = [];
+            let highest = -Infinity;
+            let took = -1;
+            let t = 0;
+            run(6, () => {
+              t += dt;
+              const name = player.stateName;
+              if (states[states.length - 1] !== name) states.push(name);
+              highest = Math.max(highest, player.position.y);
+              if (took < 0 && name === 'swim-surface') took = t;
+            });
+            // And then left alone at the top: it must keep him.
+            quiet();
+            camera.pitch = 0;
+            run(3, () => {
+              const name = player.stateName;
+              if (states[states.length - 1] !== name) states.push(name);
+              highest = Math.max(highest, player.position.y);
+            });
+            return {
+              depth,
+              took: round(took, 2),
+              endedAt: round(player.position.y - floatY, 3),
+              overshot: round(highest - floatY, 3),
+              states,
+              surfaced:
+                player.stateName === 'swim-surface' &&
+                Math.abs(player.position.y - floatY) < 0.05 &&
+                states.every((n) => n.startsWith('swim')),
+            };
+          };
+          const surfacing = {
+            button: surface(() => { held.add('jump'); }),
+            looking: surface(() => { camera.pitch = -0.9; stick.y = -1; }),
+          };
+
+          // At the surface, looking down and pushing is only swimming along.
+          const surfaceY = float();
           camera.pitch = 0.95;
           stick.y = -1;
-          for (let i = 0; i < frames(1.6); i += 1) step();
-          stick.y = 0;
+          run(1.6);
           const surfaceDrop = round(player.position.y - surfaceY);
+          quiet();
           camera.pitch = 0;
-          camera.yaw = 0;
-          held.clear();
 
-          results.lookSwim = {
-            down,
-            up,
-            idle,
-            across,
+          const still = (h: { rose: number; sank: number; slid: number }) =>
+            h.rose < 0.02 && h.sank < 0.02 && h.slid < 0.02;
+          results.underwater = {
+            holds,
+            steer,
+            surfaceRight,
+            response,
+            nudge,
+            reversed: round(reversed, 2),
+            surfacing,
             surfaceDrop,
-            dives: down.wentUnder,
-            // Down goes down, up goes up, and both a good way.
-            steers: down.dy < -0.8 && up.dy > 0.5,
-            // Looking without asking to move gets him nowhere: not an inch
-            // horizontally, and not downward either. What he does do is
-            // drift up, because that is what a body in water does.
-            needsAKey:
-              Math.hypot(idle.dx, idle.dz) < 0.1 && idle.dy > -0.05 && down.dy < idle.dy - 1.5,
-            // And the yaw steers too: looking along +x sends him along it.
-            turns: Math.abs(across.dx) > 0.8 && Math.abs(across.dx) > Math.abs(across.dz),
-            // At the surface, looking down is only a camera movement.
+            // Every way under ends properly under, and stays exactly there.
+            dives: holds.every((h) => h.depth > 0.6),
+            holdsDepth:
+              holds.every(still) && holds.every((h) => h.states.join() === 'swim-under'),
+            // Each direction goes its own way and not another.
+            steers:
+              steer.forward.dz < -1.5 && Math.abs(steer.forward.dy) < 0.05 &&
+              steer.back.dz > 1.5 &&
+              steer.right.dx > 1.5 && Math.abs(steer.right.dy) < 0.05 &&
+              steer.left.dx < -1.5 &&
+              steer.lookDown.dy < -1.2 &&
+              steer.lookUp.dy > 0.8 &&
+              Math.abs(steer.lookAside.dx) > 1.5 &&
+              Math.abs(steer.lookAside.dx) > Math.abs(steer.lookAside.dz) * 5,
+            buttons:
+              steer.upButton.dy > 1.5 && Math.hypot(steer.upButton.dx, steer.upButton.dz) < 0.02 &&
+              steer.downButton.dy < -1.5 && steer.downKey.dy < -1.5 &&
+              steer.alongAndUp.dy > 1 && steer.alongAndUp.dz < -1,
+            rightIsRight: Math.sign(surfaceRight) === Math.sign(steer.right.dx),
+            // Half a push is half the speed, and a touch is a touch.
+            proportional: response.every(
+              (r) => Math.abs(r.cruise - r.amount * TUNING.swimSpeed) < 0.05,
+            ),
+            quick: response[0].toHalf < 0.15 && response[0].toMost < 0.4,
+            comesToRest: response.every((r) => r.rest > 0 && r.rest < 2),
+            comesUp: surfacing.button.surfaced && surfacing.looking.surfaced,
             surfaceIsFree: Math.abs(surfaceDrop) < 0.35,
           };
         }
