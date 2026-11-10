@@ -216,7 +216,7 @@
 .hud__hints {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 32px;
   padding: 10px 14px;
   border-radius: 10px;
   background: rgba(6, 16, 32, 0.52);
@@ -481,7 +481,227 @@
 }
 
 /* The build stamp, so an old page is visibly an old page. */
+.hud__build-line {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.82);
+  text-align: right;
+}
+
 .hud__build {
   opacity: 0.55;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Touch controls ---------- */
+
+/*
+ * Shown only on a device that has a thumb on the glass. Everything in here
+ * sits above the canvas and below nothing: the root passes touches through
+ * so the parts of the screen that are not a control are still the game.
+ */
+.touch {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Everything that is not a control: a place to drag the camera. It is first
+ * in the box so the stick and the buttons sit on top of it and take their
+ * touches first.
+ */
+.touch__look {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/*
+ * The left half of the lower screen, so the stick can be put down wherever
+ * the thumb happens to fall rather than where a circle was drawn.
+ */
+.touch__stick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 46%;
+  height: 62%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch__stick-base {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin-left: -60px;
+  margin-top: -60px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: rgba(8, 20, 38, 0.3);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.touch__stick-base.is-live {
+  opacity: 1;
+}
+
+.touch__stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54%;
+  height: 54%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+}
+
+/*
+ * The buttons, in the corner the right thumb reaches without moving the hand:
+ * jump lowest and largest because it is pressed the most, the three moves
+ * stacked above and inboard of it.
+ */
+.touch__pad {
+  position: absolute;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: 232px;
+  height: 212px;
+  pointer-events: none;
+}
+
+.touch__button {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.34);
+  background: rgba(10, 24, 44, 0.52);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  white-space: pre-line;
+  text-align: center;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 90ms ease,
+    transform 90ms ease;
+}
+
+.touch__button.is-down {
+  background: rgba(96, 170, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.78);
+  transform: scale(0.94);
+}
+
+.touch__button--jump {
+  right: 0;
+  bottom: 0;
+  width: 104px;
+  height: 104px;
+  font-size: 15px;
+}
+
+.touch__button--side {
+  right: 104px;
+  bottom: 22px;
+  width: 78px;
+  height: 78px;
+}
+
+.touch__button--dive {
+  right: 10px;
+  bottom: 110px;
+  width: 78px;
+  height: 78px;
+}
+
+.touch__button--back {
+  right: 96px;
+  bottom: 116px;
+  width: 78px;
+  height: 78px;
+}
+
+/* On a touch device the keyboard chart is of no use to anyone. */
+.is-touch .hud__hints {
+  display: none;
+}
+
+/*
+ * The build stamp earns its place on a phone too — it is the only way to
+ * tell a reloaded page from a cached one — so it stays, on its own.
+ */
+.is-touch .hud__build-line {
+  position: absolute;
+  right: calc(10px + env(safe-area-inset-right, 0px));
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.is-touch .hud__stats {
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  font-size: 11px;
+  padding: 6px 9px;
+}
+
+.is-touch .hud__prompt {
+  bottom: 30%;
+}
+
+/* A short screen cannot afford the full-size pad. */
+@media (max-height: 460px) {
+  .touch__pad {
+    width: 196px;
+    height: 178px;
+  }
+  .touch__button--jump {
+    width: 88px;
+    height: 88px;
+    font-size: 13px;
+  }
+  .touch__button--side {
+    right: 88px;
+    bottom: 18px;
+  }
+  .touch__button--dive {
+    right: 8px;
+    bottom: 92px;
+  }
+  .touch__button--back {
+    right: 82px;
+    bottom: 98px;
+  }
+  .touch__button--side,
+  .touch__button--dive,
+  .touch__button--back {
+    width: 66px;
+    height: 66px;
+    font-size: 11px;
+  }
 }

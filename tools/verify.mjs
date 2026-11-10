@@ -855,6 +855,26 @@ if (course.strokeSpam.surface.rose > 0.6) {
       `${course.strokeSpam.surface.rose}m, out of the water`,
   );
 }
+// The boost and the pound are the second and third presses of one button,
+// and under a thumb one press often arrives twice. They have to be kept
+// apart in time as well as in count.
+if (!course.boostThenPound.lifts) {
+  problems.push('the first press of jump in the air no longer lifts him');
+}
+if (!course.boostThenPound.ignoresFastSecond) {
+  problems.push(
+    `a second press straight after the boost still ground-pounded — same frame ` +
+      `"${course.boostThenPound.sameFrame.pound}", 0.08s "${course.boostThenPound.tooSoon.pound}", ` +
+      `0.14s "${course.boostThenPound.justInside.pound}"`,
+  );
+}
+if (!course.boostThenPound.poundsLater) {
+  problems.push(
+    `a deliberate second press did not ground pound — it gave ` +
+      `"${course.boostThenPound.deliberate.pound}"`,
+  );
+}
+
 // Swimming where he looks: C takes him under, the camera steers, and the
 // forward key is what turns looking into going.
 if (!course.lookSwim.dives) {
@@ -1084,6 +1104,11 @@ console.log(
   ` collision      ${audit.solidMeshes} solid meshes, ${audit.solidTriangles} triangles, ` +
     `${audit.faults.length} disagreeing with what is drawn · walk-through: ` +
     `${Object.keys(audit.walkThrough).join(', ') || 'nothing'}`,
+);
+console.log(
+  ` boost / pound  a second press at 0s, 0.08s and 0.14s after the boost gives ` +
+    `"${course.boostThenPound.sameFrame.pound}", "${course.boostThenPound.tooSoon.pound}", ` +
+    `"${course.boostThenPound.justInside.pound}" · at 0.3s "${course.boostThenPound.deliberate.pound}"`,
 );
 console.log(
   ` boost          plain ${course.airBoost.plain}m, boosted ${course.airBoost.boosted}m ` +

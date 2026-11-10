@@ -28,6 +28,17 @@ export type ActionName =
    * hold while still holding back from the approach.
    */
   | 'back'
+  /**
+   * The three moves that need a modifier and a run-up on a keyboard, as
+   * buttons in their own right.
+   *
+   * No key is bound to them: they exist for the touch layout, where there is
+   * no Shift to hold and no spare hand to hold it with. The keyboard keeps
+   * crouch-and-jump exactly as it was.
+   */
+  | 'backflip'
+  | 'sideJump'
+  | 'diveJump'
   | 'togglePointerLock';
 
 const STICK_DEADZONE = 0.22;
@@ -52,6 +63,17 @@ export class Input {
 
   private readonly keys = new Set<string>();
   private readonly held = new Set<ActionName>();
+
+  /**
+   * Movement from a thumb on a touch stick, or null when no thumb is on it.
+   *
+   * Kept apart from the keyboard reading rather than merged into it so that
+   * a stick at rest is "nothing asked for" rather than "centred", and so a
+   * keyboard plugged into a phone still works.
+   */
+  private touchStick: { x: number; y: number } | null = null;
+  /** Actions a finger is holding, so only those are let go of in a panic. */
+  private readonly virtualHeld = new Set<ActionName>();
 
   // Presses arrive from DOM events between frames, so they are queued here and
   // swapped into the per-frame sets at the start of update(). Clearing the
@@ -159,6 +181,57 @@ export class Input {
     ];
   }
 
+  /**
+   * Where the touch stick is pushed, from -1 to 1 on each axis, or null when
+   * nothing is on it. The caller clamps it to the circle; this only stores it.
+   */
+  setTouchStick(x: number | null, y = 0): void {
+    this.touchStick = x === null ? null : { x, y };
+    if (x !== null) this.usingGamepad = false;
+  }
+
+  /**
+   * Turns the camera by a drag, in the same units a mouse move produces.
+   * Added to rather than set, so several events between two frames all
+   * count — a drag is a stream of small moves, not one position.
+   */
+  addLook(x: number, y: number): void {
+    this.mouseDelta.x += x;
+    this.mouseDelta.y += y;
+    this.usingGamepad = false;
+  }
+
+  /** Queues a press of an action from something other than a key. */
+  pressAction(action: ActionName): void {
+    this.pendingPresses.add(action);
+    this.held.add(action);
+    this.virtualHeld.add(action);
+    this.usingGamepad = false;
+  }
+
+  /** Holds or lets go of an action from something other than a key. */
+  holdAction(action: ActionName, down: boolean): void {
+    if (down) {
+      if (!this.held.has(action)) this.pressAction(action);
+      return;
+    }
+    this.virtualHeld.delete(action);
+    if (this.held.delete(action)) this.pendingReleases.add(action);
+  }
+
+  /**
+   * Lets go of everything a finger might have been holding.
+   *
+   * A touch can end without a matching up event — the browser takes it for a
+   * gesture, the page is hidden, a call arrives — and whatever was held then
+   * stays held forever. This is what the touch layer calls when any of that
+   * happens, and it is why a finger sliding off a button cannot jam it on.
+   */
+  releaseTouch(): void {
+    this.touchStick = null;
+    for (const action of Array.from(this.virtualHeld)) this.holdAction(action, false);
+  }
+
   dispose(): void {
     for (const dispose of this.disposers) dispose();
     this.disposers = [];
@@ -193,6 +266,10 @@ export class Input {
         this.move.multiplyScalar(0.45);
       }
     }
+
+    // A thumb on the stick overrides the keys, and gives back how far it was
+    // pushed as well as which way — which is how a walk happens on a phone.
+    if (this.touchStick) this.move.set(this.touchStick.x, this.touchStick.y);
 
     // ---- Mouse / keyboard camera ------------------------------------------
     this.look.x += this.mouseDelta.x * 0.0022 * sensitivity;

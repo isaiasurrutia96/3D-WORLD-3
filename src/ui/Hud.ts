@@ -65,10 +65,17 @@ export class Hud {
       <b>Ctrl</b> sinks<br />
       <b>R</b> pick up and throw · let go at a run to <b>skid</b> ·
       Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
-      Quality <b>1</b>/<b>2</b>/<b>3</b><br />
-      <span class="hud__build">build ${__BUILD_STAMP__}</span>
+      Quality <b>1</b>/<b>2</b>/<b>3</b>
     `;
     hud.appendChild(hints);
+
+    // On its own rather than inside the chart, because the chart goes away on
+    // a phone and this is the one thing that must not: it is how you tell a
+    // reloaded page from a cached one.
+    const build = document.createElement('div');
+    build.className = 'hud__build-line';
+    build.innerHTML = `<span class="hud__build">build ${__BUILD_STAMP__}</span>`;
+    hud.appendChild(build);
 
     this.prompt = document.createElement('div');
     this.prompt.className = 'hud__prompt';

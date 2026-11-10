@@ -15,6 +15,11 @@ import { loadSettings, saveSettings, type UserSettings } from './core/Settings.t
 import { Input } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
+import {
+  TouchControls,
+  suppressPageGestures,
+  wantsTouchControls,
+} from './ui/TouchControls.ts';
 import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab, type SlabWorld } from './world/Slab.ts';
@@ -32,6 +37,10 @@ class Game {
   private readonly engine: Engine;
   private readonly hud: Hud;
   private readonly input = new Input();
+  /** Whether this is being played with fingers rather than a keyboard. */
+  private touch = false;
+  private touchControls: TouchControls | null = null;
+  private releaseGestures: (() => void) | null = null;
   private readonly collision = new CollisionWorld();
   private readonly effects: ParticleEffects;
 
@@ -72,7 +81,18 @@ class Game {
 
     this.hud = new Hud(container as HTMLElement);
     this.input.attach(this.engine.renderer.domElement);
-    this.input.setPointerLockWanted(true);
+
+    // On a phone the controls are on the glass, the keyboard chart is of no
+    // use to anyone, and there is no pointer to lock.
+    this.touch = wantsTouchControls();
+    if (this.touch) {
+      document.documentElement.classList.add('is-touch');
+      document.body.classList.add('is-touch');
+      this.touchControls = new TouchControls(this.input, container as HTMLElement);
+      this.releaseGestures = suppressPageGestures();
+    } else {
+      this.input.setPointerLockWanted(true);
+    }
 
     window.addEventListener('keydown', this.onGlobalKey);
 
@@ -205,6 +225,11 @@ class Game {
     return {
       engine: this.engine,
       player: this.player,
+      input: this.input,
+      touch: this.touch,
+      touchControls: this.touchControls,
+      /** Lets go of the page's gesture handling, for a test that wants to. */
+      releaseGestures: this.releaseGestures,
       testGround: TEST_GROUND,
       testFacing: TEST_FACING,
       world: this.world,
@@ -2025,6 +2050,62 @@ class Game {
           divedTo,
           dives: divedTo < floatY - 1,
         };
+
+        // The boost and the pound are the second and third presses of one
+        // button, and under a thumb one press often arrives twice. They are
+        // kept apart in time as well as in count, so the pair cannot both
+        // happen by accident.
+        {
+          const inTheAir = (gap: number) => {
+            place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+            tap('jump');
+            for (let i = 0; i < frames(0.25); i += 1) {
+              step();
+              held.clear();
+            }
+            // The press that lifts him.
+            tap('jump');
+            step();
+            held.clear();
+            const boosted = player.jumpInfo.airPresses;
+            // And the one after it, however long after it.
+            for (let i = 0; i < frames(gap); i += 1) {
+              step();
+              held.clear();
+            }
+            tap('jump');
+            step();
+            held.clear();
+            const out = {
+              boosted,
+              presses: player.jumpInfo.airPresses,
+              pound: player.jumpInfo.pound,
+              state: player.stateName,
+            };
+            for (let i = 0; i < frames(2); i += 1) {
+              step();
+              held.clear();
+            }
+            return out;
+          };
+
+          const sameFrame = inTheAir(0);
+          const tooSoon = inTheAir(0.08);
+          const justInside = inTheAir(0.14);
+          const deliberate = inTheAir(0.3);
+          results.boostThenPound = {
+            sameFrame,
+            tooSoon,
+            justInside,
+            deliberate,
+            lifts: sameFrame.boosted === 1,
+            // Anything inside the window is the same tap arriving twice.
+            ignoresFastSecond:
+              sameFrame.pound === 'none' && tooSoon.pound === 'none' && justInside.pound === 'none',
+            // Past it, it is a second decision.
+            poundsLater: deliberate.pound !== 'none',
+          };
+        }
 
         // Swimming where he looks. C takes him under and hands the
         // steering to the camera; the forward key is what turns looking

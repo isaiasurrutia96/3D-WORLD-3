@@ -170,6 +170,15 @@ export const TUNING = {
    * the triple jump's 3.4m, so the combo is still the highest thing he has.
    */
   airBoostVelocity: 8.8,
+  /**
+   * How long after the boost the next press is still the same tap.
+   *
+   * The boost and the pound are the second and third presses of one button,
+   * and under a thumb a single press often arrives twice. A press inside
+   * this is ignored, so the two cannot both happen by accident; past it, it
+   * is clearly a second decision and brings him down.
+   */
+  airPoundDelay: 0.16,
   /** How long he hangs before the drop. The pause is most of the move. */
   groundPoundHover: 0.22,
   /** How fast he comes down. Far quicker than falling. */

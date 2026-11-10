@@ -84,6 +84,12 @@ export class Player {
 
   private coyoteTimer = 0;
   private jumpBufferTimer = 0;
+  /**
+   * Time since the airborne boost, so the ground pound cannot be part of the
+   * same tap. Starts long ago, which is what makes the very first press in
+   * the air a boost rather than nothing.
+   */
+  private sinceAirBoost = 10;
   private jumpHeld = false;
   /** 1, 2 or 3 — which jump of a combo the character is in. */
   private jumpStage: 1 | 2 | 3 = 1;
@@ -256,6 +262,20 @@ export class Player {
   /** Why the last search for a ledge did or did not find one. */
   readonly ledgeDiagnostics = { reason: '', lip: 0, surface: 0 };
 
+  /**
+   * Which jump he is in, how far through a combo, and whether a pound is
+   * running. `stateName` names most moves but cannot tell a first jump from
+   * a third, which is the one thing a test of a combo has to see.
+   */
+  get jumpInfo(): { stage: number; kind: JumpKind; pound: PoundPhase; airPresses: number } {
+    return {
+      stage: this.jumpStage,
+      kind: this.jumpKind,
+      pound: this.poundPhase,
+      airPresses: this.airPresses,
+    };
+  }
+
   private readonly scratchA = new Vector3();
   private readonly scratchB = new Vector3();
   private readonly scratchMove = new Vector3();
@@ -365,6 +385,7 @@ export class Player {
     if (this.ladderCooldown > 0) this.ladderCooldown -= delta;
     if (this.leftWaterTimer > 0) this.leftWaterTimer -= delta;
     if (this.sinceTakeOff < 10) this.sinceTakeOff += delta;
+    if (this.sinceAirBoost < 10) this.sinceAirBoost += delta;
     if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
     if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
     if (this.poundPhase === 'landed') {
@@ -549,6 +570,31 @@ export class Player {
     // Hold the character against the ground so slopes do not launch them.
     if (this.velocity.y < 0) this.velocity.y = -2;
 
+    // The three moves that a keyboard asks for with a modifier and a run-up,
+    // as buttons of their own. Nothing on the keyboard presses these, so
+    // crouch-and-jump is untouched; they exist because a thumb cannot hold a
+    // modifier and a direction and a jump at once. Each one does exactly what
+    // it says whatever he happens to be doing, which is the point of having
+    // a button for it.
+    if (this.coyoteTimer > 0 && this.poundPhase === 'none') {
+      if (input.wasPressed('backflip')) {
+        this.performBackflip();
+        return;
+      }
+      if (input.wasPressed('diveJump')) {
+        this.performLongJump();
+        return;
+      }
+      if (input.wasPressed('sideJump')) {
+        // The side flip is normally added to a jump already in the air, so
+        // from the ground he has to leave it first; the flip then overwrites
+        // the velocity it would otherwise have had.
+        this.takeOff();
+        this.performSideFlip();
+        return;
+      }
+    }
+
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
       this.performJump();
       return;
@@ -622,15 +668,24 @@ export class Player {
     // before his head cleared the water used to be counted as one of them,
     // which is how pressing the stroke button repeatedly ended in a boost
     // and then a ground pound.
+    //
+    // And the two are kept apart in time, not only in count. On a keyboard a
+    // double tap is deliberate; under a thumb it is what one press often
+    // looks like, and the boost followed instantly by the pound is the one
+    // sequence nobody means. So the press that brings him down has to come a
+    // clear moment after the one that lifted him: anything sooner is read as
+    // the same tap arriving twice and ignored, and the boost stands.
     if (input.wasPressed('jump') && this.leftWaterTimer <= 0) {
-      this.airPresses += 1;
-      if (this.airPresses === 1) {
+      if (this.airPresses === 0) {
+        this.airPresses = 1;
+        this.sinceAirBoost = 0;
         this.velocity.y = Math.max(this.velocity.y, 0) + TUNING.airBoostVelocity;
         this.jumpHeld = true;
         this.jumpBufferTimer = 0;
         return;
       }
-      if (this.airPresses >= 2) {
+      if (this.sinceAirBoost >= TUNING.airPoundDelay) {
+        this.airPresses += 1;
         this.startGroundPound();
         return;
       }
