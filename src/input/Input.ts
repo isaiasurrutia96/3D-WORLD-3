@@ -75,6 +75,19 @@ export class Input {
   /** Actions a finger is holding, so only those are let go of in a panic. */
   private readonly virtualHeld = new Set<ActionName>();
 
+  /**
+   * Moves being wound up under a thumb: when the press began, and how long a
+   * full wind-up takes.
+   *
+   * A button that charges fires on release rather than on press, so the
+   * press has to carry how long it was held for. It lives here rather than
+   * in the controller because it is a property of the button and not of the
+   * character: the keyboard has no such thing and reads none of it.
+   */
+  private readonly charging = new Map<ActionName, { start: number; seconds: number }>();
+  /** How far wound up the press delivered this frame was, per action. */
+  private readonly chargeAtPress = new Map<ActionName, number>();
+
   // Presses arrive from DOM events between frames, so they are queued here and
   // swapped into the per-frame sets at the start of update(). Clearing the
   // per-frame sets directly would discard any press that landed between two
@@ -201,6 +214,63 @@ export class Input {
     this.usingGamepad = false;
   }
 
+  /** Starts winding a move up. Nothing is pressed until it is let go of. */
+  beginCharge(action: ActionName, seconds: number): void {
+    this.charging.set(action, { start: performance.now(), seconds: Math.max(0.01, seconds) });
+    this.usingGamepad = false;
+  }
+
+  /** How far wound up a move is right now, from nothing to one. */
+  chargeNow(action: ActionName): number {
+    const held = this.charging.get(action);
+    if (!held) return 0;
+    return Math.min(1, (performance.now() - held.start) / (held.seconds * 1000));
+  }
+
+  /** The move being wound up, or null. The most recent one, if several. */
+  chargingAction(): ActionName | null {
+    let last: ActionName | null = null;
+    let latest = -Infinity;
+    for (const [action, held] of this.charging) {
+      if (held.start >= latest) {
+        latest = held.start;
+        last = action;
+      }
+    }
+    return last;
+  }
+
+  /** Lets a move go, pressing it with however far it was wound up. */
+  releaseCharge(action: ActionName): void {
+    const level = this.chargeNow(action);
+    this.charging.delete(action);
+    this.chargeAtPress.set(action, level);
+    this.pressAction(action);
+    this.holdAction(action, false);
+  }
+
+  /**
+   * Gives up on a wind-up without firing it. A touch the browser takes away,
+   * or a page that is hidden, has to leave him standing rather than crouched
+   * over a move that is never coming.
+   */
+  cancelCharge(action: ActionName): void {
+    this.charging.delete(action);
+  }
+
+  /**
+   * How far wound up the press of this action was, or null when it did not
+   * come from a wind-up at all.
+   *
+   * Null rather than one, because "a key was pressed" and "a button was held
+   * all the way down" are different things that happen to ask for the same
+   * height: only one of them has already decided it, and the jump cut has to
+   * know which.
+   */
+  chargeOf(action: ActionName): number | null {
+    return this.chargeAtPress.get(action) ?? null;
+  }
+
   /** Queues a press of an action from something other than a key. */
   pressAction(action: ActionName): void {
     this.pendingPresses.add(action);
@@ -229,6 +299,7 @@ export class Input {
    */
   releaseTouch(): void {
     this.touchStick = null;
+    for (const action of Array.from(this.charging.keys())) this.cancelCharge(action);
     for (const action of Array.from(this.virtualHeld)) this.holdAction(action, false);
   }
 
@@ -240,6 +311,10 @@ export class Input {
 
   /** Called once per frame, before the character controller reads input. */
   update(sensitivity: number, invertY: boolean): void {
+    // A charge belongs to the press it arrived with and to no other frame.
+    for (const action of Array.from(this.chargeAtPress.keys())) {
+      if (!this.pendingPresses.has(action)) this.chargeAtPress.delete(action);
+    }
     this.pressedThisFrame.clear();
     this.releasedThisFrame.clear();
     for (const action of this.pendingPresses) this.pressedThisFrame.add(action);

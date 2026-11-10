@@ -855,6 +855,34 @@ if (course.strokeSpam.surface.rose > 0.6) {
       `${course.strokeSpam.surface.rose}m, out of the water`,
   );
 }
+// Held to wind a move up, let go to launch it: four buttons, each its own,
+// each going higher the longer it is held, and none of them going anywhere
+// while it is still held.
+if (!course.charging.higherWhenHeld) {
+  const rows = Object.entries(course.charging.rows)
+    .map(([name, r]) => `${name} ${r.tap}m tapped against ${r.full}m held`)
+    .join(', ');
+  problems.push(`holding a jump button did not go higher than tapping it — ${rows}`);
+}
+if (!course.charging.staysDown) {
+  problems.push(
+    `winding up launched him — he gathered to ${course.charging.waited.gathered} and rose ` +
+      `${course.charging.waited.rose}m without the button being let go of`,
+  );
+}
+if (!course.charging.waitsForRelease) {
+  problems.push(
+    `a full wind-up did not launch on release — it gave ${course.charging.released.peak}m ` +
+      `as "${course.charging.released.kind}"`,
+  );
+}
+if (!course.charging.cancelClears) {
+  problems.push(
+    `a wind-up taken away left him charging — ${course.charging.cancelled.windUp} still wound ` +
+      `up, "${course.charging.cancelled.state}"`,
+  );
+}
+
 // The boost and the pound are the second and third presses of one button,
 // and under a thumb one press often arrives twice. They have to be kept
 // apart in time as well as in count.
@@ -1104,6 +1132,14 @@ console.log(
   ` collision      ${audit.solidMeshes} solid meshes, ${audit.solidTriangles} triangles, ` +
     `${audit.faults.length} disagreeing with what is drawn · walk-through: ` +
     `${Object.keys(audit.walkThrough).join(', ') || 'nothing'}`,
+);
+console.log(
+  ` wind-up        tapped against held: ` +
+    Object.entries(course.charging.rows)
+      .map(([name, r]) => `${name} ${r.tap}/${r.full}m`)
+      .join(' · ') +
+    ` · held at full for 2s: rose ${course.charging.waited.rose}m, then ` +
+    `${course.charging.released.peak}m on release`,
 );
 console.log(
   ` boost / pound  a second press at 0s, 0.08s and 0.14s after the boost gives ` +

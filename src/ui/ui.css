@@ -612,9 +612,38 @@
 }
 
 .touch__button.is-down {
-  background: rgba(96, 170, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.78);
   transform: scale(0.94);
+}
+
+/*
+ * The wind-up, drawn as the button filling from the middle out. Scaled by
+ * the same number the controller is using, so what the thumb sees and what
+ * the character is doing are the same thing.
+ */
+.touch__charge {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: rgba(96, 170, 255, 0.75);
+  transform: scale(0);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+.touch__button.is-charged .touch__charge {
+  background: rgba(130, 232, 170, 0.85);
+}
+
+.touch__button.is-charged {
+  border-color: rgba(190, 255, 215, 0.95);
+}
+
+/* Above the fill, so the word stays readable as it comes up behind it. */
+.touch__label {
+  position: relative;
+  pointer-events: none;
+  white-space: pre-line;
 }
 
 .touch__button--jump {

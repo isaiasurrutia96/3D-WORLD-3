@@ -45,6 +45,11 @@ export interface AnimationInputs {
    * straight up, nothing level.
    */
   swimAim: number;
+  /**
+   * How far a move held under a thumb is wound up, from nothing to one.
+   * Nothing at all on a keyboard, which has no such thing.
+   */
+  windUp: number;
   /** True when the climb is onto a roof rather than over the top of a wall. */
   ledgeWide: boolean;
   /** Which placed move is running: a climb, a ladder step, or a way out of water. */
@@ -156,6 +161,14 @@ function createPose(): Pose {
 
 export function animateCharacter(rig: CharacterRig, input: AnimationInputs): void {
   buildTargetPose(input);
+
+  // Gathering for a move that has not been let go of yet. A layer on top of
+  // whatever he is doing rather than a pose of its own, so he can still be
+  // running when he lets it go, and it deepens with the wind-up rather than
+  // appearing all at once. Added to the target rather than to the drawn
+  // pose, because unlike the hands on a ledge this one wants to be eased
+  // into — and because the blend below is what reads the target.
+  gatherFor(input);
 
   // Blending rate: fast enough that the character never feels laggy, slow
   // enough that a state change reads as a transition rather than a jump.
@@ -740,6 +753,41 @@ function handOverHand(input: AnimationInputs, ease: number): void {
   shown.hipRight -= 0.09 * gripGain - sway * 0.07;
   shown.kneeLeft += 0.1 * gripGain - sway * 0.06;
   shown.kneeRight += 0.1 * gripGain + sway * 0.06;
+}
+
+/**
+ * The crouch a move is wound up out of.
+ *
+ * The same shape the keyboard's own crouch has, because that is already the
+ * pose a long jump and a backflip spring from, mixed in by how far the
+ * button has been held. At nothing it changes nothing at all, so a tap looks
+ * exactly as it always did.
+ */
+function gatherFor(input: AnimationInputs): void {
+  const gather = MathUtils.clamp(input.windUp, 0, 1);
+  if (gather <= 0.001) return;
+  // Eased so the last part of the wind-up reads as settling rather than as
+  // still going down.
+  const d = gather * gather * (3 - 2 * gather) * 0.86;
+  const to = (from: number, crouched: number) => MathUtils.lerp(from, crouched, d);
+
+  pose.bodyPitch = to(pose.bodyPitch, 0.34);
+  pose.bodyHeight = to(pose.bodyHeight, -0.2);
+  pose.bodySquash = to(pose.bodySquash, 0.93);
+  pose.headPitch = to(pose.headPitch, -0.3);
+  pose.hipLeft = to(pose.hipLeft, -1.2);
+  pose.hipRight = to(pose.hipRight, -1.2);
+  pose.kneeLeft = to(pose.kneeLeft, 2);
+  pose.kneeRight = to(pose.kneeRight, 2);
+  pose.ankleLeft = to(pose.ankleLeft, -0.98);
+  pose.ankleRight = to(pose.ankleRight, -0.98);
+  // Arms back, ready to throw forward with the launch.
+  pose.shoulderLeftPitch = to(pose.shoulderLeftPitch, 0.62);
+  pose.shoulderRightPitch = to(pose.shoulderRightPitch, 0.62);
+  pose.elbowLeft = to(pose.elbowLeft, -0.5);
+  pose.elbowRight = to(pose.elbowRight, -0.5);
+  pose.shoulderLeftRoll = to(pose.shoulderLeftRoll, 0.3);
+  pose.shoulderRightRoll = to(pose.shoulderRightRoll, 0.3);
 }
 
 const solvedArm = { shoulder: 0, elbow: 0 };

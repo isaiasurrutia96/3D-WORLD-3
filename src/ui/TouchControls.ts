@@ -21,40 +21,58 @@ const BUTTONS: Array<{
   label: string;
   hint: string;
   actions: ActionName[];
+  /**
+   * The move this button winds up while it is held and lets go of when it
+   * is released. The other actions in the list are still plain holds.
+   */
+  charge?: ActionName;
 }> = [
   {
     id: 'jump',
     label: 'JUMP',
-    hint: 'Jump · again on landing for a combo · again in the air to boost, and again to pound',
+    hint: 'Jump · hold to wind up, let go to launch · again on landing for a combo · again in the air to boost, and again to pound',
     actions: ['jump'],
+    charge: 'jump',
   },
   {
     id: 'back',
     label: 'BACK\nFLIP',
-    hint: 'Backflip',
+    hint: 'Backflip · hold to wind up, let go to launch',
     // Straight to the move, rather than a crouch he would have to hold.
     actions: ['backflip'],
+    charge: 'backflip',
   },
   {
     id: 'side',
     label: 'SIDE',
-    hint: 'Side jump',
+    hint: 'Side jump · hold to wind up, let go to launch',
     // On the ground it takes off and flips; in the air it adds the flip to a
     // jump already running, which is what the keyboard's own button does.
     actions: ['sideJump', 'sideFlip'],
+    charge: 'sideJump',
   },
   {
     id: 'dive',
     label: 'DIVE',
-    hint: 'Forward dive · in water, dive and steer by looking · lets go of a ledge',
+    hint: 'Forward dive · hold to wind up, let go to launch · in water, dive and steer by looking · lets go of a ledge',
     // Crouch goes with it: in water that is the dive, on a ledge it is the
     // way down, and on land it is the crouch there is otherwise no room for.
     actions: ['diveJump', 'crouch'],
+    charge: 'diveJump',
   },
 ];
 
 /** How far from its middle the stick has to move before it means anything. */
 const STICK_DEAD = 0.14;
+
+/**
+ * How long a button has to be held for its move to be wound all the way up.
+ *
+ * It matches the controller's own figure, and is repeated here rather than
+ * imported because it is the button's promise to the thumb: press and hold
+ * for this long and you have the whole move.
+ */
+const CHARGE_SECONDS = 0.42;
 
 export class TouchControls {
   readonly root: HTMLDivElement;
@@ -71,7 +89,15 @@ export class TouchControls {
   private stickRadius = 60;
 
   /** Every pointer currently holding a button, and what it holds. */
-  private readonly pressed = new Map<number, { element: HTMLElement; actions: ActionName[] }>();
+  private readonly pressed = new Map<
+    number,
+    {
+      element: HTMLElement;
+      actions: ActionName[];
+      charge: ActionName | undefined;
+      fill: HTMLElement | null;
+    }
+  >();
 
   /** The pointer turning the camera, and where it was last seen. */
   private lookPointer: number | null = null;
@@ -116,7 +142,15 @@ export class TouchControls {
       // Buttons are for fingers, not for the keyboard: a focused button would
       // swallow the space bar, which is the jump key.
       element.tabIndex = -1;
-      this.bindButton(element, button.actions);
+      const fill = document.createElement('span');
+      fill.className = 'touch__charge';
+      element.appendChild(fill);
+      const text = document.createElement('span');
+      text.className = 'touch__label';
+      text.textContent = button.label;
+      element.textContent = '';
+      element.append(fill, text);
+      this.bindButton(element, button.actions, button.charge, fill);
       pad.appendChild(element);
     }
     this.root.appendChild(pad);
@@ -276,13 +310,24 @@ export class TouchControls {
 
   // ---- The buttons ---------------------------------------------------------
 
-  private bindButton(element: HTMLElement, actions: ActionName[]): void {
+  private bindButton(
+    element: HTMLElement,
+    actions: ActionName[],
+    charge: ActionName | undefined,
+    fill: HTMLElement | null,
+  ): void {
     const down = (event: PointerEvent) => {
       if (this.pressed.has(event.pointerId)) return;
       element.setPointerCapture(event.pointerId);
-      this.pressed.set(event.pointerId, { element, actions });
+      this.pressed.set(event.pointerId, { element, actions, charge, fill });
       element.classList.add('is-down');
-      for (const action of actions) this.input.holdAction(action, true);
+      for (const action of actions) {
+        // The move the button is for waits for the finger to come off; the
+        // rest — crouch under Dive, the flip under Side — are plain holds.
+        if (action === charge) this.input.beginCharge(action, CHARGE_SECONDS);
+        else this.input.holdAction(action, true);
+      }
+      if (charge) this.showCharge(element, fill, charge);
       event.preventDefault();
       event.stopPropagation();
     };
@@ -290,7 +335,7 @@ export class TouchControls {
     const up = (event: PointerEvent) => {
       const held = this.pressed.get(event.pointerId);
       if (!held || held.element !== element) return;
-      this.releaseButton(event.pointerId);
+      this.releaseButton(event.pointerId, event.type !== 'pointercancel');
       event.preventDefault();
       event.stopPropagation();
     };
@@ -317,19 +362,50 @@ export class TouchControls {
     });
   }
 
-  private releaseButton(pointerId: number): void {
+  /**
+   * Lets a button go. `fire` is false when the touch was taken away rather
+   * than lifted: a move that was being wound up is then given up on rather
+   * than launched, and in neither case is he left crouched over it.
+   */
+  private releaseButton(pointerId: number, fire = true): void {
     const held = this.pressed.get(pointerId);
     if (!held) return;
     this.pressed.delete(pointerId);
-    held.element.classList.remove('is-down');
-    for (const action of held.actions) this.input.holdAction(action, false);
+    held.element.classList.remove('is-down', 'is-charged');
+    if (held.fill) held.fill.style.transform = 'scale(0)';
+    for (const action of held.actions) {
+      if (action === held.charge) {
+        if (fire) this.input.releaseCharge(action);
+        else this.input.cancelCharge(action);
+      } else {
+        this.input.holdAction(action, false);
+      }
+    }
+  }
+
+  /**
+   * Fills the button in while it is held, so the wind-up is something you
+   * can see rather than something you have to count.
+   */
+  private showCharge(element: HTMLElement, fill: HTMLElement | null, action: ActionName): void {
+    const step = () => {
+      if (!Array.from(this.pressed.values()).some((h) => h.element === element)) return;
+      const level = this.input.chargeNow(action);
+      if (fill) fill.style.transform = `scale(${level.toFixed(3)})`;
+      element.classList.toggle('is-charged', level >= 1);
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   // ---- Letting go of everything -------------------------------------------
 
   private bindPanic(): void {
     const releaseAll = () => {
-      for (const pointerId of Array.from(this.pressed.keys())) this.releaseButton(pointerId);
+      // Taken away rather than let go of, so nothing fires.
+      for (const pointerId of Array.from(this.pressed.keys())) {
+        this.releaseButton(pointerId, false);
+      }
       this.releaseStick();
       this.releaseLook();
       // And anything the two of them between them failed to account for.

@@ -13,7 +13,7 @@
 import { Group, MathUtils, Object3D, Vector3 } from 'three';
 import { Capsule } from 'three/addons/math/Capsule.js';
 import type { CollisionWorld, LadderVolume, WaterVolume } from '../physics/CollisionWorld.ts';
-import type { Input } from '../input/Input.ts';
+import type { ActionName, Input } from '../input/Input.ts';
 import type { Carryable } from '../world/Carryable.ts';
 import { MAX_WALKABLE_NORMAL_Y, TUNING } from './Tuning.ts';
 import {
@@ -84,6 +84,17 @@ export class Player {
 
   private coyoteTimer = 0;
   private jumpBufferTimer = 0;
+  /**
+   * How far wound up a move held under a thumb is, from nothing to one, and
+   * nothing at all when none is being held. Only the pose uses it; the
+   * height it is worth arrives with the press that lets it go.
+   */
+  private windUp = 0;
+  /** What the buffered jump press was worth, and whether it came from a thumb. */
+  private jumpPower = 1;
+  private jumpFromThumb = false;
+  /** What the last move that left the ground was launched at. */
+  private lastPower = 1;
   /**
    * Time since the airborne boost, so the ground pound cannot be part of the
    * same tap. Starts long ago, which is what makes the very first press in
@@ -259,6 +270,11 @@ export class Player {
     lastDepth: 0,
   };
 
+  /** How far a move held under a thumb is wound up, for tests and the HUD. */
+  get windUpShowing(): number {
+    return this.windUp;
+  }
+
   /** Why the last search for a ledge did or did not find one. */
   readonly ledgeDiagnostics = { reason: '', lip: 0, surface: 0 };
 
@@ -267,12 +283,21 @@ export class Player {
    * running. `stateName` names most moves but cannot tell a first jump from
    * a third, which is the one thing a test of a combo has to see.
    */
-  get jumpInfo(): { stage: number; kind: JumpKind; pound: PoundPhase; airPresses: number } {
+  get jumpInfo(): {
+    stage: number;
+    kind: JumpKind;
+    pound: PoundPhase;
+    airPresses: number;
+    power: number;
+    fromThumb: boolean;
+  } {
     return {
       stage: this.jumpStage,
       kind: this.jumpKind,
       pound: this.poundPhase,
       airPresses: this.airPresses,
+      power: this.lastPower,
+      fromThumb: this.jumpFromThumb,
     };
   }
 
@@ -378,7 +403,15 @@ export class Player {
     this.animationTime += delta;
     if (this.strokeTimer > 0) this.strokeTimer -= delta;
     if (this.landingTimer > 0) this.landingTimer -= delta;
-    if (this.comboWindow > 0) this.comboWindow -= delta;
+    // The window a combo has to be continued inside does not run down while
+    // he is holding a jump wound up. Under a thumb the jump happens when the
+    // button is let go of, so counting the wind-up against him would mean
+    // the second and third jumps of a combo could only ever be taps — which
+    // is the one place the two things asked of this button would have
+    // fought each other.
+    if (this.comboWindow > 0 && input.chargingAction() !== 'jump') {
+      this.comboWindow -= delta;
+    }
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
@@ -404,6 +437,13 @@ export class Player {
     }
 
     this.updateJumpTimers(delta, input);
+
+    // How far a move held under a thumb is wound up. Only read for the pose:
+    // nothing is launched until the button is let go of, so holding it at
+    // full wind-up simply waits.
+    const winding = input.chargingAction();
+    this.windUp =
+      winding && this.onGround && this.poundPhase === 'none' ? input.chargeNow(winding) : 0;
 
     // A climb over a ledge runs on its own: it places him from where he
     // caught hold to where he ends up standing, and nothing else gets a say
@@ -576,30 +616,65 @@ export class Player {
     // modifier and a direction and a jump at once. Each one does exactly what
     // it says whatever he happens to be doing, which is the point of having
     // a button for it.
+    //
+    // Under a thumb these fire when the button is let go of rather than when
+    // it is pressed, and how long it was held decides how high the move
+    // goes. The press therefore carries its own wind-up, and the button that
+    // is still down shows as a gathering crouch rather than as anything
+    // happening yet.
     if (this.coyoteTimer > 0 && this.poundPhase === 'none') {
       if (input.wasPressed('backflip')) {
-        this.performBackflip();
+        const fromThumb = input.chargeOf('backflip') !== null;
+        this.performBackflip(this.charged(input, 'backflip'));
+        if (fromThumb) this.jumpHeld = false;
         return;
       }
       if (input.wasPressed('diveJump')) {
-        this.performLongJump();
+        const fromThumb = input.chargeOf('diveJump') !== null;
+        this.performLongJump(this.charged(input, 'diveJump'));
+        if (fromThumb) this.jumpHeld = false;
         return;
       }
       if (input.wasPressed('sideJump')) {
         // The side flip is normally added to a jump already in the air, so
         // from the ground he has to leave it first; the flip then overwrites
         // the velocity it would otherwise have had.
+        const power = this.charged(input, 'sideJump');
+        const fromThumb = input.chargeOf('sideJump') !== null;
         this.takeOff();
-        this.performSideFlip();
+        this.performSideFlip(power);
+        if (fromThumb) this.jumpHeld = false;
         return;
       }
     }
 
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
-      this.performJump();
+      // A wound-up jump has already decided its height, so letting go of the
+      // button — which is what launched it — must not then cut it short on
+      // top of that.
+      if (this.jumpFromThumb) {
+        this.performJump(this.jumpPower);
+        this.jumpHeld = false;
+      } else {
+        this.performJump();
+      }
       return;
     }
 
+  }
+
+  /**
+   * What a press of this move is worth, from the smallest version of it to
+   * the whole thing.
+   *
+   * A key is always the whole thing — the keyboard's own way of asking for
+   * less is to let go early, and that still works. A thumb asks by how long
+   * it holds the button down.
+   */
+  private charged(input: Input, action: ActionName): number {
+    const level = input.chargeOf(action);
+    this.lastPower = level === null ? 1 : MathUtils.lerp(TUNING.chargeLeastPower, 1, level);
+    return this.lastPower;
   }
 
   private updateAir(delta: number, input: Input, wish: Vector3, strength: number): void {
@@ -1905,7 +1980,14 @@ export class Player {
   private updateJumpTimers(delta: number, input: Input): void {
     if (this.coyoteTimer > 0) this.coyoteTimer -= delta;
     if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= delta;
-    if (input.wasPressed('jump')) this.jumpBufferTimer = TUNING.jumpBufferTime;
+    if (input.wasPressed('jump')) {
+      this.jumpBufferTimer = TUNING.jumpBufferTime;
+      // Taken now rather than when the jump happens: a press is buffered for
+      // a few frames, and by the time it is spent the wind-up it arrived
+      // with has long since been cleared away.
+      this.jumpPower = this.charged(input, 'jump');
+      this.jumpFromThumb = input.chargeOf('jump') !== null;
+    }
   }
 
   /**
@@ -1915,16 +1997,16 @@ export class Player {
    * one and the character is still moving, which is what makes it a running
    * move rather than something to do on the spot.
    */
-  private performJump(): void {
+  private performJump(power = 1): void {
     // A jump out of a crouch is a different move entirely, and which one it
     // is depends only on whether he is still travelling.
     if (this.crouching) {
       if (this.speed >= TUNING.longJumpMinSpeed) {
-        this.performLongJump();
+        this.performLongJump(power);
         return;
       }
       if (this.speed <= TUNING.backflipMaxSpeed) {
-        this.performBackflip();
+        this.performBackflip(power);
         return;
       }
     }
@@ -1934,11 +2016,12 @@ export class Player {
     this.jumpStage = continuing ? (Math.min(3, this.jumpStage + 1) as 1 | 2 | 3) : 1;
 
     this.velocity.y =
-      this.jumpStage === 3
+      power *
+      (this.jumpStage === 3
         ? TUNING.tripleJumpVelocity
         : this.jumpStage === 2
           ? TUNING.doubleJumpVelocity
-          : TUNING.jumpVelocity;
+          : TUNING.jumpVelocity);
 
     // The third jump comes with a somersault.
     this.flipTimer = this.jumpStage === 3 ? 0 : -1;
@@ -1958,11 +2041,11 @@ export class Player {
    * commits to the arc it started with — which is what makes it a move you
    * aim rather than one you steer.
    */
-  private performLongJump(): void {
+  private performLongJump(power = 1): void {
     const forward = this.forwardVector(this.scratchMove);
     this.velocity.x = forward.x * TUNING.longJumpSpeed;
     this.velocity.z = forward.z * TUNING.longJumpSpeed;
-    this.velocity.y = TUNING.longJumpVelocity;
+    this.velocity.y = TUNING.longJumpVelocity * power;
 
     this.jumpKind = 'long';
     this.jumpStage = 1;
@@ -1998,17 +2081,18 @@ export class Player {
     );
   }
 
-  private performSideFlip(): void {
+  private performSideFlip(power = 1): void {
     const forward = this.forwardVector(this.scratchMove);
     this.velocity.x = forward.x * TUNING.sideFlipSpeed;
     this.velocity.z = forward.z * TUNING.sideFlipSpeed;
 
     // However far up the jump already is, finish at the same height.
     const remaining = this.takeOffY + TUNING.sideFlipApex - this.object.position.y;
-    this.velocity.y = Math.max(
-      TUNING.sideFlipLeastVelocity,
-      Math.sqrt(Math.max(0, 2 * TUNING.gravity * remaining)),
-    );
+    this.velocity.y =
+      Math.max(
+        TUNING.sideFlipLeastVelocity,
+        Math.sqrt(Math.max(0, 2 * TUNING.gravity * remaining)),
+      ) * power;
 
     this.jumpKind = 'side';
     this.jumpStage = 1;
@@ -2023,11 +2107,11 @@ export class Player {
   }
 
   /** Crouch standing still, then jump: high, backwards, turning over. */
-  private performBackflip(): void {
+  private performBackflip(power = 1): void {
     const forward = this.forwardVector(this.scratchMove);
     this.velocity.x = -forward.x * TUNING.backflipSpeed;
     this.velocity.z = -forward.z * TUNING.backflipSpeed;
-    this.velocity.y = TUNING.backflipVelocity;
+    this.velocity.y = TUNING.backflipVelocity * power;
 
     this.jumpKind = 'back';
     this.jumpStage = 1;
@@ -2451,6 +2535,7 @@ export class Player {
       ledgeLift: this.ledgeLift,
       ledgeBoost: this.boostShowing(),
       swimAim: this.swimAim(),
+      windUp: this.windUp,
       inputStrength,
       strokeProgress:
         this.strokeTimer > 0 ? 1 - this.strokeTimer / TUNING.strokeCooldown : 1,

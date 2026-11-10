@@ -254,6 +254,10 @@ class Game {
           isDown: () => false,
           wasPressed: () => false,
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const samples: Array<{ x: number; z: number; speed: number; state: string }> = [];
@@ -285,6 +289,10 @@ class Game {
           isDown: (action: string) => action === 'jump' && holding,
           wasPressed: (action: string) => action === 'jump' && holding && !alreadyPressed,
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const yaw = this.cameraRig.movementYaw;
@@ -338,6 +346,10 @@ class Game {
           isDown: (action: string) => action === 'jump' && holding,
           wasPressed: (action: string) => action === 'jump' && holding && !alreadyPressed,
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const yaw = this.cameraRig.movementYaw;
@@ -449,6 +461,10 @@ class Game {
           isDown: (action: string) => held.has(action),
           wasPressed: (action: string) => pressed.has(action),
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const player = this.player;
@@ -684,6 +700,10 @@ class Game {
           isDown: () => false,
           wasPressed: () => false,
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
         const player = this.player;
         const step = () => player.update(dt, stub, 0);
@@ -735,6 +755,10 @@ class Game {
           isDown: (a: string) => held.has(a),
           wasPressed: (a: string) => pressed.has(a),
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const player = this.player;
@@ -890,6 +914,10 @@ class Game {
           isDown: (a: string) => held.has(a),
           wasPressed: (a: string) => pressed.has(a),
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
 
         const player = this.player;
@@ -1114,12 +1142,20 @@ class Game {
         const stick = { x: 0, y: 0 };
         const held = new Set<string>();
         const pressed = new Set<string>();
+        // A press that arrived from a thumb carries how far it was wound up;
+        // one from a key carries nothing, which is what null means.
+        const charges = new Map<string, number>();
+        // And a move being wound up right now, for the stance it puts him in.
+        const winding = { action: null as string | null, level: 0 };
         const stub = {
           move: stick,
           look: { x: 0, y: 0 },
           isDown: (a: string) => held.has(a),
           wasPressed: (a: string) => pressed.has(a),
           wasReleased: () => false,
+          chargeOf: (a: string) => charges.get(a) ?? null,
+          chargingAction: () => winding.action,
+          chargeNow: () => winding.level,
         } as unknown as Input;
 
         const player = this.player;
@@ -1130,11 +1166,17 @@ class Game {
         const step = () => {
           player.update(dt, stub, camera.yaw, camera.pitch);
           pressed.clear();
+          charges.clear();
         };
         const frames = (s: number) => Math.max(1, Math.round(s / dt));
         const round = (v: number, n = 2) => Math.round(v * 10 ** n) / 10 ** n;
         const tap = (a: string) => {
           held.add(a);
+          pressed.add(a);
+        };
+        /** A press let go of by a thumb, wound up as far as `level`. */
+        const tapCharged = (a: string, level: number) => {
+          charges.set(a, level);
           pressed.add(a);
         };
         const place = (x: number, y: number, z: number, facing: number) => {
@@ -2051,6 +2093,107 @@ class Game {
           dives: divedTo < floatY - 1,
         };
 
+        // Held to wind a move up, let go to launch it. Four buttons, each
+        // its own, each going higher the longer it was held — and none of
+        // them going anywhere while it is still held, however long that is.
+        {
+          const launch = (action: string, level: number) => {
+            place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+            for (let i = 0; i < frames(0.3); i += 1) step();
+            const from = player.position.y;
+            tapCharged(action, level);
+            let peak = from;
+            let move = 'normal';
+            for (let i = 0; i < frames(2.4); i += 1) {
+              step();
+              held.clear();
+              peak = Math.max(peak, player.position.y);
+              // Taken while he is in the air: the kind goes back to normal
+              // the moment he lands, so reading it afterwards reads nothing.
+              if (player.position.y > from + 0.1) move = player.jumpInfo.kind;
+            }
+            const out = { peak: round(peak - from), kind: move };
+            for (let i = 0; i < frames(0.8); i += 1) step();
+            return out;
+          };
+
+          const rows: Record<string, { tap: number; full: number; kind: string }> = {};
+          let allHigher = true;
+          for (const action of ['jump', 'backflip', 'sideJump', 'diveJump']) {
+            const tapped = launch(action, 0);
+            const wound = launch(action, 1);
+            rows[action] = { tap: tapped.peak, full: wound.peak, kind: wound.kind };
+            if (!(wound.peak > tapped.peak + 0.25)) allHigher = false;
+          }
+
+          // Held at full wind-up and never let go of: he gathers, and he
+          // stays exactly where he is.
+          place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+          winding.action = 'backflip';
+          winding.level = 0;
+          const standing = player.position.y;
+          let gather = 0;
+          let highest = standing;
+          for (let i = 0; i < frames(2); i += 1) {
+            winding.level = Math.min(1, i / frames(0.42));
+            step();
+            gather = Math.max(gather, player.windUpShowing);
+            highest = Math.max(highest, player.position.y);
+          }
+          const waited = {
+            gathered: round(gather),
+            rose: round(highest - standing),
+            state: player.stateName,
+          };
+          // And then let go of, from exactly that.
+          winding.action = null;
+          winding.level = 0;
+          tapCharged('backflip', 1);
+          let afterPeak = player.position.y;
+          let afterKind = 'normal';
+          for (let i = 0; i < frames(2); i += 1) {
+            step();
+            held.clear();
+            afterPeak = Math.max(afterPeak, player.position.y);
+            if (player.position.y > standing + 0.1) afterKind = player.jumpInfo.kind;
+          }
+          const released = { peak: round(afterPeak - standing), kind: afterKind };
+
+          // Given up on rather than let go of: no move, and no crouching
+          // over one that is never coming.
+          place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+          winding.action = 'backflip';
+          winding.level = 1;
+          for (let i = 0; i < frames(0.5); i += 1) step();
+          winding.action = null;
+          winding.level = 0;
+          let afterCancel = player.position.y;
+          for (let i = 0; i < frames(1); i += 1) {
+            step();
+            afterCancel = Math.max(afterCancel, player.position.y);
+          }
+          const cancelled = {
+            rose: round(afterCancel - standing),
+            windUp: round(player.windUpShowing),
+            state: player.stateName,
+          };
+
+          results.charging = {
+            rows,
+            waited,
+            released,
+            cancelled,
+            // Longer hold, higher move, on every one of the four.
+            higherWhenHeld: allHigher,
+            // Winding up is a stance, not a launch.
+            staysDown: waited.rose < 0.05 && waited.gathered > 0.95,
+            // And a full wind-up waits to be let go of rather than firing.
+            waitsForRelease: released.peak > 2.5 && released.kind === 'back',
+            // Giving up leaves him standing.
+            cancelClears: cancelled.rose < 0.05 && cancelled.windUp === 0,
+          };
+        }
+
         // The boost and the pound are the second and third presses of one
         // button, and under a thumb one press often arrives twice. They are
         // kept apart in time as well as in count, so the pair cannot both
@@ -2293,6 +2436,10 @@ class Game {
           isDown: (a: string) => held.has(a) || pressed.has(a),
           wasPressed: (a: string) => pressed.has(a),
           wasReleased: () => false,
+          // No thumb here: these drive the controller as a keyboard does.
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
         } as unknown as Input;
         for (let i = 0; i < Math.max(1, Math.round(seconds / dt)); i += 1) {
           this.player.update(dt, stub, yaw, pitch);

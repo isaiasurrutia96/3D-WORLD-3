@@ -179,6 +179,19 @@ export const TUNING = {
    * is clearly a second decision and brings him down.
    */
   airPoundDelay: 0.16,
+  /**
+   * How long a jump button has to be held on a touch screen for the move to
+   * be wound all the way up. Long enough to be a choice, short enough that
+   * holding it never feels like waiting.
+   */
+  chargeSeconds: 0.42,
+  /**
+   * What a tap is worth against a full wind-up, as a fraction of the launch
+   * speed. A tap still does the move — it is simply the smallest version of
+   * it — and since height goes with the square of the speed, 0.78 of the
+   * speed is a little over half the height.
+   */
+  chargeLeastPower: 0.78,
   /** How long he hangs before the drop. The pause is most of the move. */
   groundPoundHover: 0.22,
   /** How fast he comes down. Far quicker than falling. */
