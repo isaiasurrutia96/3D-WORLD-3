@@ -1,3 +1,4 @@
+import {NPC_COLORS} from './npc/colors.js';
 import {COURSES} from './courses.js';
 import {MAX_GHOSTS,GHOST_COLORS} from './time-trial.js';
 
@@ -34,7 +35,7 @@ export function createMinimap(container,getFocusedCourse=()=>COURSES[0]){
    add('path',{d:start,stroke:'#080e25','stroke-width':3.5});add('path',{d:start,stroke:'#fff','stroke-width':1.8});
   }
   ghostMarkers=Array.from({length:MAX_GHOSTS},(_,i)=>add('circle',{'data-minimap-ghost':i+1,r:3.8,fill:GHOST_COLORS[i],stroke:'#080e25','stroke-width':1.2,visibility:'hidden'}));
-  npcMarkers=[add('circle',{'data-minimap-npc':'1',r:4.2,fill:'#397ee8',stroke:'#ffffff','stroke-width':1.2,visibility:'hidden'})];
+  npcMarkers=NPC_COLORS.map((color,i)=>add('circle',{'data-minimap-npc':i+1,r:4.2,fill:color,stroke:'#ffffff','stroke-width':1.2,visibility:'hidden'}));
   marker=add('g',{'data-minimap-player':''});add('circle',{r:6,fill:'#080e25','fill-opacity':.35},marker);arrow=add('path',{d:'M0 -7 L5 5 L0 2 L-5 5 Z',fill:'#8df5ff',stroke:'#10233b','stroke-width':1,'stroke-linejoin':'round'},marker);
  }
  return function update(position,yaw,ghostPoses=[],npcPoses=[]){

@@ -348,3 +348,40 @@ checks no-hit expiration, all nine pairs of standard impacts, torpedoes before
 and after every standard type, continuous contact, expired/unprotected impacts,
 rail constraints, and repeatable real-hazard fixtures. Restore point:
 `checkpoint-before-shield-2026-11-10` at `9dd5c30`.
+
+
+## Five-lap NPC race and shell aiming — 10 November 2026
+
+Use **Race · 5 laps** in the Original Circuit's Laps & ghosts menu. This
+replaces the one-opponent practice entry with three opponents (Blue, Gold,
+Purple) and the player. Four separated grid slots wait for E/Gas. All drivers
+use the existing physical kart controller and the shared five-item box pool.
+They can overtake, collide, use shields, and be hit by the same projectiles.
+The three colored minimap dots match the karts. The compact HUD shows lap/5,
+position/4, total race time, and finishing order after the player finishes.
+NPCs continue until they finish their own fifth lap; finishing drivers brake.
+Restart resets all four racers and hazards. Home, Time Trial, the shield area,
+leaving the kart and a fall recovery end the race.
+
+`src/npc/race.js` owns the grid, opponents, shared start, traffic and race state.
+`src/npc/race-progress.js` validates twelve ordered gates and forward finish
+crossings at the correct height for five laps, rejects teleports, and ranks
+finishers by interpolated finish time. Race scoring has no storage or ghost
+frames. The player's saved Time Trial records, Nitro-only scored laps and all
+four course storage keys remain independent.
+
+`src/npc/shell-aim.js` chooses a direct aim or a 3.8-metre lateral near-miss
+point with equal probability per held shell. It keeps that choice while lining
+up, targets the player ahead within 10–105 metres, and avoids aiming across
+infields or separate bridge decks. Ordinary steering aligns the chassis;
+its heading is never snapped. Fire only when the chosen aim point is centered
+in the kart's real forward firing line. Shells retain their straight launch,
+existing rail ricochets, speed, lifetime and hit response. The 50/50 setting
+is an aim choice, not a guaranteed hit/miss rate; player turns and ricochets
+can change the result. There is no homing or leading prediction for shells.
+
+`tests/npc-race.test.js` checks the aim split and persistence, a physical
+steering/launch sequence, dodging straight shells, unsafe-target rejection,
+three-opponent spawn/restart, gate/finish validation, and two complete five-lap
+four-kart simulations with shared items and impacts.
+Restore point: `checkpoint-before-three-npc-race-2026-11-10`.

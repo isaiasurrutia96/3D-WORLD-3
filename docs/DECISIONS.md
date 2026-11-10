@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 10 November 2026 — mixed mystery boxes restored for shield testing.
+Last updated: 10 November 2026 — three-opponent, five-lap racing and shell aiming.
 
 ## Repository consolidation — 9 November 2026
 
@@ -108,6 +108,19 @@ The player starts protected in free driving and NPC practice. Preserve shield
 duration, impact rules, weapon behavior, controls, physics and ghosts. Scored
 Time Trials keep their established Nitro-only rules. No movement-world changes.
 Restore point: `checkpoint-before-mixed-shield-items-2026-11-10`.
+
+## Five-lap racing and NPC shell aim — 10 November 2026
+
+**Confirmed by the project owner.** Add two opponents to the existing NPC mode
+for three opponents plus the player, and make it a five-lap race. Give each NPC
+shell a 50/50 choice between aligning directly with the player and aiming close
+to one side. The kart steers to line up; the fired shell travels straight and
+can be dodged. Keep the choice stable while aiming. This replaces the Original
+Circuit's one-lap practice entry; other tracks are unchanged. Show lap, race
+position and finish order. Race results do not write personal Time Trial laps
+or ghosts. Preserve mixed boxes, shields, base driving controls/physics and the
+separate root movement world. Kart jumping remains deferred.
+Restore point: `checkpoint-before-three-npc-race-2026-11-10`.
 
 ---
 

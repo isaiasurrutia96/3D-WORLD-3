@@ -49,15 +49,17 @@
         <button id="view-toggle" type="button" aria-label="Camera: TPV. Switch to FPV.">TPV</button>
         <button id="touch-kart" class="touch-only" type="button">Exit</button>
       </nav>
-      <div id="minimap" class="minimap" role="img" aria-label="Track minimap. The blue arrow shows your position and direction, colored dots show your saved lap ghosts, the solid blue dot shows the practice NPC, and the white line marks start and finish."></div>
+      <div id="minimap" class="minimap" role="img" aria-label="Track minimap. The blue arrow shows your position and direction, colored dots show your saved lap ghosts, blue, gold and purple dots show the racing NPCs, and the white line marks start and finish."></div>
       <div class="race-tools">
-      <section class="trial-panel" aria-label="Time trial">
+      <section class="trial-panel" aria-label="Race and time trial">
         <div class="trial-heading"><span id="trial-mode">TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
         <div id="trial-course" class="trial-course">Original Circuit</div>
         <div class="trial-current">
           <output id="trial-time" aria-label="Current lap time" aria-live="off">00:00.000</output>
           <span class="speed-readout"><output id="kart-speed" aria-label="Kart speed in miles per hour" aria-live="off">0</output><span>MPH</span></span>
         </div>
+        <output id="race-position" aria-label="Race position" aria-live="off" hidden></output>
+        <ol id="race-results" aria-label="Race standings" hidden></ol>
         <details id="trial-details" class="trial-details" open>
         <summary>Laps &amp; ghosts</summary>
         <div class="trial-details-body">
@@ -69,7 +71,7 @@
         </ol>
         <div id="trial-last"></div>
         <button id="trial-start" type="button">Start in kart · T</button>
-        <button id="npc-start" type="button" aria-label="Start one-lap practice with one NPC on the Original Circuit">Practice with NPC</button>
+        <button id="npc-start" type="button" aria-label="Start a five-lap race with three NPCs on the Original Circuit">Race · 5 laps</button>
         <button id="shield-tests-start" class="shield-menu-button" type="button">Shield test area</button>
         <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
         <div class="ghost-transfer" role="group" aria-label="Move saved ghosts between browsers">

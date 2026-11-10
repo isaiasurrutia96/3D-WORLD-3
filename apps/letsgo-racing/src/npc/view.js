@@ -7,8 +7,8 @@ import {Mesh,CircleGeometry,MeshBasicMaterial} from 'three';
 import {createShieldView} from '../shield-view.js';
 
 // Six opaque batches keep one additional driver inexpensive on phones.
-export function createNpcView(scene){
- const model=createGhostTemplate({solid:true,bodyColor:'#397ee8'});model.name='NPC practice kart';model.visible=false;scene.add(model);
+export function createNpcView(scene,{color='#397ee8',name='NPC kart'}={}){
+ const model=createGhostTemplate({solid:true,bodyColor:color});model.name=name;model.visible=false;scene.add(model);
  const shadow=new Mesh(new CircleGeometry(1.4,24),new MeshBasicMaterial({color:'#080e18',transparent:true,opacity:.32,depthWrite:false}));shadow.name='NPC ground shadow';shadow.rotation.x=-Math.PI/2;shadow.position.y=.012;shadow.scale.y=1.15;model.add(shadow);
  const apply=createVehicleView(model),exhaust=createNitroExhaust(model),shield=createShieldView(model);
  return{model,update(driver,alpha,time){

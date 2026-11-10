@@ -134,7 +134,7 @@
 @media(orientation:landscape) and (max-height:550px) and (max-width:650px){.touch-mode .lap-entrance{width:220px}}
 @media(orientation:landscape) and (max-height:350px) and (max-width:600px){.touch-mode .lap-entrance{width:188px;bottom:min(158px,calc(100dvh - 125px))}}
 
-/* The first opponent is an optional Original Circuit practice mode. */
+/* Five-lap Original Circuit race with three opponents. */
 #npc-start{display:block;width:100%;margin-top:8px;min-height:38px;padding:8px;border:1px solid #74a2e3;border-radius:6px;background:#1d3b63;color:#eaf3ff;font:600 12px Arial,sans-serif;cursor:pointer;touch-action:manipulation}
 #npc-start:focus-visible{outline:2px solid #a7f1ff;outline-offset:3px}
 .touch-mode #npc-start{min-height:44px;font-size:11px}
@@ -165,3 +165,5 @@
 @media(orientation:landscape){.touch-mode .shield-panel.test-active{left:auto;right:12px;transform:none;top:8px;width:264px;padding:8px 10px}.touch-mode .shield-panel p{min-height:22px;margin:4px 0;font-size:9px;line-height:11px}.touch-mode .shield-test-buttons{gap:4px;margin-top:6px}.touch-mode.shield-testing .torpedo-warning{top:16px;left:42%}}
 @media(orientation:portrait){.touch-mode .shield-panel:not(.test-active){top:205px;width:200px}.touch-mode .shield-panel.test-active{left:auto;right:12px;transform:none;top:76px;width:205px}.touch-mode.shield-testing .torpedo-warning{top:16px;left:calc(100% - 100px);max-width:176px;font-size:9px}.touch-mode.shield-testing .torpedo-warning span{font-size:12px}}
 @media(orientation:portrait) and (max-width:360px){.touch-mode.shield-testing #minimap{display:none}.touch-mode .shield-panel.test-active{left:12px;right:12px;width:auto}.touch-mode.shield-testing .torpedo-warning{top:310px;left:50%}}
+
+#race-position{display:block;font-size:12px;font-weight:600;color:#8df5ff;margin:3px 0 5px}#race-position[hidden],#race-results[hidden]{display:none}#race-results{padding-left:22px;margin:6px 0;font-size:10px;line-height:1.6;color:#dce9fa}
