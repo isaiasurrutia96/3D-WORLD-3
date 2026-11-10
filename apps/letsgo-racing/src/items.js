@@ -2,6 +2,7 @@ import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
 import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
 import {launchTorpedo,stepTorpedoes,trackTorpedoPositions} from './torpedoes.js';
+import {activateShield,absorbShieldImpact} from './shield.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
@@ -19,10 +20,11 @@ function sweptDistance(a,b,x,z){
  return Math.hypot(x-a.x-dx*t,z-a.z-dz*t);
 }
 export function useHeldItem(system,kart,world,targets=[]){
- const item=kart.heldItem;if(!['nitro','shell','banana','torpedo'].includes(item)){kart.heldItem=null;return false;}
+ const item=kart.heldItem;if(!['nitro','shell','banana','torpedo','shield'].includes(item)){kart.heldItem=null;return false;}
  if(item==='banana'&&!dropBanana(system,kart,world))return false;
  if(item==='torpedo'&&!launchTorpedo(system,kart,targets))return false;
  kart.heldItem=null;
+ if(item==='shield')activateShield(kart);
  if(item==='nitro'){kart.boostTime=NITRO_SECONDS;kart.speed=Math.max(0,kart.speed);}
  else if(item==='shell'){
   const sin=Math.sin(kart.yaw),cos=Math.cos(kart.yaw),speed=110+Math.max(0,kart.speed)*.25;
@@ -67,8 +69,9 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
     const start=actor.previous??target,t0=part/steps,t1=(part+1)/steps;
     const a={x:old.x-(start.x+(target.x-start.x)*t0),z:old.z-(start.z+(target.z-start.z)*t0)},b={x:shell.x-(start.x+(target.x-start.x)*t1),z:shell.z-(start.z+(target.z-start.z)*t1)};
     if(Math.abs(shell.y-target.y)<1.4&&sweptDistance(a,b,0,0)<1.7){
-     target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);
-     system.hits.push({target,owner:shell.owner});removed=true;break;
+     const absorbed=absorbShieldImpact(target,'shell',shell);
+     if(!absorbed){target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);}
+     system.hits.push({target,owner:shell.owner,item:'shell',absorbed});removed=true;break;
     }
    }
    if(removed)break;

@@ -79,6 +79,7 @@ export function readNpcInput(driver,dt,{traffic=[],boxes=[],torpedoSystem=null}=
  }
  if(state.heldItem==='nitro'&&input.brake)input.useItem=false;
  if(state.heldItem==='banana'&&!driver.finished)input.useItem=state.speed>12&&alignment<.2&&!input.brake;
+ if(state.heldItem==='shield'&&!driver.finished)input.useItem=!(state.shieldTime>0&&state.shieldHits>0);
  if(state.heldItem==='torpedo'&&!driver.finished){
   const lock=findTorpedoTarget(torpedoSystem??{courses:[course]},state,traffic);
   input.useItem=!!lock&&lock.gap>=65&&driver.torpedoCooldown===0&&state.speed>10&&alignment<.4&&!input.brake;

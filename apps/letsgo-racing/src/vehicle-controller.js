@@ -10,7 +10,7 @@ const WHEELBASE=2.03,WHEEL_RADIUS=.38;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const approach=(v,target,step)=>v<target?Math.min(target,v+step):Math.max(target,v-step);
 export function createVehicleState(){
- return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,steerHoldTime:0,steerHoldDirection:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
+ return {...KART_POSITION,yaw:Math.PI/2,speed:0,lateralSpeed:0,steering:0,steerHoldTime:0,steerHoldDirection:0,wheelRotation:0,verticalVelocity:0,grounded:true,pitch:0,bank:0,heldItem:null,boostTime:0,spinTime:0,shieldTime:0,shieldHits:0,shieldAge:0,shieldFlash:0,shieldRunning:false,shieldImpactCount:0,railContactTime:0,impactYawRate:0,impactRecovery:0};
 }
 export function stepVehicle(state,input,dt,world){
  state.railContactTime=Math.max(0,(state.railContactTime??0)-dt);

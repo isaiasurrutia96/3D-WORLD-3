@@ -27,6 +27,22 @@
       <main id="game-screen" aria-label="LetsGo game" hidden inert>
       <canvas aria-label="Plain jointed avatar running with E/D/S/F and walking while Shift is held on a charcoal slab connected to a floating circuit. Space jumps; Q plus Space performs a standing backflip. Drag to rotate the view; scroll or pinch to zoom." tabindex="0"></canvas>
       <div id="torpedo-warning" class="torpedo-warning" role="status" aria-live="polite" hidden></div>
+      <section id="shield-panel" class="shield-panel" aria-label="Shield status and tests" hidden>
+        <div class="shield-heading"><strong>SHIELD</strong><output data-shield-status aria-live="off">Shield inactive</output></div>
+        <progress data-shield-time max="12" value="0" aria-label="Shield time remaining"></progress>
+        <div id="shield-test-controls" hidden>
+          <div class="shield-test-buttons">
+            <button id="shield-restore" type="button"><kbd>B</kbd> Restore shield</button>
+            <button data-shield-test="shell" type="button"><kbd>1</kbd> Shell</button>
+            <button data-shield-test="banana" type="button"><kbd>2</kbd> Banana</button>
+            <button data-shield-test="torpedo" type="button"><kbd>3</kbd> Torpedo</button>
+            <button data-shield-test="collision" type="button"><kbd>4</kbd> Collision</button>
+            <button id="shield-tests-reset" type="button"><kbd>0</kbd> Reset area</button>
+          </div>
+          <p id="shield-test-message" role="status">Choose an impact, or wait 12s to test expiry.</p>
+          <div class="shield-test-footer"><button id="shield-tests-close" type="button">Back to world</button><output id="shield-test-speed" aria-label="Kart speed in shield tests">0 MPH</output></div>
+        </div>
+      </section>
       <header><a id="home-logo-link" class="brand" href="./">LetsGo<span>®</span></a></header>
       <nav class="game-navigation" aria-label="Game navigation">
         <button id="home-button" type="button" aria-label="Return to home">Home</button>
@@ -54,6 +70,7 @@
         <div id="trial-last"></div>
         <button id="trial-start" type="button">Start in kart · T</button>
         <button id="npc-start" type="button" aria-label="Start one-lap practice with one NPC on the Original Circuit">Practice with NPC</button>
+        <button id="shield-tests-start" class="shield-menu-button" type="button">Shield test area</button>
         <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
         <div class="ghost-transfer" role="group" aria-label="Move saved ghosts between browsers">
           <button id="ghost-export" type="button" disabled>Export ghosts</button>
@@ -71,6 +88,7 @@
         <svg class="item-icon item-shell" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 22c0-10 4-17 11-17s11 7 11 17M3 23h26v4H3zM16 5v17M6 15l10 7 10-7M9 8l7 7 7-7"/></svg>
         <svg class="item-icon item-banana" viewBox="0 0 32 32" aria-hidden="true"><path d="M15 4h3v9c1 6 6 10 11 11-5 4-11-1-13-7-1 7-6 12-12 10 5-4 8-8 9-14zM16 15c-1 6 0 10 4 13-5 1-8-4-7-8"/></svg>
         <svg class="item-icon item-torpedo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 20 21 6l6-1-1 6-14 14-5-5zM8 19l-5 1 1 8 8 1 1-5M15 12l5 5M5 25l-3 5"/></svg>
+        <svg class="item-icon item-shield" viewBox="0 0 32 32" aria-hidden="true"><path d="m16 3 11 4v9c0 7-7 12-11 14C12 28 5 23 5 16V7zM11 16l4 4 7-9"/></svg>
         <span class="item-empty" aria-hidden="true">◇</span><span id="touch-item-label">Item</span>
       </button>
       </div>

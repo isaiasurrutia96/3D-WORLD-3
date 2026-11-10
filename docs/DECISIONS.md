@@ -86,6 +86,18 @@ area damage. Preserve normal kart handling, tracks, avatar, camera, controls,
 Time Trial item rules, saved lap/ghost format, and the separate movement world.
 The earlier environment-start failures did not publish any changes.
 
+## Shield impact testing — 10 November 2026
+
+**Confirmed by the project owner.** Start the player with an active 12-second
+shield. Warn visibly near expiry. Absorb two standard impacts total: shell,
+banana, or slamming another character/driver. A torpedo spends the entire
+remaining shield. Absorbed impacts must not apply the usual movement penalty,
+continuous contact counts once, and taking a hit must not refresh the timer.
+Add real hazards and another driver on the floor slab with desktop/mobile
+controls to restore protection and repeat tests. Verify no-hit expiry, mixed
+standard pairs, and torpedoes with two or one impacts remaining. Keep scored
+Time Trials and personal ghosts unchanged; do not modify the movement world.
+
 ---
 
 ## A) The project

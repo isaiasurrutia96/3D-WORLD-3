@@ -1,6 +1,7 @@
 import {projectRaceCourse} from './race-course.js';
 import {coursePoint,wrap} from './npc/course-line.js';
 import {startHitSpin} from './kart-hit.js';
+import {absorbShieldImpact} from './shield.js';
 
 export const TORPEDO_SPEED=200*.44704,TORPEDO_LIFETIME=30,TORPEDO_CRUISE_LIFETIME=20,TORPEDO_BURST_SECONDS=.35,MAX_TORPEDOES=16;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -117,8 +118,9 @@ export function stepTorpedoes(system,actors,dt,world){
     const ax=old.x-(previous.x+(kart.x-previous.x)*a),az=old.z-(previous.z+(kart.z-previous.z)*a),bx=nx-(previous.x+(kart.x-previous.x)*b),bz=nz-(previous.z+(kart.z-previous.z)*b),dx=bx-ax,dz=bz-az,span=dx*dx+dz*dz;
     const t=span?clamp(-(ax*dx+az*dz)/span,0,1):0,y=old.y+(height-old.y)*t,kartY=(previous.y??kart.y)+(kart.y-(previous.y??kart.y))*(a+(b-a)*t);
     if(Math.hypot(ax+dx*t,az+dz*t)>1.6||Math.abs(y-kartY)>1.1)continue;
-    kart.speed*=.28;kart.boostTime=0;kart.impactRecovery=Math.max(kart.impactRecovery??0,.25);startHitSpin(kart);
-    system.hits.push({target:kart,owner:torpedo.owner,item:'torpedo'});return explode(system,torpedo,'hit');
+    const absorbed=absorbShieldImpact(kart,'torpedo',torpedo);
+    if(!absorbed){kart.speed*=.28;kart.boostTime=0;kart.impactRecovery=Math.max(kart.impactRecovery??0,.25);startHitSpin(kart);}
+    system.hits.push({target:kart,owner:torpedo.owner,item:'torpedo',absorbed});return explode(system,torpedo,absorbed?'shield':'hit');
    }
   }
   return true;

@@ -167,8 +167,8 @@ TPV/ISO retain their existing camera behavior; FPV follows the seated driver
 through the spin. Ghost file fields and personal lap records are unchanged.
 
 The user requested separately testable deliveries. The first chunk delivered
-spin/recovery. Bananas and torpedoes are documented below; a shield and
-Space-bar kart jump remain later chunks.
+spin/recovery. Bananas and torpedoes are documented below; the shield is described below and a
+Space-bar kart jump remains a later chunk.
 Restore point: `checkpoint-before-shell-spin-2026-11-09` at `6b0c708`.
 
 ### Banana slip — second combat chunk
@@ -215,8 +215,7 @@ through the entire chase, including near the target. There is no committed
 straight attack, dodge window, or retarget-on-juke state. Guidance shares its
 movement budget between forward travel and lane correction, stops overshooting
 at the target's road progress, and continues correcting when the target turns
-or brakes. Normal steering cannot cancel the lock. The requested shield is the
-next combat chunk and is **not implemented here**.
+or brakes. Normal steering cannot cancel the lock. The shield counter and repeatable impact tests are described below.
 
 A locked shot has a fixed 30-second total lifetime; a sufficiently distant
 rival can still remain out of reach before that timeout. Hits cancel Nitro,
@@ -305,3 +304,43 @@ Open [the wall-contact preview](wall-contact-preview.html) to compare head-on an
 This earlier zero-restitution study remains isolated in `src/preview/wall-contact.js`. The live track now uses the separately tuned slight-rebound response in `src/vehicle-contact.js`; the old preview is not an exact demonstration of the current live physics. Neither includes damage simulation.
 
 Next requested tuning, after reviewing wall contact: **increase kart speed and improve handling**. See [TODO.md](TODO.md).
+
+## Shield and repeatable impact tests — 10 November 2026
+
+The current combat-item test is Shield. Play opens a shield test area on the
+existing floor slab, with an active 12-second shield and a blue seated driver.
+The test controls launch real shells/torpedoes, place a banana four metres ahead,
+and place the other driver five metres ahead for collision tests. Drive through
+the banana or into the blue kart with the normal controls. No automatic impacts
+or shield renewal interrupt a no-hit expiration test.
+
+On desktop use **B** to restore, **1/2/3/4** for Shell/Banana/Torpedo/Collision,
+and **0** to reset the area. The same labeled buttons work on mobile. Restore
+only replenishes the shield; Reset returns to the slab start and clears hazards.
+Back to world closes the test controls; re-enter via **Laps & ghosts → Shield
+test area**. Starting a Time Trial, NPC practice, exiting the kart, or Home also
+leaves the area. Tests never write lap records. Scored Time Trials retain their
+Nitro-only item rules and start without a shield. Free-drive/NPC boxes supply
+only Shield during this test; Shift/mobile Item activates a collected shield.
+
+`src/shield.js` owns the timer and two-impact budget. Shell, banana, and a slam
+into another kart each cost one standard impact. A torpedo spends all remaining
+protection. A protected impact consumes its hazard without spin, slowdown,
+boost cancellation, or banana slip. Taking a hit never refreshes the timer;
+the second standard hit or a torpedo removes protection immediately. Manual
+restoration starts a new 12-second timer. The bubble and HUD blink/fade during
+the final three seconds, and change color when one impact remains.
+
+`src/npc/contact.js` latches one impact per kart pair until they separate by
+0.25 m; relative closing speed must exceed 3 m/s to count as a slam. Continued
+contact cannot spend a second charge. An absorbed contact preserves the
+protected kart's velocity while separating geometry and respecting rails. A
+newly separated/repeated impact is distinct, and expired protection no longer
+blocks contact. Projectile identities also deduplicate hit accounting.
+
+`src/shield-test-area.js` provides the physical fixtures and controlled hazards;
+`src/shield-view.js` renders the player/NPC bubbles and HUD. `tests/shield.test.js`
+checks no-hit expiration, all nine pairs of standard impacts, torpedoes before
+and after every standard type, continuous contact, expired/unprotected impacts,
+rail constraints, and repeatable real-hazard fixtures. Restore point:
+`checkpoint-before-shield-2026-11-10` at `9dd5c30`.

@@ -1,5 +1,6 @@
 import {startHitSpin} from './kart-hit.js';
 import {projectRaceCourse} from './race-course.js';
+import {absorbShieldImpact} from './shield.js';
 
 export const BANANA_OWNER_GRACE=.65,MAX_BANANAS=64;
 
@@ -46,7 +47,9 @@ export function stepBananas(system,actors,dt,world){
    const previousY=previous.y??kart.y,x=previous.x+dx*t,z=previous.z+dz*t,y=previousY+(kart.y-previousY)*t;
    if(Math.abs(y-banana.y)>1.1||Math.hypot(x-banana.x,z-banana.z)>1.5)continue;
    const side=(x-banana.x)*Math.cos(kart.yaw)-(z-banana.z)*Math.sin(kart.yaw);
-   startBananaSlip(kart,side||kart.steering);system.hits.push({target:kart,owner:banana.owner,item:'banana'});
+   const absorbed=absorbShieldImpact(kart,'banana',banana);
+   if(!absorbed)startBananaSlip(kart,side||kart.steering);
+   system.hits.push({target:kart,owner:banana.owner,item:'banana',absorbed});
    return false;
   }
   return true;

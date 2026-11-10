@@ -4,6 +4,7 @@ import {stepVehicle} from '../vehicle-controller.js';
 import {useHeldItem} from '../items.js';
 import {resolveKartContact} from './contact.js';
 import {ORIGINAL_COURSE} from '../courses.js';
+import {stepShield} from '../shield.js';
 
 export function createNpcPractice(world,items){
  return{
@@ -18,6 +19,7 @@ export function createNpcPractice(world,items){
   step(dt,player,startForward){
    if(!this.active)return;
    const npc=this.driver;npc.previous={...npc.state};
+   stepShield(npc.state,dt);
    if(startForward)this.running=true;
    if(!this.running){
     if(npc.state.spinTime>0)stepVehicle(npc.state,{},dt,world);

@@ -13,10 +13,10 @@ export function createTorpedoModel(){
 
 export function createTorpedoWarning(node,system){
  const label=node.ownerDocument.createElement('strong'),distance=node.ownerDocument.createElement('span');distance.setAttribute('aria-hidden','true');node.append(label,distance);
- return kart=>{
-  const threat=kart?torpedoWarning(system,kart):null,notice=kart&&system.itemMessage&&system.time<system.itemMessageUntil;
+ return (kart,currentSystem=system)=>{
+  const threat=kart?torpedoWarning(currentSystem,kart):null,notice=kart&&currentSystem.itemMessage&&currentSystem.time<currentSystem.itemMessageUntil;
   node.hidden=!threat&&!notice;if(node.hidden)return;
-  const kind=threat?(threat.imminent?'imminent':'incoming'):'notice',text=threat?(threat.imminent?'IMPACT IMMINENT':'TORPEDO LOCKED'):system.itemMessage,detail=threat?`${threat.arrow} ${Math.ceil(threat.distance)} m`:'';
+  const kind=threat?(threat.imminent?'imminent':'incoming'):'notice',text=threat?(threat.imminent?'IMPACT IMMINENT':'TORPEDO LOCKED'):currentSystem.itemMessage,detail=threat?`${threat.arrow} ${Math.ceil(threat.distance)} m`:'';
   node.dataset.kind=kind;if(label.textContent!==text)label.textContent=text;if(distance.textContent!==detail)distance.textContent=detail;
  };
 }

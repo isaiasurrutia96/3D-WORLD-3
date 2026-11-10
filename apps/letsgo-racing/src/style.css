@@ -150,3 +150,18 @@
 .torpedo-warning strong,.torpedo-warning span{display:block}.torpedo-warning span:not(:empty){margin-top:4px;font-size:16px}
 .touch-mode .torpedo-warning{font-size:11px;padding:8px 12px}
 @media(orientation:portrait){.touch-mode .torpedo-warning{top:30%}}
+
+/* Shield status and temporary impact-test controls. */
+.shield-panel{position:absolute;z-index:7;top:max(16px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:220px;padding:10px 12px;border:1px solid #7deaff9c;border-radius:12px;background:#102334ef;color:#dffaff;font:12px Arial,sans-serif;font-variant-numeric:tabular-nums}
+.shield-panel.test-active{width:340px;max-width:calc(100vw - 24px)}
+.shield-heading{display:flex;justify-content:space-between;gap:12px;align-items:center}.shield-heading strong{font-size:10px;letter-spacing:1px}.shield-panel progress{display:block;width:100%;height:5px;margin-top:7px;accent-color:#71eaff}
+.shield-panel[data-warning="true"] .shield-heading{animation:shield-warning .5s ease-in-out infinite alternate;color:#ffe193}@keyframes shield-warning{to{opacity:.35}}
+.shield-test-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}.shield-panel button,.shield-menu-button{min-height:38px;border:1px solid #7799b4;border-radius:7px;background:#183a50;color:#e5f7ff;font:600 11px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.shield-panel button:focus-visible{outline:2px solid #b1ffff;outline-offset:2px}
+.shield-panel kbd{display:inline;font:600 9px Arial,sans-serif;color:#b4d4e3}.shield-panel #shield-restore{background:#19566b;border-color:#8cedfb}.shield-panel p{min-height:28px;margin:7px 0 5px;font-size:10px;line-height:14px;color:#b9daeb}.shield-panel #shield-tests-close{min-height:28px;background:#13263d}.shield-menu-button{display:block;width:100%;margin-top:8px}
+.shield-test-footer{display:flex;gap:8px;align-items:center}.shield-test-footer #shield-tests-close{flex:1;width:auto}.shield-test-footer output{min-width:48px;text-align:right;font-size:10px;color:#b6e8f5}
+.shield-testing .trial-panel,.shield-testing #touch-item{display:none!important}.shield-testing .torpedo-warning{top:220px}
+.touch-mode .shield-panel.test-active{width:300px}.touch-mode .shield-panel button{min-height:42px}.touch-mode .shield-panel kbd{display:none}.touch-mode .shield-panel #shield-tests-close{min-height:28px}
+.touch-item[data-item="shield"]{color:#9cf3ff;border-color:#7ce4f5}.touch-item[data-item="shield"] .item-shield{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+@media(orientation:landscape){.touch-mode .shield-panel.test-active{left:auto;right:12px;transform:none;top:8px;width:264px;padding:8px 10px}.touch-mode .shield-panel p{min-height:22px;margin:4px 0;font-size:9px;line-height:11px}.touch-mode .shield-test-buttons{gap:4px;margin-top:6px}.touch-mode.shield-testing .torpedo-warning{top:16px;left:42%}}
+@media(orientation:portrait){.touch-mode .shield-panel:not(.test-active){top:205px;width:200px}.touch-mode .shield-panel.test-active{left:auto;right:12px;transform:none;top:76px;width:205px}.touch-mode.shield-testing .torpedo-warning{top:16px;left:calc(100% - 100px);max-width:176px;font-size:9px}.touch-mode.shield-testing .torpedo-warning span{font-size:12px}}
+@media(orientation:portrait) and (max-width:360px){.touch-mode.shield-testing #minimap{display:none}.touch-mode .shield-panel.test-active{left:12px;right:12px;width:auto}.touch-mode.shield-testing .torpedo-warning{top:310px;left:50%}}
