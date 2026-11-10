@@ -331,6 +331,33 @@ it stands.
 
 ## K) Change log
 
+**10 November 2026. Underwater: he stays where he is put.** Asked for by the
+owner: after a dive he rose again as soon as the controls were let go, which
+felt like the game arguing.
+
+**1. Decided.** Once he has dived he holds the depth he is left at. Nothing
+floats him back; coming up needs an upward input. This is the same on a
+keyboard and on a phone.
+
+**2. The controls underwater.** C or Q (the Dive button on a phone) goes
+under, and held goes straight down. Space (the Jump button) held goes
+straight up. The stick or E S D F swims by the camera: forward is where the
+view points, up and down included, and sideways is across it. This replaces
+"Space strokes forward" underwater; at the surface Space is still a stroke
+and still climbs out.
+
+**3. What stays as it was.** Falling or jumping in without the dive button
+is not a dive, and he still comes back up on his own. Within about half a
+metre of where he floats — where his head would be out — the surface takes
+him the rest of the way.
+
+**4. Two causes, both removed.** A share of the buoyancy was left on
+underwater, and the camera levelled its own tilt on every frame while he was
+below, which flattened any dive steered by looking. Underwater movement is
+now a speed that follows the stick rather than a push against drag, and the
+camera levels once as he goes under and then leaves the view alone. Sideways
+underwater was also reversed against the surface, and is now the same way.
+
 **4 November 2026, fourteenth entry.** Four movement faults, diagnosed
 before anything was changed.
 

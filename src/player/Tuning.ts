@@ -502,20 +502,40 @@ export const TUNING = {
   waterExitGrace: 0.45,
   /** Seconds before another stroke can be taken. */
   strokeCooldown: 0.52,
-  /** Downward acceleration while the dive button is held. */
-  diveAcceleration: 11,
   /**
-   * The push under the surface that one press of the dive button gives, so
-   * that a tap takes him down rather than needing to be held.
+   * How long one tap of the dive button takes him down for.
+   *
+   * A length of time rather than a shove, because a shove is worn away by
+   * whatever else is held: with the stick pushed as well it carried him
+   * half as far, which was not far enough to be under.
    */
-  diveImpulse: 3.2,
+  divePlunge: 0.25,
   /**
-   * How much of the usual float-back-up he keeps while steering underwater
-   * by eye. Near neutral, because a mode that is steered needs long enough
-   * to steer in; at full buoyancy he was back on the surface before the
-   * mouse had finished moving.
+   * How quickly he takes up the speed the stick asks for underwater, and
+   * how quickly he loses it when nothing is asked. Both are per second:
+   * at 7 he is on a new heading in about a quarter of a second, and at 4.5
+   * he glides to rest over about one — three quarters of a metre from full
+   * speed, and under half a metre from a tap of a key.
    */
-  lookSwimBuoyancy: 0.3,
+  underResponse: 7,
+  underGlide: 4.5,
+  /**
+   * How far the view can be tilted, in radians, and still count as level
+   * for steering underwater. About five degrees.
+   */
+  lookLevelBand: 0.09,
+  /** Below this speed with nothing asked, he is simply still. */
+  underRest: 0.03,
+  /**
+   * How far under the point where his head is covered he has to be before
+   * he counts as dived rather than at the surface.
+   */
+  surfaceBandMargin: 0.05,
+  /**
+   * Sinking faster than this, he is still on his way down and the surface
+   * does not take him back however close to it he is.
+   */
+  surfaceSettle: 0.5,
   /**
    * Fraction of the character's height that sits below the waterline while
    * treading water.

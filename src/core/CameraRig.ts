@@ -14,6 +14,9 @@ import type { Player } from '../player/Player.ts';
 const MIN_PITCH = -0.62;
 const MAX_PITCH = 1.1;
 
+/** How long the camera takes to level out as the swimmer goes under. */
+const LEVEL_SECONDS = 0.9;
+
 /** Seconds of no manual input before the camera starts drifting back. */
 const AUTO_FOLLOW_DELAY = 1.1;
 
@@ -29,6 +32,9 @@ export class CameraRig {
   private readonly toCamera = new Vector3();
   private manualTimer = 0;
   private initialised = false;
+  /** Counts down through the levelling-out that going under starts. */
+  private levelTimer = 0;
+  private wasSubmerged = false;
 
   /**
    * Upper limit on the camera's height, used to take it under the water with
@@ -66,6 +72,9 @@ export class CameraRig {
     this.yaw -= deltaYaw;
     this.pitch = MathUtils.clamp(this.pitch + deltaPitch, MIN_PITCH, MAX_PITCH);
     this.manualTimer = AUTO_FOLLOW_DELAY;
+    // A hand on the view has it. Whatever the camera was doing to its own
+    // tilt, it stops.
+    this.levelTimer = 0;
   }
 
   update(delta: number, player: Player): void {
@@ -95,11 +104,22 @@ export class CameraRig {
 
     this.autoFollow(delta, player);
 
-    // Swimming below the surface, the camera levels out and comes round
-    // behind the swimmer; looking down on them from above shows only the top
-    // of their head.
-    if (player.isSubmerged) {
-      this.pitch = MathUtils.lerp(this.pitch, 0.06, 1 - Math.exp(-2.6 * delta));
+    // Going below the surface, the camera levels out: looking down on a
+    // swimmer from above shows only the top of their head.
+    //
+    // Once, as he goes under, and not after. It used to do this for as long
+    // as he was down there, on every frame — which was harmless while the
+    // view was only a view, and stopped being harmless when the view became
+    // the steering. Look down to swim down and the camera began levelling
+    // itself straight away, so the dive flattened out under a held key and
+    // the only way to keep going was to keep dragging against it.
+    const submerged = player.isSubmerged;
+    if (submerged && !this.wasSubmerged) this.levelTimer = LEVEL_SECONDS;
+    if (!submerged) this.levelTimer = 0;
+    this.wasSubmerged = submerged;
+    if (this.levelTimer > 0) {
+      this.levelTimer -= delta;
+      this.pitch = MathUtils.lerp(this.pitch, 0.06, 1 - Math.exp(-4.5 * delta));
     }
 
     // Pull back a little at speed and when swimming, which widens the view
@@ -179,6 +199,8 @@ export class CameraRig {
   reset(player: Player): void {
     this.initialised = false;
     this.manualTimer = 0;
+    this.levelTimer = 0;
+    this.wasSubmerged = false;
     this.pitch = 0.33;
     this.update(1 / 60, player);
   }

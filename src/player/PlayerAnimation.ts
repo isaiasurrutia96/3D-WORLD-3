@@ -1192,7 +1192,12 @@ function poseSwim(input: AnimationInputs): void {
   // standstill is a stroke rather than a twitch of the treading pose.
   const stroking = input.strokeProgress < 1;
   const moving = MathUtils.clamp(input.speed / 1.5, 0, 1);
-  const target = input.submerged ? 1 : Math.max(moving, stroking ? 1 : 0);
+  // Underwater it is how fast he is going in any direction, straight up and
+  // down included. It used to be simply "one" down there, because he was
+  // never still: something was always floating him. Now he can hang at a
+  // depth, and a man hanging at a depth is not doing the butterfly.
+  const going = MathUtils.clamp(Math.hypot(input.speed, input.verticalSpeed) / 1.5, 0, 1);
+  const target = Math.max(input.submerged ? going : moving, stroking ? 1 : 0);
   swimDrive = MathUtils.lerp(swimDrive, target, 1 - Math.exp(-6 * input.delta));
 
   // One accumulated clock. A stroke drives it along faster, which is what
@@ -1268,6 +1273,15 @@ function poseButterfly(input: AnimationInputs): void {
   const wave = Math.sin(swimPhase * Math.PI * 2);
   const kick = Math.sin(swimPhase * Math.PI * 2 - 0.7);
 
+  // Swimming, against holding still. Still, he hangs in the water a little
+  // head-up with his arms out in front of him sculling and his legs barely
+  // ticking over; the stroke comes in as he picks up speed and goes out as
+  // he loses it, so setting off and stopping are the same pose doing more
+  // or less rather than one pose swapped for another.
+  const d = swimDrive;
+  const mix = (still: number, swim: number) => MathUtils.lerp(still, swim, d);
+  const scull = Math.sin(swimPhase * Math.PI * 2.4);
+
   // A quarter turn is exactly horizontal, so level swimming sits just under
   // it and he tips either side of that to point the way he is actually
   // travelling: nose down into a dive, nose up on the way back to the
@@ -1275,27 +1289,27 @@ function poseButterfly(input: AnimationInputs): void {
   // dive button was held, which said nothing about where he was going as
   // soon as where he was going became a thing you could steer.
   const aim = MathUtils.clamp(input.swimAim, -1, 1);
-  pose.bodyPitch = 1.3 + aim * 0.62 + wave * 0.14;
+  pose.bodyPitch = mix(1.02 + wave * 0.03, 1.3 + aim * 0.62 + wave * 0.14);
   pose.bodyHeight = 0.26;
   pose.bodyRoll = 0;
 
-  pose.shoulderLeftPitch = arm.shoulder;
-  pose.shoulderRightPitch = arm.shoulder;
-  pose.elbowLeft = arm.elbow;
-  pose.elbowRight = arm.elbow;
-  pose.shoulderLeftRoll = arm.roll;
-  pose.shoulderRightRoll = arm.roll;
+  pose.shoulderLeftPitch = mix(-1.25 - scull * 0.06, arm.shoulder);
+  pose.shoulderRightPitch = mix(-1.25 + scull * 0.06, arm.shoulder);
+  pose.elbowLeft = mix(-0.55 - Math.abs(scull) * 0.12, arm.elbow);
+  pose.elbowRight = mix(-0.55 - Math.abs(scull) * 0.12, arm.elbow);
+  pose.shoulderLeftRoll = mix(0.72 + scull * 0.16, arm.roll);
+  pose.shoulderRightRoll = mix(0.72 + scull * 0.16, arm.roll);
 
   // Dolphin kick: the legs stay together and the whole lower body drives.
-  pose.hipLeft = 0.1 + kick * 0.42;
-  pose.hipRight = 0.1 + kick * 0.42;
-  pose.kneeLeft = 0.25 + Math.max(0, -kick) * 0.85;
-  pose.kneeRight = 0.25 + Math.max(0, -kick) * 0.85;
-  pose.ankleLeft = -0.3 - kick * 0.2;
-  pose.ankleRight = -0.3 - kick * 0.2;
+  pose.hipLeft = mix(0.32 + kick * 0.1, 0.1 + kick * 0.42);
+  pose.hipRight = mix(0.32 - kick * 0.1, 0.1 + kick * 0.42);
+  pose.kneeLeft = mix(0.5 + Math.max(0, -kick) * 0.2, 0.25 + Math.max(0, -kick) * 0.85);
+  pose.kneeRight = mix(0.5 + Math.max(0, kick) * 0.2, 0.25 + Math.max(0, -kick) * 0.85);
+  pose.ankleLeft = mix(-0.35, -0.3 - kick * 0.2);
+  pose.ankleRight = mix(-0.35, -0.3 - kick * 0.2);
 
   // Chin toward where he is going, within reason.
-  pose.headPitch = -0.5 - wave * 0.1 - aim * 0.12;
+  pose.headPitch = mix(-0.32, -0.5 - wave * 0.1 - aim * 0.12);
 }
 
 function applyCarry(): void {
