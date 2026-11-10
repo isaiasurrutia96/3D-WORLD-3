@@ -855,7 +855,37 @@ if (course.strokeSpam.surface.rose > 0.6) {
       `${course.strokeSpam.surface.rose}m, out of the water`,
   );
 }
-// Held to wind a move up, let go to launch it: four buttons, each its own,
+// The plain jump answers the press rather than the release: a move that
+// waits for a finger to come off is a move that answers late.
+if (!course.jumpTiming.answersThePress) {
+  problems.push(
+    `the jump did not leave the ground on the frame after the press — ` +
+      `${course.jumpTiming.tapped.frames} frames tapped, ${course.jumpTiming.full.frames} held`,
+  );
+}
+if (!course.jumpTiming.higherWhenHeld) {
+  problems.push(
+    `holding the jump did not go higher — ${course.jumpTiming.tapped.peak}m tapped, ` +
+      `${course.jumpTiming.short.peak}m short, ${course.jumpTiming.full.peak}m held`,
+  );
+}
+
+// Jump and then the side flip, tapped one after the other with no pause.
+if (!course.sideFlipSequence.alwaysFlips) {
+  const missed = Object.entries(course.sideFlipSequence.rows)
+    .filter(([, r]) => r.move !== 'side')
+    .map(([name]) => name)
+    .join(', ');
+  problems.push(`tapping jump then the side flip did not flip: ${missed}`);
+}
+if (!course.sideFlipSequence.keepsMomentum) {
+  problems.push(
+    `a side flip out of a run did not carry the run — ${course.sideFlipSequence.rows.run1.carried}m/s ` +
+      `against ${course.sideFlipSequence.rows.still1.carried}m/s from a standstill`,
+  );
+}
+
+// Held to wind a move up, let go to launch it: three buttons, each its own,
 // each going higher the longer it is held, and none of them going anywhere
 // while it is still held.
 if (!course.charging.higherWhenHeld) {
@@ -1132,6 +1162,19 @@ console.log(
   ` collision      ${audit.solidMeshes} solid meshes, ${audit.solidTriangles} triangles, ` +
     `${audit.faults.length} disagreeing with what is drawn · walk-through: ` +
     `${Object.keys(audit.walkThrough).join(', ') || 'nothing'}`,
+);
+console.log(
+  ` jump timing    off the ground ${course.jumpTiming.tapped.frames} frame after the press · ` +
+    `${course.jumpTiming.tapped.peak}m tapped, ${course.jumpTiming.short.peak}m at 0.1s, ` +
+    `${course.jumpTiming.full.peak}m held`,
+);
+console.log(
+  ` jump > side    ` +
+    Object.entries(course.sideFlipSequence.rows)
+      .map(([name, r]) => `${name} ${r.move}`)
+      .join(' · ') +
+    ` · run carries ${course.sideFlipSequence.rows.run1.carried}m/s against ` +
+    `${course.sideFlipSequence.rows.still1.carried}m/s standing`,
 );
 console.log(
   ` wind-up        tapped against held: ` +

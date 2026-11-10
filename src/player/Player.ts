@@ -166,6 +166,11 @@ export class Player {
   private takeOffY = 0;
   /** Seconds since the side flip button was last pressed. */
   private sinceSideFlipPress = 99;
+  /**
+   * A side flip asked for on its own button and not yet spent. Counts down,
+   * and is cleared the moment the flip happens.
+   */
+  private sideBuffer = 0;
   /** The ground pound, which is a hover, a drop and a moment planted. */
   private poundPhase: PoundPhase = 'none';
   private poundTimer = 0;
@@ -403,15 +408,7 @@ export class Player {
     this.animationTime += delta;
     if (this.strokeTimer > 0) this.strokeTimer -= delta;
     if (this.landingTimer > 0) this.landingTimer -= delta;
-    // The window a combo has to be continued inside does not run down while
-    // he is holding a jump wound up. Under a thumb the jump happens when the
-    // button is let go of, so counting the wind-up against him would mean
-    // the second and third jumps of a combo could only ever be taps — which
-    // is the one place the two things asked of this button would have
-    // fought each other.
-    if (this.comboWindow > 0 && input.chargingAction() !== 'jump') {
-      this.comboWindow -= delta;
-    }
+    if (this.comboWindow > 0) this.comboWindow -= delta;
     if (this.flipTimer >= 0) this.flipTimer += delta;
     if (this.wallTimer < 10) this.wallTimer += delta;
     if (this.ledgeCooldown > 0) this.ledgeCooldown -= delta;
@@ -421,6 +418,18 @@ export class Player {
     if (this.sinceAirBoost < 10) this.sinceAirBoost += delta;
     if (this.sinceSideFlipPress < 10) this.sinceSideFlipPress += delta;
     if (input.wasPressed('sideFlip')) this.sinceSideFlipPress = 0;
+    if (this.sideBuffer > 0) this.sideBuffer -= delta;
+    // Asked for on the button that exists for it, and kept rather than
+    // spent: tapped one after the other, this one regularly arrives in the
+    // frames before his feet have left the ground. It stays armed for as
+    // long as the button is down, so holding it and then jumping is the
+    // same request as jumping and then pressing it.
+    //
+    // Only that button. The key pairing is the keyboard's own move, with
+    // its own rule about having been running, and nothing here changes it.
+    if (input.chargingAction() === 'sideJump' || input.wasPressed('sideJump')) {
+      this.sideBuffer = TUNING.sideFlipBuffer;
+    }
     if (this.poundPhase === 'landed') {
       this.poundTimer -= delta;
       if (this.poundTimer <= 0) this.poundPhase = 'none';
@@ -705,6 +714,15 @@ export class Player {
     // continuation of the take-off rather than a new decision.
     if (this.canSideFlip()) {
       this.performSideFlip();
+      return;
+    }
+    // And the same move asked for on its own button, which is forgiving in
+    // the ways the key pairing cannot be: it does not care whether he was
+    // running when he left the ground, and it will have been waiting since
+    // before he did.
+    if (this.wantsBufferedSideFlip()) {
+      this.sideBuffer = 0;
+      this.performSideFlip(1, true);
       return;
     }
 
@@ -2070,6 +2088,22 @@ export class Player {
    * backflip: those go over head-first or heels-first, this one goes over
    * sideways, which is the whole reason it looks like a different move.
    */
+  /**
+   * Whether a side flip asked for on its own button can happen now.
+   *
+   * Everything the key pairing asks for except having been running, which
+   * that button does not require on the ground either, and with the press
+   * allowed to have arrived before he was airborne at all — spent on the
+   * first frame there is a jump to turn into a flip.
+   */
+  private wantsBufferedSideFlip(): boolean {
+    if (this.sideBuffer <= 0) return false;
+    if (this.state !== 'air') return false;
+    if (this.jumpKind !== 'normal') return false;
+    if (this.poundPhase !== 'none') return false;
+    return this.sinceTakeOff <= TUNING.sideFlipWindow;
+  }
+
   private canSideFlip(): boolean {
     if (this.state !== 'air') return false;
     if (this.jumpKind !== 'normal') return false;
@@ -2081,10 +2115,22 @@ export class Player {
     );
   }
 
-  private performSideFlip(power = 1): void {
+  /**
+   * `keepMomentum` leaves him going as fast as he already was when that is
+   * faster than the flip's own speed, rather than dropping him to it. A flip
+   * turned out of a jump in mid-air is a continuation of that jump, and
+   * taking three metres a second off it mid-flight is a stumble, not a move.
+   * The key pairing does not pass it, so the keyboard move is as it was.
+   */
+  private performSideFlip(power = 1, keepMomentum = false): void {
     const forward = this.forwardVector(this.scratchMove);
-    this.velocity.x = forward.x * TUNING.sideFlipSpeed;
-    this.velocity.z = forward.z * TUNING.sideFlipSpeed;
+    const going = Math.hypot(this.velocity.x, this.velocity.z);
+    // Already travelling faster than the move would give him: his heading
+    // and his speed are both left exactly as they are.
+    if (!keepMomentum || going <= TUNING.sideFlipSpeed) {
+      this.velocity.x = forward.x * TUNING.sideFlipSpeed;
+      this.velocity.z = forward.z * TUNING.sideFlipSpeed;
+    }
 
     // However far up the jump already is, finish at the same height.
     const remaining = this.takeOffY + TUNING.sideFlipApex - this.object.position.y;

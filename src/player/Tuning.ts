@@ -159,6 +159,17 @@ export const TUNING = {
    * inside it. A button and a window are something you can aim at.
    */
   sideFlipWindow: 0.3,
+  /**
+   * How long a side flip asked for on its own button is kept waiting for a
+   * moment it can happen in.
+   *
+   * The two buttons are tapped one after the other with no pause between
+   * them, so the second one regularly lands in the frames before his feet
+   * have actually left the ground — where there is no jump yet to turn into
+   * a flip. Rather than lose it, it is held onto and spent on the first
+   * frame the move is a legal one.
+   */
+  sideFlipBuffer: 0.26,
 
   // ---- The ground pound ----------------------------------------------------
   /**

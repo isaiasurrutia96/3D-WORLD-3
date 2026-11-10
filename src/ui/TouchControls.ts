@@ -30,9 +30,14 @@ const BUTTONS: Array<{
   {
     id: 'jump',
     label: 'JUMP',
-    hint: 'Jump · hold to wind up, let go to launch · again on landing for a combo · again in the air to boost, and again to pound',
+    hint: 'Jump · hold for a higher one · again on landing for a combo · again in the air to boost, and again to pound',
+    // Not wound up, unlike the other three. Jump is the button pressed most
+    // and the one everything else is timed against, and a move that waits
+    // for the finger to come off is a move that answers late: measured, it
+    // left the ground exactly as long after the press as the finger stayed
+    // down. It goes off on the press and climbs for as long as it is held,
+    // which is how the keyboard has always done it.
     actions: ['jump'],
-    charge: 'jump',
   },
   {
     id: 'back',
@@ -45,10 +50,16 @@ const BUTTONS: Array<{
   {
     id: 'side',
     label: 'SIDE',
-    hint: 'Side jump · hold to wind up, let go to launch',
-    // On the ground it takes off and flips; in the air it adds the flip to a
-    // jump already running, which is what the keyboard's own button does.
-    actions: ['sideJump', 'sideFlip'],
+    hint: 'Side jump · hold to wind up, let go to launch · in the air it turns the jump into a flip',
+    // One action, two jobs, decided by where he is. On the ground it winds
+    // up and launches on release. In the air it turns the jump already
+    // running into a flip, and it is armed from the moment the button goes
+    // down — so jumping and pressing it, or pressing it and jumping, are
+    // the same thing.
+    //
+    // Not the keyboard's flip key as well: that one has its own rule about
+    // having been running, and this button works standing still.
+    actions: ['sideJump'],
     charge: 'sideJump',
   },
   {

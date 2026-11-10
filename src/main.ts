@@ -2093,9 +2093,138 @@ class Game {
           dives: divedTo < floatY - 1,
         };
 
-        // Held to wind a move up, let go to launch it. Four buttons, each
-        // its own, each going higher the longer it was held — and none of
-        // them going anywhere while it is still held, however long that is.
+        // The plain jump answers the press rather than the release, and
+        // keeps climbing while the button is held. Measured as frames from
+        // the press to his feet leaving the ground, and as how high each
+        // length of hold takes him.
+        {
+          const jumpHeld = (holdSeconds: number) => {
+            place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+            const from = player.position.y;
+            tap('jump');
+            let offAfter = -1;
+            let peak = from;
+            const holdFrames = frames(holdSeconds);
+            for (let i = 0; i < frames(2); i += 1) {
+              if (i >= holdFrames) held.delete('jump');
+              step();
+              pressed.clear();
+              if (offAfter < 0 && player.position.y > from + 0.02) offAfter = i + 1;
+              peak = Math.max(peak, player.position.y);
+            }
+            held.clear();
+            for (let i = 0; i < frames(0.6); i += 1) step();
+            return { frames: offAfter, peak: round(peak - from) };
+          };
+
+          const tapped = jumpHeld(1 / 60);
+          const short = jumpHeld(0.1);
+          const full = jumpHeld(0.4);
+          results.jumpTiming = {
+            tapped,
+            short,
+            full,
+            // Off the ground on the frame after the press, whatever the hold.
+            answersThePress: tapped.frames <= 2 && full.frames <= 2,
+            // And still higher the longer it is held.
+            higherWhenHeld: full.peak > short.peak + 0.2 && short.peak > tapped.peak + 0.2,
+          };
+        }
+
+        // Tapping jump and then the side flip, with no pause between the
+        // two. The second tap regularly lands in the frames before his feet
+        // have left the ground, where there is no jump yet to turn into a
+        // flip, so it has to be kept and spent on the first frame it can be.
+        {
+          const sequence = (gap: number, running: boolean) => {
+            place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
+            if (running) {
+              stick.y = -1;
+              for (let i = 0; i < frames(1); i += 1) step();
+            }
+            const before = round(player.speed);
+            // The Side button winds up while it is held, which is what
+            // arms the flip; pressing it is holding it down.
+            const pressSide = () => {
+              winding.action = 'sideJump';
+              winding.level = 0;
+            };
+            const letSideGo = () => {
+              winding.action = null;
+            };
+            // Negative gap: the flip asked for before the jump button.
+            if (gap < 0) {
+              pressSide();
+              step();
+              held.clear();
+              for (let i = 0; i < -gap - 1; i += 1) {
+                step();
+                held.clear();
+              }
+              tap('jump');
+              step();
+              held.clear();
+            } else {
+              tap('jump');
+              step();
+              held.clear();
+              for (let i = 0; i < gap; i += 1) {
+                step();
+                held.clear();
+              }
+              pressSide();
+              step();
+              held.clear();
+            }
+            let move = 'normal';
+            let carried = 0;
+            let flipFrames = 0;
+            for (let i = 0; i < frames(1.4); i += 1) {
+              // The finger comes off a few frames later, as a tap does.
+              if (i === 4) letSideGo();
+              step();
+              held.clear();
+              if (player.stateName === 'side-flip') {
+                move = 'side';
+                flipFrames += 1;
+                // Read a few frames in, not on the first: on the frame the
+                // flip is set up he is still carrying the speed he had, so
+                // the first reading says nothing about what the move did
+                // with it.
+                if (flipFrames === frames(0.15)) carried = round(player.speed);
+              }
+            }
+            stick.y = 0;
+            held.clear();
+            letSideGo();
+            for (let i = 0; i < frames(1.2); i += 1) step();
+            return { move, before, carried: round(carried) };
+          };
+
+          const rows: Record<string, { move: string; before: number; carried: number }> = {};
+          // The flip one frame before the jump, on the same frame, and one,
+          // three and eight frames after it — standing still and at a run.
+          for (const gap of [-1, 0, 1, 3, 8]) {
+            rows[`run${gap}`] = sequence(gap, true);
+            rows[`still${gap}`] = sequence(gap, false);
+          }
+          const every = Object.values(rows);
+          results.sideFlipSequence = {
+            rows,
+            // Every one of them turns into a side flip, however the two taps
+            // fall against each other and whether or not he was running.
+            alwaysFlips: every.every((r) => r.move === 'side'),
+            // And a flip out of a run carries the run with it rather than
+            // being dropped to the move's own speed — which is what the
+            // same flip from a standstill is left with.
+            keepsMomentum: rows.run1.carried > rows.still1.carried + 1.5,
+          };
+        }
+
+        // Held to wind a move up, let go to launch it: the three moves that
+        // have a button of their own, each going higher the longer it was
+        // held, and none of them going anywhere while it is still held,
+        // however long that is.
         {
           const launch = (action: string, level: number) => {
             place(TEST_GROUND.x, 0, TEST_GROUND.z, TEST_FACING);
@@ -2119,7 +2248,9 @@ class Game {
 
           const rows: Record<string, { tap: number; full: number; kind: string }> = {};
           let allHigher = true;
-          for (const action of ['jump', 'backflip', 'sideJump', 'diveJump']) {
+          // Jump is not among them any more: it answers the press and
+          // climbs while held, which jumpTiming covers.
+          for (const action of ['backflip', 'sideJump', 'diveJump']) {
             const tapped = launch(action, 0);
             const wound = launch(action, 1);
             rows[action] = { tap: tapped.peak, full: wound.peak, kind: wound.kind };
