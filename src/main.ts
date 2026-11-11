@@ -24,7 +24,14 @@ import {
 import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab, type SlabWorld } from './world/Slab.ts';
-import { COURSE_POOL, COURSE_SPAWN, COURSE_FACING, buildCourse, type CourseWorld } from './world/Course.ts';
+import {
+  COURSE_MARKS,
+  COURSE_POOL,
+  COURSE_SPAWN,
+  COURSE_FACING,
+  buildCourse,
+  type CourseWorld,
+} from './world/Course.ts';
 import { Hud } from './ui/Hud.ts';
 
 const container = document.getElementById('app');
@@ -111,12 +118,36 @@ class Game {
   }
 
   /**
-   * The marked pad he has been closest to while on the ground, which is
-   * where a retry puts him. Tracked rather than nearest-right-now, because
-   * the nearest pad to somewhere he has fallen may be one he has not
-   * reached yet.
+   * The marked pad he last stood on, which is where a retry puts him.
+   *
+   * The last one, not the furthest one. The course used to be a single
+   * route, so a pad further along it was always progress; the yard has no
+   * order to it, and coming back to somewhere he has already been is as
+   * much a place to be put back to as anywhere new.
    */
   private reachedPad = 0;
+
+  /**
+   * The boxes everything solid is built from.
+   *
+   * A building is drawn as one mesh however many pieces it has, so the
+   * mesh's own box is the building's and says nothing about where its
+   * walls are. The pieces are kept on the mesh for this.
+   */
+  private solidBoxes(): Box3[] {
+    const out: Box3[] = [];
+    for (const root of this.collision.solids) {
+      root.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        const pieces =
+          (object.userData.blocks as Box3[] | undefined) ??
+          (object.userData.bands as Box3[] | undefined);
+        if (pieces) out.push(...pieces);
+        else out.push(new Box3().setFromObject(object));
+      });
+    }
+    return out;
+  }
 
   private lastPad(): Vector3 {
     return this.course.checkpoints[this.reachedPad] ?? COURSE_SPAWN;
@@ -125,7 +156,7 @@ class Game {
   private trackProgress(): void {
     const pads = this.course.checkpoints;
     for (let i = 0; i < pads.length; i += 1) {
-      if (i <= this.reachedPad) continue;
+      if (i === this.reachedPad) continue;
       const pad = pads[i];
       const reach =
         Math.abs(this.player.position.y - pad.y) < 1.5 &&
@@ -1197,12 +1228,14 @@ class Game {
 
         const results: Record<string, unknown> = {};
 
-        // 4 — the long jump, over a gap too wide for a plain jump.
-        place(0, 0, 10, Math.PI);
+        const M = COURSE_MARKS;
+
+        // The docks — the long jump, over a gap too wide for a plain jump.
+        place(M.longJump.x, M.longJump.top, M.longJump.lip + 6.2, Math.PI);
         stick.y = -1;
-        // Up the steps and all the way to the lip, which is where a long
-        // jump has to be taken from: it covers 10.8m and the gap is 7.5m.
-        for (let i = 0; i < frames(1.5); i += 1) step();
+        // Along the dock to the lip, which is where a long jump has to be
+        // taken from: it covers 10.8m and the gap is 7.5m.
+        for (let i = 0; i < frames(0.5); i += 1) step();
         // Crouch as soon as the lip is close, and jump the moment he is
         // still on it. Where he takes off from is the whole move.
         held.add('crouch');
@@ -1210,7 +1243,7 @@ class Game {
         let tookOffState = '';
         for (let i = 0; i < frames(1.2); i += 1) {
           step();
-          if (player.position.z < -4.4 && player.stateName === 'crouch') {
+          if (player.position.z < M.longJump.lip + 1.6 && player.stateName === 'crouch') {
             tookOffAt = player.position.z;
             tookOffState = player.stateName;
             tap('jump');
@@ -1228,11 +1261,11 @@ class Game {
           tookOffState,
           launched,
           endedAs: player.stateName,
-          cleared: player.position.z < -13.5 && player.position.y > 1,
+          cleared: player.position.z < M.longJump.far && player.position.y > M.longJump.top - 0.1,
         };
 
-        // 5 — the backflip, up and behind onto the step.
-        place(12, 0, -18.5, Math.PI);
+        // The containers — the backflip, up and behind onto one.
+        place(M.backflip.x, 0, M.backflip.z, Math.PI);
         held.add('crouch');
         for (let i = 0; i < frames(0.4); i += 1) step();
         const crouched = player.stateName;
@@ -1246,11 +1279,11 @@ class Game {
           ...where(),
           crouched,
           jumped,
-          landed: player.position.y > 2.4,
+          landed: player.position.y > M.backflip.top - 0.2,
         };
 
-        // 6 — the side flip, up onto the ledge beside the lane.
-        place(15, 2.6, -15, Math.PI / 2);
+        // The side flip, along the container tops and up onto the stack.
+        place(M.sideFlip.face - 8.5, M.sideFlip.from, M.sideFlip.z, Math.PI / 2);
         stick.x = 1;
         for (let i = 0; i < frames(0.9); i += 1) step();
         tap('jump');
@@ -1261,10 +1294,10 @@ class Game {
         held.delete('sideFlip');
         stick.x = 0;
         for (let i = 0; i < frames(2.5); i += 1) step();
-        results.sideFlipLedge = { ...where(), landed: player.position.y > 4.9 };
+        results.sideFlipLedge = { ...where(), landed: player.position.y > M.sideFlip.top - 0.2 };
 
-        // 8 — kicking up the shaft.
-        place(31.4, 0, 2, Math.PI / 2);
+        // The alley — kicking up between the warehouse and the mill.
+        place(M.alley.x, 0, M.alley.low.z, Math.PI / 2);
         stick.x = 1;
         for (let i = 0; i < frames(0.35); i += 1) step();
         tap('jump');
@@ -1284,12 +1317,19 @@ class Game {
             stick.x = -stick.x;
           }
           if (player.stateName === 'hanging') break;
+          // Or over the top and standing on the roof, which is as good.
+          if (player.position.y > M.alley.low.top - 0.05 && Math.abs(player.velocity.y) < 0.01) break;
         }
         stick.x = 0;
-        results.kickShaft = { kicks, highest: round(highest), reached: highest > 7.5 };
+        results.kickShaft = {
+          kicks,
+          highest: round(highest),
+          endedAs: player.stateName,
+          reached: highest > M.alley.low.top - 1.5,
+        };
 
-        // 12 — into the pool off the board, down to the bottom, and out.
-        place(-23.5, 5.9, 30, Math.PI * 0.5);
+        // The basin — in off the board, down to the bottom, and out.
+        place(M.board.x, M.board.y, M.board.z, Math.PI * 0.5);
         stick.x = -1;
         for (let i = 0; i < frames(1.4); i += 1) step();
         let deepest = 0;
@@ -1424,7 +1464,7 @@ class Game {
         // get back onto it from above with G.
         {
           const toLadder = () => {
-            place(23.5, 0.6, 43, Math.PI / 2);
+            place(M.ladder.face - 3.4, M.ladder.base, M.ladder.z, Math.PI / 2);
             stick.x = 1;
             for (let i = 0; i < frames(3); i += 1) {
               step();
@@ -1437,7 +1477,7 @@ class Game {
           toLadder();
           const caughtAt = round(player.position.y);
           stick.y = -1;
-          for (let i = 0; i < frames(2); i += 1) step();
+          for (let i = 0; i < frames(1.3); i += 1) step();
           const climbedTo = round(player.position.y);
           stick.y = 0;
 
@@ -1463,11 +1503,12 @@ class Game {
             step();
             const name = player.stateName;
             if (topStates[topStates.length - 1] !== name) topStates.push(name);
-            if (name === 'idle' && player.position.y > 11) break;
+            if (name === 'idle' && player.position.y > M.ladder.top - 0.6) break;
           }
           stick.y = 0;
           const onTop = round(player.position.y);
-          const gotOver = player.position.y > 11.4 && player.position.x > 27;
+          const gotOver =
+            player.position.y > M.ladder.top - 0.2 && player.position.x > M.ladder.face + 0.1;
 
           // Pausing at the top and pressing back must still climb down,
           // rather than the top being a one-way door.
@@ -1475,7 +1516,7 @@ class Game {
           stick.y = -1;
           for (let i = 0; i < frames(5.5); i += 1) {
             step();
-            if (player.position.y > 10.4) break;
+            if (player.position.y > M.ladder.top - 1.2) break;
           }
           stick.y = 0;
           for (let i = 0; i < frames(0.3); i += 1) step();
@@ -1488,12 +1529,15 @@ class Game {
 
           // And onto it from the roof above, by the prompt rather than by
           // walking near the edge.
-          place(27.9, 11.6, 43, Math.PI / 2);
+          place(M.ladder.face + 1, M.ladder.top, M.ladder.z, Math.PI / 2);
           for (let i = 0; i < frames(0.5); i += 1) step();
           const offered = player.ladderToClimbDown() !== null;
           const offeredAway = (() => {
             const saved = player.position.clone();
-            player.teleport(new Vector3(31.4, 11.6, 43), Math.PI / 2);
+            player.teleport(
+              new Vector3(M.ladder.face + 4.5, M.ladder.top, M.ladder.z),
+              Math.PI / 2,
+            );
             for (let i = 0; i < frames(0.3); i += 1) step();
             const far = player.ladderToClimbDown() !== null;
             player.teleport(saved, Math.PI / 2);
@@ -1548,7 +1592,7 @@ class Game {
           // how anyone meets this edge.
           camera.yaw = -Math.PI / 2;
           const catchTheRoof = (z: number) => {
-            place(26.25, 9.95, z, Math.PI / 2);
+            place(M.roof.face - 0.65, M.roof.top - 1.65, z, Math.PI / 2);
             for (let i = 0; i < frames(1.4); i += 1) {
               step();
               if (player.stateName === 'hanging') break;
@@ -1556,9 +1600,9 @@ class Game {
             return player.stateName === 'hanging';
           };
 
-          const hung = catchTheRoof(40);
+          const hung = catchTheRoof(M.roof.z);
           const caughtZ = round(player.position.z);
-          // Along the edge in both directions. Facing the wall at x = 26.9,
+          // Along the edge in both directions. Facing the wall along +x,
           // his right runs toward +z, where the roof carries on.
           stick.x = 1;
           // Watch the gloves themselves while he goes: hand over hand means
@@ -1626,10 +1670,10 @@ class Game {
           tap('jump');
           for (let i = 0; i < frames(1.6); i += 1) step();
           held.delete('jump');
-          const pulledUp = player.position.y > 11.4;
+          const pulledUp = player.position.y > M.roof.top - 0.2;
 
           // And off it: back pushes him away rather than up.
-          const hung2 = catchTheRoof(41);
+          const hung2 = catchTheRoof(M.roof.z + 1);
           const fromY = player.position.y;
           const fromX = player.position.x;
           tap('back');
@@ -1667,7 +1711,7 @@ class Game {
         // dangling off it with his toes almost on the floor.
         {
           const beside = (how: 'fall' | 'sideflip') => {
-            place(4.6, 2.2, 0, Math.PI / 2);
+            place(M.lowStep.face + 1.1, M.lowStep.top + 1.1, M.lowStep.z, Math.PI / 2);
             if (how === 'sideflip') {
               stick.x = -1;
               for (let i = 0; i < frames(0.5); i += 1) step();
@@ -1703,9 +1747,9 @@ class Game {
         {
           // The west face of the station 7 platform, lip included, and the
           // height of its top.
-          const FACE = 23.44;
+          const FACE = M.sideFlip.face - 0.06;
           const grabFrom = (offset: number) => {
-            place(FACE - offset, 6.6, -15, Math.PI / 2);
+            place(FACE - offset, M.sideFlip.top + 1.5, M.sideFlip.z, Math.PI / 2);
             for (let i = 0; i < frames(2.5); i += 1) {
               step();
               if (player.stateName === 'hanging') break;
@@ -1740,13 +1784,7 @@ class Game {
         // third of a turn either way. Nothing here is specific to any of
         // them: the controller is told none of these numbers.
         {
-          const faces = [
-            { name: 'roof, west face', x: 26.9, z: 41, nx: -1, nz: 0, top: 11.6 },
-            { name: 'platform lip, north', x: 12, z: -12.94, nx: 0, nz: 1, top: 2.6 },
-            { name: 'kick wall, east face', x: 29.6, z: 2, nx: 1, nz: 0, top: 9 },
-            { name: 'thin beam, south face', x: 31.4, z: 31.45, nx: 0, nz: -1, top: 11.5 },
-            { name: 'far platform, west', x: -37.86, z: -30, nx: -1, nz: 0, top: 10 },
-          ];
+          const faces = M.faces;
           const wrap = (a: number) => {
             let v = a;
             while (v > Math.PI) v -= Math.PI * 2;
@@ -1841,7 +1879,7 @@ class Game {
         // restarted, nothing snapped, whenever in the window it lands.
         {
           const pullUp = (secondAfter: number | null) => {
-            place(26.25, 9.95, 40, Math.PI / 2);
+            place(M.roof.face - 0.65, M.roof.top - 1.65, M.roof.z, Math.PI / 2);
             for (let i = 0; i < frames(1.4); i += 1) {
               step();
               if (player.stateName === 'hanging') break;
@@ -1898,11 +1936,11 @@ class Game {
             late,
             tooLate,
             // A plain pull-up leaves him standing on the edge.
-            pullsUp: !!plain && plain.state === 'idle' && plain.ended > 11.4,
+            pullsUp: !!plain && plain.state === 'idle' && plain.ended > M.roof.top - 0.2,
             // Every second press inside the window lifts him clear of it.
             pushesHigher:
               boosted.every((r) => !!r && r.peak > (plain?.peak ?? 0) + 0.45) &&
-              boosted.every((r) => !!r && r.ended > 11.4 && r.state === 'idle'),
+              boosted.every((r) => !!r && r.ended > M.roof.top - 0.2 && r.state === 'idle'),
             // And one outside it changes nothing.
             windowCloses: !!tooLate && Math.abs(tooLate.peak - (plain?.peak ?? 0)) < 0.05,
             // Nothing jumped: at a sixtieth of a second the climb covers a
@@ -1926,12 +1964,7 @@ class Game {
         {
           // His own body against the world, without needing his capsule:
           // the boxes everything solid is built from.
-          const solids: Box3[] = [];
-          for (const root of this.collision.solids) {
-            root.traverse((object) => {
-              if (object instanceof Mesh) solids.push(new Box3().setFromObject(object));
-            });
-          }
+          const solids = this.solidBoxes();
           const buried = () => {
             const chest = player.position.y + 0.9;
             return solids.some(
@@ -1977,26 +2010,44 @@ class Game {
             return out;
           };
 
-          // The free end of the thin beam. Its south face is at z = 31.45
-          // and its top at 11.5, so he faces +z to catch it; the top runs
-          // from x = 28.4 to 34.4 and then stops in mid air. Facing +z his
-          // right is -x, so the stick goes right to travel toward 28.4.
-          const offTheEnd = run(31.4, 11, 31, 0, 1, 5);
-          // The kick wall's east face at x = 29.6, top at 9. Facing -x his
-          // right is -z, so the stick goes left to travel toward +z, where
-          // the platform beside it begins at z = 6.5 with its own top at
-          // exactly the same height.
-          const intoTheCorner = run(30.05, 8.5, 4, -Math.PI / 2, -1, 5);
+          // The fence's east end, which stops in the open. Facing -z to
+          // catch its south face, his right is +x, so the stick goes right
+          // to travel toward the end.
+          const offTheEnd = run(
+            M.fence.x1 - 2,
+            M.fence.top - 0.5,
+            M.fence.face + 0.45,
+            Math.PI,
+            1,
+            5,
+          );
+          // The wall beside it, the same way: it runs into the side of the
+          // gatehouse, which stands forward of it with its roof level.
+          const intoTheCorner = run(
+            M.corner.from,
+            M.corner.top - 0.5,
+            M.corner.face + 0.45,
+            Math.PI,
+            1,
+            5,
+          );
 
           results.ledgeEnds = {
             offTheEnd,
             intoTheCorner,
             // Stopped on the beam rather than sliding off the end of it...
             stopsAtTheEnd:
-              !!offTheEnd && offTheEnd.hanging && offTheEnd.x > 28.2 && !offTheEnd.inside,
+              !!offTheEnd &&
+              offTheEnd.hanging &&
+              offTheEnd.x < M.fence.x1 + 0.2 &&
+              offTheEnd.x > M.fence.x1 - 0.7 &&
+              !offTheEnd.inside,
             // ...and stopped at the corner rather than inside the platform.
             stopsAtTheCorner:
-              !!intoTheCorner && intoTheCorner.z < 6.7 && !intoTheCorner.inside,
+              !!intoTheCorner &&
+              intoTheCorner.x < M.corner.at + 0.2 &&
+              intoTheCorner.x > M.corner.at - 1 &&
+              !intoTheCorner.inside,
           };
         }
 
@@ -2008,12 +2059,7 @@ class Game {
         // than named: the thinnest few that have air under them are the
         // ones with the least to catch him.
         {
-          const every: Box3[] = [];
-          for (const root of this.collision.solids) {
-            root.traverse((object) => {
-              if (object instanceof Mesh) every.push(new Box3().setFromObject(object));
-            });
-          }
+          const every = this.solidBoxes();
           const holds = (x: number, y: number, z: number) =>
             every.some(
               (b) =>
@@ -2696,7 +2742,7 @@ class Game {
         }
 
         // Kicks beyond the old limit of four, in the sixteen metre shaft.
-        place(31.4, 0, -8, Math.PI / 2);
+        place(M.alley.x, 0, M.alley.tall.z, Math.PI / 2);
         stick.x = 1;
         for (let i = 0; i < frames(0.35); i += 1) step();
         tap('jump');
@@ -2721,8 +2767,8 @@ class Game {
         held.clear();
         results.manyKicks = { kicks: many, highest: round(top), pastFour: many > 4 };
 
-        // 11 — the crate on the roof.
-        place(31.4, 11.6, 48.4, Math.PI);
+        // The crate on the warehouse roof.
+        place(M.crate.x, M.crate.y, M.crate.z + 2, Math.PI);
         stick.y = -0.35;
         for (let i = 0; i < frames(0.8); i += 1) step();
         stick.y = 0;
@@ -2732,6 +2778,248 @@ class Game {
         held.delete('grab');
         for (let i = 0; i < frames(0.4); i += 1) step();
         results.crate = { carrying: player.carried !== null };
+
+        // The yard climbed the way a player would climb it: from the
+        // ground, by the stick and the buttons, with nothing placed in
+        // mid-air. The tests above each start him where a move begins;
+        // these start him on the floor and ask whether the place itself
+        // can be got up.
+        {
+          camera.yaw = 0;
+          camera.pitch = 0;
+          const settle = (seconds = 0.3) => {
+            for (let i = 0; i < frames(seconds); i += 1) step();
+          };
+          const quiet = () => {
+            stick.x = 0;
+            stick.y = 0;
+          };
+          /** Walks to a point, easing off as he gets there. */
+          const walkTo = (x: number, z: number, seconds = 4) => {
+            for (let i = 0; i < frames(seconds); i += 1) {
+              const dx = x - player.position.x;
+              const dz = z - player.position.z;
+              const far = Math.hypot(dx, dz);
+              if (far < 0.1) break;
+              const pace = Math.min(1, Math.max(0.3, far / 1.2));
+              stick.x = (dx / far) * pace;
+              stick.y = (dz / far) * pace;
+              step();
+            }
+            quiet();
+            settle();
+          };
+          /**
+           * Runs at a point and jumps to it, taking `lead` seconds of run
+           * before leaving the ground. True if he ends standing at `top`.
+           */
+          const hopTo = (x: number, z: number, top: number, lead = 0) => {
+            // Turn to face it first, as anyone would: setting off at a run
+            // while still facing the other way goes round in an arc, and on
+            // top of a crate there is no room for an arc.
+            for (let i = 0; i < frames(0.6); i += 1) {
+              const want = Math.atan2(x - player.position.x, z - player.position.z);
+              let off = want - player.facing;
+              while (off > Math.PI) off -= Math.PI * 2;
+              while (off < -Math.PI) off += Math.PI * 2;
+              if (Math.abs(off) < 0.15) break;
+              stick.x = Math.sin(want) * 0.2;
+              stick.y = Math.cos(want) * 0.2;
+              step();
+            }
+            let hold = -1;
+            for (let i = 0; i < frames(2.4 + lead); i += 1) {
+              const dx = x - player.position.x;
+              const dz = z - player.position.z;
+              const far = Math.hypot(dx, dz);
+              // Full ahead until he is nearly over it, then easing off, so
+              // that he comes down on a crate rather than running off it.
+              const pace = Math.min(1, far / 1.2);
+              stick.x = far > 0.1 ? (dx / far) * pace : 0;
+              stick.y = far > 0.1 ? (dz / far) * pace : 0;
+              if (i === frames(lead) - (lead > 0 ? 0 : 1)) {
+                tap('jump');
+                hold = frames(0.3);
+              }
+              step();
+              if (hold > 0) {
+                hold -= 1;
+                if (hold === 0) held.delete('jump');
+              }
+              if (hold === 0 && player.onGround) break;
+              if (player.stateName === 'hanging') break;
+            }
+            held.delete('jump');
+            quiet();
+            // Short of it, and holding on by the edge instead: pull up. That
+            // is what the edge is for, and what anyone would do.
+            if (player.stateName === 'hanging') {
+              settle(0.2);
+              tap('jump');
+              step();
+              held.delete('jump');
+              for (let i = 0; i < frames(2.4); i += 1) {
+                step();
+                if (player.onGround) break;
+              }
+            }
+            settle();
+            return Math.abs(player.position.y - top) < 0.1;
+          };
+          /**
+           * Jumps at an edge and catches it, moves along it if asked, and
+           * pulls up. The whole of "reach the ledge, grab it, traverse,
+           * pull yourself onto the roof".
+           */
+          const catchAndClimb = (dirX: number, dirZ: number, top: number, along = 0) => {
+            const fromY = player.position.y;
+            stick.x = dirX;
+            stick.y = dirZ;
+            tap('jump');
+            let hold = frames(0.35);
+            let caught = false;
+            for (let i = 0; i < frames(1.8); i += 1) {
+              step();
+              if (hold > 0) {
+                hold -= 1;
+                if (hold === 0) held.delete('jump');
+              }
+              if (player.stateName === 'hanging') {
+                caught = true;
+                break;
+              }
+            }
+            held.delete('jump');
+            quiet();
+            if (!caught) {
+              settle(1);
+              return { caught, moved: 0, up: false, from: round(fromY), y: round(player.position.y) };
+            }
+            const at = { x: player.position.x, z: player.position.z };
+            if (along !== 0) {
+              camera.yaw = player.facing + Math.PI;
+              stick.x = along;
+              for (let i = 0; i < frames(1.2); i += 1) step();
+              quiet();
+              camera.yaw = 0;
+            }
+            const moved = Math.hypot(player.position.x - at.x, player.position.z - at.z);
+            const stillOn = player.stateName === 'hanging';
+            tap('jump');
+            step();
+            held.delete('jump');
+            for (let i = 0; i < frames(2.4); i += 1) {
+              step();
+              if (player.onGround && player.position.y > top - 0.1) break;
+            }
+            settle();
+            return {
+              caught,
+              moved: round(moved),
+              stillOn,
+              up: player.onGround && Math.abs(player.position.y - top) < 0.1,
+              from: round(fromY),
+              y: round(player.position.y),
+            };
+          };
+
+          // The crates against the warehouse, the roof edge, along it, up.
+          place(-6.8, 0, 11.5, Math.PI);
+          settle();
+          const crate1 = hopTo(-6.8, 7.3, 1.2, 0.15);
+          // From the near edge of the crate, standing: with the whole of
+          // it to run along he clears the next stack altogether and catches
+          // the one after it by its edge. Which is a perfectly good way up,
+          // but it is not the one being measured.
+          walkTo(-5.95, 7.2);
+          const crate2 = hopTo(-3.8, 7.2, 2.4);
+          walkTo(-2.6, 7.2);
+          const crate3 = hopTo(-0.4, 7.2, 3.6);
+          walkTo(0.2, 6.6);
+          const roofEdge = catchAndClimb(0, -1, M.roof.top, 1);
+          const crates = {
+            crate1,
+            crate2,
+            crate3,
+            roofEdge,
+            climbed: crate1 && crate2 && crate3 && roofEdge.up && roofEdge.moved > 1,
+          };
+
+          // The balconies up the mill: four catches and the roof.
+          place(23.9, 0, 6.6, Math.PI);
+          settle();
+          const steps: Array<ReturnType<typeof catchAndClimb>> = [];
+          steps.push(catchAndClimb(0, -1, 3.2));
+          walkTo(23.9, 3.45);
+          steps.push(catchAndClimb(0, -1, 6.2));
+          walkTo(23.9, 0.05);
+          steps.push(catchAndClimb(0, -1, 9));
+          walkTo(23.9, -3.35);
+          steps.push(catchAndClimb(0, -1, 11.6));
+          walkTo(23.4, -5.9);
+          steps.push(catchAndClimb(-1, 0, M.alley.tall.top));
+          const balconies = { steps, climbed: steps.every((s) => s.up) };
+
+          // The gate: its wall, and from the wall the beam.
+          place(8, 0, 49.5, Math.PI);
+          settle();
+          const gateWall = catchAndClimb(0, -1, 2.4);
+          walkTo(7, 48);
+          const gateBeam = catchAndClimb(-1, 0, 5);
+          const gate = { gateWall, gateBeam, climbed: gateWall.up && gateBeam.up };
+
+          // The two ladders the ladder test does not use: one that faces
+          // another way, and one that starts on a roof.
+          const ladderUp = (
+            x: number,
+            y: number,
+            z: number,
+            facing: number,
+            top: number,
+          ) => {
+            place(x, y, z, facing);
+            settle();
+            stick.x = Math.sin(facing);
+            stick.y = Math.cos(facing);
+            let on = false;
+            for (let i = 0; i < frames(3); i += 1) {
+              step();
+              if (player.stateName === 'climb') {
+                on = true;
+                break;
+              }
+            }
+            quiet();
+            // Up is the stick's own up, whichever way the ladder faces.
+            stick.y = -1;
+            for (let i = 0; i < frames(8); i += 1) {
+              step();
+              if (player.onGround && player.position.y > top - 0.1) break;
+            }
+            quiet();
+            settle();
+            return { on, y: round(player.position.y), up: player.onGround && Math.abs(player.position.y - top) < 0.1 };
+          };
+          const ladders = {
+            highDive: ladderUp(-19.5, 0, 34.5, Math.PI, 6),
+            core: ladderUp(1.5, M.roof.top, -5.5, Math.PI / 2, M.alley.tall.top),
+          };
+
+          held.clear();
+          quiet();
+          results.routes = {
+            crates,
+            balconies,
+            gate,
+            ladders,
+            allClimbed:
+              crates.climbed &&
+              balconies.climbed &&
+              gate.climbed &&
+              ladders.highDive.up &&
+              ladders.core.up,
+          };
+        }
 
         place(0, 0, 54, Math.PI);
         return results;
@@ -2863,7 +3151,11 @@ class Game {
           object.geometry.computeBoundingBox();
           box.copy(object.geometry.boundingBox ?? box.makeEmpty());
           const size = box.getSize(new Vector3()).multiply(object.getWorldScale(new Vector3()));
-          if (Math.min(size.x, size.y, size.z) > 0.3) {
+          // Many flat pieces drawn as one mesh say how thick the thickest
+          // of them is, since the box round all of them cannot.
+          const thickest =
+            (object.userData.thickest as number | undefined) ?? Math.min(size.x, size.y, size.z);
+          if (thickest > 0.3) {
             walkThrough[name] = (walkThrough[name] ?? 0) + 1;
           }
         });
@@ -2889,7 +3181,9 @@ class Game {
                 for (const run of (object.userData.bands ?? []) as Box3[]) bands.push(run);
                 return;
               }
-              blocks.push(new Box3().setFromObject(object));
+              const pieces = object.userData.blocks as Box3[] | undefined;
+              if (pieces) blocks.push(...pieces);
+              else blocks.push(new Box3().setFromObject(object));
             });
           }
           const joined = (a: Box3, b: Box3) =>

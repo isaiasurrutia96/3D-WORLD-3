@@ -580,25 +580,25 @@ for (const name of Object.keys(audit.walkThrough)) {
 
 if (!course.longJumpGap.cleared) {
   problems.push(
-    `station 4: the long jump took off at z=${course.longJumpGap.tookOffAt} as ` +
+    `the docks: the long jump took off at z=${course.longJumpGap.tookOffAt} as ` +
       `"${course.longJumpGap.launched}" and ended at z=${course.longJumpGap.z}, ` +
       `y=${course.longJumpGap.y} (${course.longJumpGap.endedAs}) — the gap is not cleared`,
   );
 }
 if (course.backflipStep.jumped !== 'backflip') {
-  problems.push(`station 5: crouching and jumping gave "${course.backflipStep.jumped}"`);
+  problems.push(`the containers: crouching and jumping gave "${course.backflipStep.jumped}"`);
 }
 if (!course.backflipStep.landed) {
   problems.push(
-    `station 5: the backflip ended at y=${course.backflipStep.y}, not on the step`,
+    `the containers: the backflip ended at y=${course.backflipStep.y}, not on the step`,
   );
 }
 if (!course.sideFlipLedge.landed) {
-  problems.push(`station 6: the side flip ended at y=${course.sideFlipLedge.y}, not on the ledge`);
+  problems.push(`the containers: the side flip ended at y=${course.sideFlipLedge.y}, not on the ledge`);
 }
 if (!course.kickShaft.reached) {
   problems.push(
-    `station 8: ${course.kickShaft.kicks} kicks reached only ${course.kickShaft.highest}m`,
+    `the alley: ${course.kickShaft.kicks} kicks reached only ${course.kickShaft.highest}m`,
   );
 }
 // Ladders: up, off at any point, and over the top.
@@ -816,24 +816,44 @@ if (!course.manyKicks.pastFour) {
   );
 }
 
-if (!course.crate.carrying) problems.push('station 11: the crate would not be picked up');
-if (!(course.pool.deepest < -6)) {
-  problems.push(`station 12: diving only reached ${course.pool.deepest}m of an eight metre pool`);
+// The yard itself, climbed from the ground by the stick and the buttons.
+{
+  const r = course.routes;
+  if (!r.crates.climbed) {
+    problems.push(
+      `the crates did not lead to the warehouse roof — ${JSON.stringify(r.crates)}`,
+    );
+  }
+  if (!r.balconies.climbed) {
+    problems.push(
+      `the balconies did not lead to the mill roof — ` +
+        r.balconies.steps.map((s) => `${s.from}m>${s.y}m ${s.caught ? 'caught' : 'missed'}`).join(', '),
+    );
+  }
+  if (!r.gate.climbed) problems.push(`the gate could not be climbed — ${JSON.stringify(r.gate)}`);
+  if (!r.ladders.highDive.up) {
+    problems.push(`the high dive ladder: ${JSON.stringify(r.ladders.highDive)}`);
+  }
+  if (!r.ladders.core.up) problems.push(`the ladder on the roof: ${JSON.stringify(r.ladders.core)}`);
 }
-if (!course.pool.surfaced) problems.push('station 12: he never came back to the surface');
+if (!course.crate.carrying) problems.push('the warehouse roof: the crate would not be picked up');
+if (!(course.pool.deepest < -6)) {
+  problems.push(`the basin: diving only reached ${course.pool.deepest}m of an eight metre basin`);
+}
+if (!course.pool.surfaced) problems.push('the basin: he never came back to the surface');
 if (!course.pool.usedWaterExit) {
-  problems.push('station 12: getting out of the pool did not use the water exit move');
+  problems.push('the basin: getting out of the pool did not use the water exit move');
 }
 // And it must not begin by pulling him under. The old way out ran the ledge
 // hang, which settles onto a fixed drop below the edge — from the surface
 // that put his head under before he climbed, so jump looked like dive.
 if (!course.pool.neverDucked) {
   problems.push(
-    `station 12: climbing out dropped him from ${course.pool.floatedAt}m to ` +
+    `the basin: climbing out dropped him from ${course.pool.floatedAt}m to ` +
       `${course.pool.dippedTo}m before he rose`,
   );
 }
-if (!course.pool.out) problems.push('station 12: there is no way out of the pool');
+if (!course.pool.out) problems.push('the basin: there is no way out of the pool');
 // Space in water is a stroke, however many times it is pressed. It is not a
 // jump, so it cannot become the boost or the ground pound that follow one.
 for (const [where, result] of [
@@ -996,7 +1016,7 @@ if (!course.boostThenPound.poundsLater) {
 // nothing pressed must leave him treading water, not snatched onto the side.
 if (!course.floating.treads) {
   problems.push(
-    `station 12: rising from the bottom left him "${course.floating.state}" at ` +
+    `the basin: rising from the bottom left him "${course.floating.state}" at ` +
       `${course.floating.at}m, then "${course.floating.stayed}"`,
   );
 }
@@ -1128,14 +1148,14 @@ if (hasObstacles) {
 
 console.log('\n--- the course ---');
 console.log(
-  ` 4  long jump   off at z=${course.longJumpGap.tookOffAt}, down at z=${course.longJumpGap.z} ` +
+  ` docks  long jump  off at z=${course.longJumpGap.tookOffAt}, down at z=${course.longJumpGap.z} ` +
     `— cleared ${course.longJumpGap.cleared}`,
 );
 console.log(` 5  backflip    up to ${course.backflipStep.y}m — landed ${course.backflipStep.landed}`);
 console.log(` 6  side flip   up to ${course.sideFlipLedge.y}m — landed ${course.sideFlipLedge.landed}`);
 console.log(` 8  wall kicks  ${course.kickShaft.kicks} kicks, ${course.kickShaft.highest}m`);
 console.log(
-  ` 10 ladder      ${course.ladderWork.caughtAt}m to ${course.ladderWork.climbedTo}m, off by ` +
+  ` ladder          ${course.ladderWork.caughtAt}m to ${course.ladderWork.climbedTo}m, off by ` +
     `jump "${course.ladderWork.afterJump}" then "${course.ladderWork.landedAfterJump}", ` +
     `caught again ${course.ladderWork.reattached}`,
 );
@@ -1150,11 +1170,11 @@ console.log(
     `${course.ladderWork.mountedAt}m, down to ${course.ladderWork.descendedTo}m`,
 );
 console.log(
-  ` 3  low step    falling beside it: ${course.lowStep.dropped.states.join(' > ')} · ` +
+  ` low step        falling beside it: ${course.lowStep.dropped.states.join(' > ')} · ` +
     `side flip past it: ${course.lowStep.flipped.states.join(' > ')}`,
 );
 console.log(
-  ` 9  hanging     along the edge z=${course.ledgeWork.caughtZ} to ` +
+  ` hanging         along the edge z=${course.ledgeWork.caughtZ} to ` +
     `z=${course.ledgeWork.shimmiedZ} to z=${course.ledgeWork.backZ}, holding Space did ` +
     `nothing ${course.ledgeWork.heldForwardDidNothing}, Space pulled up ` +
     `${course.ledgeWork.pulledUp}, D gave "${course.ledgeWork.afterLedgeJump}"`,
@@ -1174,14 +1194,14 @@ console.log(
     `${course.gripHands.together}`,
 );
 console.log(
-  ` angled grabs   ${course.angledLedges.rows.length} on five walls, worst ` +
+  ` angled grabs   ${course.angledLedges.rows.length} on seven faces, worst ` +
     `${course.angledLedges.worstFacing}° off square, wandering ` +
     `${course.angledLedges.worstDrift}m in or out of the face`,
 );
 console.log(
-  ` edge ends      off the end of the beam: stopped at x=${course.ledgeEnds.offTheEnd?.x} ` +
-    `still hanging · into the corner at station 8: stopped at ` +
-    `z=${course.ledgeEnds.intoTheCorner?.z}, the platform starts at 6.5`,
+  ` edge ends      off the end of the fence: stopped at x=${course.ledgeEnds.offTheEnd?.x} ` +
+    `still hanging · into the gatehouse corner: stopped at ` +
+    `x=${course.ledgeEnds.intoTheCorner?.x}, the gatehouse starts at 10`,
 );
 console.log(
   ` solid ground   ${course.fallThrough.tried} free-standing slabs, thinnest ` +
@@ -1224,7 +1244,7 @@ console.log(
     `(+${course.airBoost.gain}m)`,
 );
 console.log(
-  ` 8b kicks       ${course.manyKicks.kicks} alternating, up to ${course.manyKicks.highest}m`,
+  ` tall alley      ${course.manyKicks.kicks} alternating, up to ${course.manyKicks.highest}m`,
 );
 console.log(
   ` C / Q          C on land "${course.crouchKey.onLand}", Q in water ${course.crouchKey.floatedAt}m ` +
@@ -1232,7 +1252,7 @@ console.log(
 );
 console.log(` 11 crate       carried ${course.crate.carrying}`);
 console.log(
-  ` 12 pool        down to ${course.pool.deepest}m, surfaced ${course.pool.surfaced}, ` +
+  ` basin           down to ${course.pool.deepest}m, surfaced ${course.pool.surfaced}, ` +
     `out ${course.pool.out}`,
 );
 console.log(
@@ -1291,6 +1311,23 @@ console.log(
   `                8x Space underwater:     rose ${course.strokeSpam.under.rose}m, ` +
     `${course.strokeSpam.under.states.join(' > ')}`,
 );
+
+{
+  const r = course.routes;
+  console.log(
+    ` crates > roof  crates ${r.crates.crate1}/${r.crates.crate2}/${r.crates.crate3} · roof edge caught ` +
+      `${r.crates.roofEdge.caught}, moved ${r.crates.roofEdge.moved}m along it, up ${r.crates.roofEdge.up} ` +
+      `at ${r.crates.roofEdge.y}m`,
+  );
+  console.log(
+    ` balconies      ` + r.balconies.steps.map((s) => `${s.from}m > ${s.y}m`).join(' · ') +
+      ` · all caught and climbed: ${r.balconies.climbed}`,
+  );
+  console.log(
+    ` gate           wall ${r.gate.gateWall.y}m, beam ${r.gate.gateBeam.y}m · ladders: high dive ` +
+      `${r.ladders.highDive.y}m, roof to core ${r.ladders.core.y}m`,
+  );
+}
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

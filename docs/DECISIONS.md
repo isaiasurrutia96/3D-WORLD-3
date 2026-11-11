@@ -366,6 +366,42 @@ it stands.
 
 ## K) Change log
 
+**11 November 2026. The yard replaces the row of stations.** Asked for by
+the owner: a fresh course on the floor slab, built from things the real
+world will have, with more than one way through it.
+
+**1. What it is.** A small working yard: a gate and forecourt, the steps to
+a high dive, a warehouse with crates stacked against it, a mill an alley's
+width away, a row of loading docks, a container yard, a perimeter wall with
+a gatehouse, a kiosk standing at an angle, and the basin. The basin is where
+the pool was and the same size; everything else is new.
+
+**2. Height is the progression.** The ground, then roofs at seven metres,
+then fourteen. The warehouse roof is reached by the crates and its edge, by
+the ladder on its quay side, or by kicking up the near end of the alley. The
+mill's roof is reached by the far end of the alley, by the ladder from the
+warehouse roof, or by four balconies up its east wall. The way down is a
+ground pound onto the target north of the mill.
+
+**3. Decided while building it.** The signs name moves ("Jump", "Dive",
+"Side") and not keys, so one board reads the same on a phone and at a
+keyboard, and each reads from both sides. Backspace returns him to the last
+pad he stood on rather than the furthest one reached, because the yard has
+no order to it. Every building is drawn as one mesh, which keeps the yard
+at 28 to 56 draw calls against the old course's 44 to 50.
+
+**4. How it is tested.** The tests no longer carry coordinates. The course
+publishes a list of named places made from the same descriptions the
+geometry is, and the tests read that, so moving a building moves its tests.
+Three routes are climbed from the ground by the stick and buttons alone:
+crates to the roof edge, along it and up; the balconies to the mill roof;
+and the gate. Edges are caught at an angle on seven faces, one of them on
+the kiosk, which is square to nothing.
+
+**5. Not yet checked by a test.** The steps to the high dive are spaced as
+the old ones were but are not driven by a scripted run, and nothing here
+has been played on a real phone.
+
 **10 November 2026. Underwater: he stays where he is put.** Asked for by the
 owner: after a dive he rose again as soon as the controls were let go, which
 felt like the game arguing.
