@@ -675,6 +675,36 @@
   height: 78px;
 }
 
+/*
+ * The button for what can be done right here, above the pad. A lozenge
+ * rather than a circle and edged in the prompt's gold, so that it reads as
+ * an offer and not as a fifth move — and absent altogether, to a finger as
+ * well as to the eye, when there is nothing to offer.
+ */
+.touch__context {
+  right: calc(34px + env(safe-area-inset-right, 0px));
+  bottom: calc(244px + env(safe-area-inset-bottom, 0px));
+  width: 148px;
+  height: 54px;
+  border-radius: 27px;
+  border-color: rgba(255, 211, 77, 0.75);
+  background: rgba(38, 30, 8, 0.62);
+  color: #ffe2a0;
+  font-size: 14px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    transform 90ms ease;
+}
+
+.touch__context.is-offered {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 /* On a touch device the keyboard chart is of no use to anyone. */
 .is-touch .hud__hints {
   display: none;
@@ -699,12 +729,19 @@
   padding: 6px 9px;
 }
 
+/* The button above the pad is the prompt, and says it without a key. */
 .is-touch .hud__prompt {
-  bottom: 30%;
+  display: none;
 }
 
 /* A short screen cannot afford the full-size pad. */
 @media (max-height: 460px) {
+  .touch__context {
+    bottom: calc(204px + env(safe-area-inset-bottom, 0px));
+    width: 128px;
+    height: 44px;
+    font-size: 12px;
+  }
   .touch__pad {
     width: 196px;
     height: 178px;

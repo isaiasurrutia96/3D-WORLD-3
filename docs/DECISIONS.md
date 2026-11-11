@@ -366,6 +366,22 @@ it stands.
 
 ## K) Change log
 
+**11 November 2026, second entry. What a phone could not do.** Reported by
+the owner: nothing could be picked up without a keyboard. Three things were
+keys and nothing else — picking up and throwing, climbing down a ladder from
+the top, and pushing off a ledge — and all three now work by touch.
+
+**1. One button for what can be done here.** It appears above the four
+moves only while there is something for it to do, and says what: Pick up
+beside something loose, Throw while carrying it, Climb down at the top of a
+ladder. The rest of the time it is not on the screen.
+
+**2. The stick pulled back is the back key.** That is what pushes him off a
+ledge, as on a keyboard.
+
+**3. Still a key only.** Returning to the last pad (Backspace) has no touch
+equivalent yet.
+
 **11 November 2026. The yard replaces the row of stations.** Asked for by
 the owner: a fresh course on the floor slab, built from things the real
 world will have, with more than one way through it.

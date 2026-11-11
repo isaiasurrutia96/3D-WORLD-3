@@ -12,7 +12,7 @@ import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { Engine } from './core/Engine.ts';
 import { CameraRig } from './core/CameraRig.ts';
 import { loadSettings, saveSettings, type UserSettings } from './core/Settings.ts';
-import { Input } from './input/Input.ts';
+import { Input, type ActionName } from './input/Input.ts';
 import { CollisionWorld } from './physics/CollisionWorld.ts';
 import { Player } from './player/Player.ts';
 import { TUNING } from './player/Tuning.ts';
@@ -219,7 +219,12 @@ class Game {
     );
     this.engine.render(delta);
 
-    this.hud.setPrompt(this.currentPrompt());
+    const offer = this.currentOffer();
+    // At a keyboard the prompt names the key. The throw is left off it:
+    // with something in his arms the whole time, it would never go away.
+    this.hud.setPrompt(offer && offer.label !== 'Throw' ? `${offer.key} — ${offer.label}` : null);
+    // On a phone there is no key to name, so the offer is a button.
+    this.touchControls?.setContext(offer?.action ?? null, offer?.label ?? '');
 
     this.hud.update({
       fps: this.engine.fps,
@@ -246,9 +251,10 @@ class Game {
    * attaching him to it because he walked near the top would make the edge
    * beside a ladder impossible to simply walk off.
    */
-  private currentPrompt(): string | null {
-    if (this.player.ladderToClimbDown()) return 'G — Climb down';
-    if (this.player.findCarryTarget()) return 'R — Pick up';
+  private currentOffer(): { action: ActionName; key: string; label: string } | null {
+    if (this.player.ladderToClimbDown()) return { action: 'climbDown', key: 'G', label: 'Climb down' };
+    if (this.player.carried) return { action: 'grab', key: 'R', label: 'Throw' };
+    if (this.player.findCarryTarget()) return { action: 'grab', key: 'R', label: 'Pick up' };
     return null;
   }
 

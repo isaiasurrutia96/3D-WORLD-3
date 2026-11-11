@@ -76,6 +76,9 @@ const BUTTONS: Array<{
 /** How far from its middle the stick has to move before it means anything. */
 const STICK_DEAD = 0.14;
 
+/** How far back the stick has to be pulled to count as the back key. */
+const STICK_BACK = 0.6;
+
 /**
  * How long a button has to be held for its move to be wound all the way up.
  *
@@ -114,6 +117,18 @@ export class TouchControls {
   private lookPointer: number | null = null;
   private lookX = 0;
   private lookY = 0;
+
+  /**
+   * The button for whatever can be done right here: picking something up,
+   * throwing it, climbing down a ladder. On a keyboard those are keys of
+   * their own; on a phone a key that is nearly always useless would be a
+   * fifth button to miss the other four with, so this one is only there
+   * while there is something for it to do, and says what.
+   */
+  private readonly contextButton: HTMLButtonElement;
+  private readonly contextLabel: HTMLSpanElement;
+  private readonly contextActions: ActionName[] = [];
+  private contextShown = '';
 
   private readonly disposers: Array<() => void> = [];
 
@@ -165,6 +180,16 @@ export class TouchControls {
       pad.appendChild(element);
     }
     this.root.appendChild(pad);
+
+    this.contextButton = document.createElement('button');
+    this.contextButton.type = 'button';
+    this.contextButton.className = 'touch__button touch__context';
+    this.contextButton.tabIndex = -1;
+    this.contextLabel = document.createElement('span');
+    this.contextLabel.className = 'touch__label';
+    this.contextButton.appendChild(this.contextLabel);
+    this.bindButton(this.contextButton, this.contextActions, undefined, null);
+    this.root.appendChild(this.contextButton);
 
     this.bindStick();
     this.bindLook();
@@ -227,6 +252,22 @@ export class TouchControls {
     });
   }
 
+  /**
+   * Offers the one thing that can be done where he is standing, or takes
+   * the offer away with null. Called every frame; it only touches the page
+   * when the answer changes.
+   */
+  setContext(action: ActionName | null, label = ''): void {
+    const shown = action ? `${action}:${label}` : '';
+    if (shown === this.contextShown) return;
+    this.contextShown = shown;
+    this.contextActions.length = 0;
+    if (action) this.contextActions.push(action);
+    this.contextLabel.textContent = label.toUpperCase();
+    this.contextButton.setAttribute('aria-label', label);
+    this.contextButton.classList.toggle('is-offered', action !== null);
+  }
+
   private moveStick(event: PointerEvent): void {
     const dx = event.clientX - this.stickOriginX;
     const dy = event.clientY - this.stickOriginY;
@@ -241,6 +282,7 @@ export class TouchControls {
 
     if (clamped < STICK_DEAD) {
       this.input.setTouchStick(0, 0);
+      this.input.holdAction('back', false);
       return;
     }
     // Rescaled past the dead zone so the slowest usable push is still a walk
@@ -248,6 +290,11 @@ export class TouchControls {
     const strength = (clamped - STICK_DEAD) / (1 - STICK_DEAD);
     // Screen down is forward, which is what the keyboard's forward key means.
     this.input.setTouchStick(nx * strength, ny * strength);
+    // Pulled well back, it is also the back key. On a keyboard that key is
+    // a direction and a button at once, and the button is what pushes him
+    // off a ledge; a stick that was only ever a direction left him with no
+    // way off one but to drop.
+    this.input.holdAction('back', ny * strength > STICK_BACK);
   }
 
   private releaseStick(): void {
@@ -262,6 +309,7 @@ export class TouchControls {
     this.stickBase.classList.remove('is-live');
     this.stickKnob.style.transform = 'translate(-50%, -50%)';
     this.input.setTouchStick(null);
+    this.input.holdAction('back', false);
   }
 
   // ---- Looking around ------------------------------------------------------
@@ -330,9 +378,14 @@ export class TouchControls {
     const down = (event: PointerEvent) => {
       if (this.pressed.has(event.pointerId)) return;
       element.setPointerCapture(event.pointerId);
-      this.pressed.set(event.pointerId, { element, actions, charge, fill });
+      // What it sends is fixed at the moment it goes down. The button for
+      // what can be done here changes what it is for while a finger is
+      // still on it — pick something up and it becomes the throw — and the
+      // release has to let go of what was pressed, not of what it is now.
+      const sending = [...actions];
+      this.pressed.set(event.pointerId, { element, actions: sending, charge, fill });
       element.classList.add('is-down');
-      for (const action of actions) {
+      for (const action of sending) {
         // The move the button is for waits for the finger to come off; the
         // rest — crouch under Dive, the flip under Side — are plain holds.
         if (action === charge) this.input.beginCharge(action, CHARGE_SECONDS);
