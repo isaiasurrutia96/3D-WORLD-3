@@ -34,9 +34,12 @@ the worlds**. Both projects belong in this repository, with separate runtimes.
   asked for a single-item test again. Scored Time Trials retain their separate
   Nitro-only rules and ghost format. Keep the controlled shield test area
   available as an optional tool rather than forcing Play into it.
-- The Original Circuit NPC entry now runs five laps with three opponents. Race
+- The Original Circuit NPC entry now runs three laps with three opponents. Race
   scoring is independent of saved Time Trials. NPC shells use an equal direct/
   near-miss aim choice and real chassis steering; fired shells never home.
+- World and NPC race starts/restarts have no held item, active shield or boost.
+  NPC racers also start empty and collect from boxes. Keep scored Time Trials
+  with their existing starter Nitro and the shield test area with its test shield.
 
 The import commit retains both Git histories. LetsGo's old provenance and
 project notes inside its folder describe its original development history;

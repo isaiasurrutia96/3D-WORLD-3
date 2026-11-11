@@ -25,7 +25,7 @@ import {interpolateHitSpin} from './kart-hit.js';
 import {ITEM_UNDER_TEST} from './item-test-mode.js';
 import {createTorpedoWarning} from './torpedo-view.js';
 import {resetTorpedoes} from './torpedoes.js';
-import {activateShield,stepShield} from './shield.js';
+import {stepShield} from './shield.js';
 import {createShieldView,updateShieldHud} from './shield-view.js';
 import {createShieldTestArea} from './shield-test-area.js';
 
@@ -280,8 +280,7 @@ function startNpcRace(){
  startTrial(ORIGINAL_COURSE);
  invalidateTimeTrial(trial,'NPC races do not save Time Trial records');trial.status='idle';trial.elapsed=0;
  itemSystem.allowShells=true;
- Object.assign(kartState,npcRace.start(kartState),{heldItem:itemSystem.testItem??'nitro'});previousKart={...kartState};setCameraView(viewMode);
- activateShield(kartState);
+ Object.assign(kartState,npcRace.start(kartState));previousKart={...kartState};setCameraView(viewMode);
 }
 bindPress(document.getElementById('npc-start'),startNpcRace);
 function exploreWorld(){
@@ -289,7 +288,7 @@ function exploreWorld(){
  stopNpcRace();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
- Object.assign(kartState,createVehicleState(),WORLD_START);activateShield(kartState);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
+ Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
  accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
 }
 function updateEntrancePrompt(position){

@@ -134,7 +134,7 @@
 @media(orientation:landscape) and (max-height:550px) and (max-width:650px){.touch-mode .lap-entrance{width:220px}}
 @media(orientation:landscape) and (max-height:350px) and (max-width:600px){.touch-mode .lap-entrance{width:188px;bottom:min(158px,calc(100dvh - 125px))}}
 
-/* Five-lap Original Circuit race with three opponents. */
+/* Three-lap Original Circuit race with three opponents. */
 #npc-start{display:block;width:100%;margin-top:8px;min-height:38px;padding:8px;border:1px solid #74a2e3;border-radius:6px;background:#1d3b63;color:#eaf3ff;font:600 12px Arial,sans-serif;cursor:pointer;touch-action:manipulation}
 #npc-start:focus-visible{outline:2px solid #a7f1ff;outline-offset:3px}
 .touch-mode #npc-start{min-height:44px;font-size:11px}

@@ -2,12 +2,12 @@ import {createNpcDriver,readNpcInput} from './driver.js';
 import {coursePoint} from './course-line.js';
 import {createRaceProgress,stepRaceProgress,raceOrder} from './race-progress.js';
 import {NPC_NAMES,NPC_COLORS} from './colors.js';
-import {stepVehicle} from '../vehicle-controller.js';
+import {createVehicleState,stepVehicle} from '../vehicle-controller.js';
 import {useHeldItem} from '../items.js';
 import {resolveKartContact} from './contact.js';
 import {ORIGINAL_COURSE} from '../courses.js';
 import {stepShield} from '../shield.js';
-export const RACE_LAPS=5;
+export const RACE_LAPS=3;
 
 export function createNpcRace(world,items,{random=Math.random}={}){
  const course=ORIGINAL_COURSE;
@@ -19,12 +19,12 @@ export function createNpcRace(world,items,{random=Math.random}={}){
    this.drivers=NPC_NAMES.map((name,i)=>{
     const progress=i? -8:0,offset=i===1?-3.3:3.3;
     const driver=createNpcDriver({progress,offset,laps:null,pace:[1,.985,1.01][i],random});
-    if(items.testItem)driver.state.heldItem=items.testItem;
+    driver.state.heldItem=null;
     driver.id=`npc-${i+1}`;driver.name=name;driver.color=NPC_COLORS[i];
     driver.race={...createRaceProgress(progress),id:driver.id,name,state:driver.state};return driver;
    });
    this.racers=[this.player,...this.drivers.map(d=>d.race)];
-   const p=coursePoint(course,0,-3.3);return{x:p.x,y:p.y,z:p.z,yaw:Math.atan2(p.fx,p.fz)};
+   const p=coursePoint(course,0,-3.3);return{...createVehicleState(),x:p.x,y:p.y,z:p.z,yaw:Math.atan2(p.fx,p.fz)};
   },
   stop(){this.active=false;this.running=false;this.elapsed=0;this.drivers=[];this.racers=[];this.player=null;},
   order(){return raceOrder(this.racers,course);},

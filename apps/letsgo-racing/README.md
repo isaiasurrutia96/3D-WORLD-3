@@ -309,8 +309,8 @@ Next requested tuning, after reviewing wall contact: **increase kart speed and i
 
 ## Shield and repeatable impact tests — 10 November 2026
 
-Play opens normal free driving with an active 12-second shield. NPC practice
-also starts the player protected; both modes have all five items in their boxes.
+Play opens normal free driving with no held item or active shield. NPC races
+also start all four drivers empty; both modes have all five items in their boxes.
 The optional **Laps & ghosts → Shield test area** opens a controlled fixture on
 the existing floor slab, with an active shield and a blue seated driver.
 Its test controls launch real shells/torpedoes, place a banana four metres ahead,
@@ -350,22 +350,23 @@ rail constraints, and repeatable real-hazard fixtures. Restore point:
 `checkpoint-before-shield-2026-11-10` at `9dd5c30`.
 
 
-## Five-lap NPC race and shell aiming — 10 November 2026
+## Three-lap NPC race and shell aiming — updated 11 November 2026
 
-Use **Race · 5 laps** in the Original Circuit's Laps & ghosts menu. This
+Use **Race · 3 laps** in the Original Circuit's Laps & ghosts menu. This
 replaces the one-opponent practice entry with three opponents (Blue, Gold,
-Purple) and the player. Four separated grid slots wait for E/Gas. All drivers
+Purple) and the player. Four separated grid slots wait for E/Gas.
+All start with empty item slots and no active shield or boost. All drivers
 use the existing physical kart controller and the shared five-item box pool.
 They can overtake, collide, use shields, and be hit by the same projectiles.
-The three colored minimap dots match the karts. The compact HUD shows lap/5,
+The three colored minimap dots match the karts. The compact HUD shows lap/3,
 position/4, total race time, and finishing order after the player finishes.
-NPCs continue until they finish their own fifth lap; finishing drivers brake.
+NPCs continue until they finish their own third lap; finishing drivers brake.
 Restart resets all four racers and hazards. Home, Time Trial, the shield area,
 leaving the kart and a fall recovery end the race.
 
 `src/npc/race.js` owns the grid, opponents, shared start, traffic and race state.
 `src/npc/race-progress.js` validates twelve ordered gates and forward finish
-crossings at the correct height for five laps, rejects teleports, and ranks
+crossings at the correct height for three laps, rejects teleports, and ranks
 finishers by interpolated finish time. Race scoring has no storage or ghost
 frames. The player's saved Time Trial records, Nitro-only scored laps and all
 four course storage keys remain independent.
@@ -382,6 +383,17 @@ can change the result. There is no homing or leading prediction for shells.
 
 `tests/npc-race.test.js` checks the aim split and persistence, a physical
 steering/launch sequence, dodging straight shells, unsafe-target rejection,
-three-opponent spawn/restart, gate/finish validation, and two complete five-lap
+three-opponent spawn/restart, gate/finish validation, and two complete three-lap
 four-kart simulations with shared items and impacts.
 Restore point: `checkpoint-before-three-npc-race-2026-11-10`.
+
+
+### Empty world and race restarts — 11 November 2026
+
+The latest request reduces races from five laps to three. World entry/re-entry
+and race starts/restarts clear held items, boosts and active shields. NPC racers
+also start empty. Mystery boxes still award all five items; collected shields
+and their activation behavior are unchanged. Scored Time Trials retain their
+starter Nitro, and the optional shield test area still starts protected so its
+repeatable impact tests work. Personal lap records and ghost files are unchanged.
+Restore point: `checkpoint-before-three-lap-clean-start-2026-11-11`.

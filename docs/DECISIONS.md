@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 10 November 2026 — three-opponent, five-lap racing and shell aiming.
+Last updated: 11 November 2026 — three-lap races and empty world/race starts.
 
 ## Repository consolidation — 9 November 2026
 
@@ -121,6 +121,17 @@ position and finish order. Race results do not write personal Time Trial laps
 or ghosts. Preserve mixed boxes, shields, base driving controls/physics and the
 separate root movement world. Kart jumping remains deferred.
 Restore point: `checkpoint-before-three-npc-race-2026-11-10`.
+
+## Three-lap races and empty starts — 11 November 2026
+
+**Latest instruction from the project owner.** Reduce the NPC race to three
+laps. Start/restart normal world driving and NPC races with no held item,
+active shield or boost. NPC racers start empty too, so all collect from the
+same mystery boxes. Preserve three opponents, shell aiming, normal item/shield
+pickups, controls, handling, saved ghosts and the independent movement world.
+Keep the established starter Nitro for scored Time Trials and active test
+shield inside the optional controlled shield area.
+Restore point: `checkpoint-before-three-lap-clean-start-2026-11-11`.
 
 ---
 

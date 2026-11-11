@@ -3,6 +3,7 @@ import {createGhostTemplate} from './ghost-kart.js';
 import {createVehicleView} from './vehicle-view.js';
 import {CHECKPOINT_COUNT,MAX_GHOSTS,GHOST_COLORS,sampleGhost,formatTime} from './time-trial.js';
 import {ORIGINAL_COURSE} from './courses.js';
+import {RACE_LAPS} from './npc/race.js';
 
 export function createTimeTrialView(scene,stateOrGetter,courses=[ORIGINAL_COURSE],getRace=()=>null){
  const getState=typeof stateOrGetter==='function'?stateOrGetter:()=>stateOrGetter;
@@ -62,7 +63,7 @@ export function createTimeTrialView(scene,stateOrGetter,courses=[ORIGINAL_COURSE
   for(const rank of ranks)rank.value=formatTime(state.records[Number(rank.dataset.lapRank)-1]?.duration);
   const courseLabel=document.getElementById('trial-course');if(courseLabel.textContent!==state.course.name)courseLabel.textContent=state.course.name;
   document.getElementById('trial-mode').textContent=race?'RACE':state.status==='idle'?'FREE DRIVE':'TIME TRIAL';
-  const npcButton=document.getElementById('npc-start');npcButton.hidden=state.course.id!==ORIGINAL_COURSE.id;npcButton.textContent=race?'Restart race · 5 laps':'Race · 5 laps';
+  const npcButton=document.getElementById('npc-start');npcButton.hidden=state.course.id!==ORIGINAL_COURSE.id;npcButton.textContent=race?`Restart race · ${RACE_LAPS} laps`:`Race · ${RACE_LAPS} laps`;
   timer.value=formatTime(race?race.player.finishedAt??race.elapsed:state.elapsed);timer.setAttribute('aria-label',race?'Race time':'Current lap time');best.value=formatTime(state.best?.duration);lap.textContent=race?`Lap ${Math.min(race.laps,race.player.completed+1)}/${race.laps}`:`Lap ${state.completed+1}`;
   const position=document.getElementById('race-position'),results=document.getElementById('race-results'),order=race?.order()??[];
   position.hidden=!race;results.hidden=!race||race.player.finishedAt===null;
@@ -72,7 +73,7 @@ export function createTimeTrialView(scene,stateOrGetter,courses=[ORIGINAL_COURSE
   last.textContent=race?'':state.lastLap==null?'':`${state.lastWasBest?'New best':state.lastRank?`New #${state.lastRank}`:'Last lap'} ${formatTime(state.lastLap)}`;
   button.textContent=race?'Time Trial · T':state.status==='idle'?`Start ${state.course.name} · T`:'Restart lap · T';toggle.disabled=!!race||!state.best;toggle.checked=state.showGhost;
   exportButton.disabled=!state.records.length;
-  const text=race?(race.player.finishedAt!==null?`You finished ${['1st','2nd','3rd','4th'][place-1]} · ${race.racers.every(r=>r.finishedAt!==null)?'Race complete':'Other drivers are finishing'}`:race.running?'Three opponents · Five laps · Mixed items':'Press E or Gas to start the five-lap race'):state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Approach a track entrance to start a lap';
+  const text=race?(race.player.finishedAt!==null?`You finished ${['1st','2nd','3rd','4th'][place-1]} · ${race.racers.every(r=>r.finishedAt!==null)?'Race complete':'Other drivers are finishing'}`:race.running?`Three opponents · ${RACE_LAPS} laps · Mixed items`:`Press E or Gas to start the ${RACE_LAPS}-lap race`):state.status==='ready'?'Press E to start the clock':state.status==='running'?`Checkpoints ${state.passed}/${CHECKPOINT_COUNT}${state.passed===CHECKPOINT_COUNT?' · Cross the finish line':''}`:state.status==='invalid'?state.reason:'Approach a track entrance to start a lap';
   if(text!==message){status.textContent=text;message=text;}
   return ghostPoses;
  };
