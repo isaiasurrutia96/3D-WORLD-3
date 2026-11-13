@@ -1,30 +1,40 @@
 /**
  * The island: the ground the real game stands on.
  *
- * This is only the foundation — the land itself, the sea round it and the
- * place you start. Nothing is built on it yet. Everything that goes on it
- * later (the golf course, the tower, the pond, the plots for mini games)
- * stands on this floor, and only needs to know where the floor is.
+ * Only nature for now. The land rises out of the sea over a sand beach,
+ * through dunes, onto meadow, up to hills, rocky outcrops and the small
+ * mountains at the back; there are woods and open meadows, a pond, palms
+ * along the shore, rocks in the surf and an islet to swim out to. Nothing is
+ * built on it: the roads, the race circuits and their bridges, and the kart
+ * are kept in the code (src/racing/ and the dormant part of Landscape.ts)
+ * for later, and are not put in the scene.
  *
  * It is made to be looked at the way the old Mario worlds were: saturated
  * flat colour, a grass top with a chunky two-tone check that does not blur
- * when you get close, faceted rock, and a blue sky with the sea far below.
- * No texture is smoother than the geometry under it.
+ * when you get close, faceted rock, and a bright sea.
  *
  * It is big. Everything on it is meant to dwarf the character, so the
- * island is a hundred and sixty metres across against a figure under two
- * metres tall, and the radius below is the one number that sets that.
+ * island is about a hundred and sixty metres across against a figure under
+ * two metres tall.
+ *
+ * What is solid: the ground (grass, sand, rock and sea floor), tree trunks,
+ * palm trunks, boulders, shore rocks and sea stacks. What is not: leaves,
+ * palm fronds, bushes and flowers, which he passes through as in the old
+ * worlds, and the water, which he swims in.
  */
 
 import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  CircleGeometry,
   Color,
   CylinderGeometry,
+  DoubleSide,
   Group,
   IcosahedronGeometry,
   LinearMipmapLinearFilter,
+  Box3,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
@@ -40,25 +50,30 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../physics/CollisionWorld.ts';
 import type { Carryable } from './Carryable.ts';
 import {
+  BEACH_TOP,
   ISLAND_RADIUS,
-  PLOTS,
+  MEADOWS,
+  POND,
   RISES,
-  ROAD_HALF,
-  ROAD_PATHS,
+  SEA_LIMIT,
   hash,
+  inland,
   islandEdge,
+  keptOpen,
   overIsland,
-  roadDistance,
+  slopeAt,
   terrainHeight,
 } from './Landscape.ts';
 
 export { ISLAND_RADIUS, islandEdge, overIsland, terrainHeight };
 
-/** How far below the grass the sea lies. */
-export const SEA_LEVEL = -64;
-/** How many segments the outline is cut into. */
+/** The sea's surface. Everything else is measured from it. */
+export const SEA_LEVEL = 0;
+/** How deep the open sea floor lies. */
+const SEA_FLOOR = -10;
+/** How many segments each ring of the land is cut into. */
 const SEGMENTS = 192;
-/** Metres per repeat of the grass texture: two squares of the check. */
+/** Metres per repeat of the grass and sand textures: two squares of the check. */
 const GRASS_TILE = 6;
 
 export interface IslandWorld {
@@ -66,13 +81,15 @@ export interface IslandWorld {
   solid: Group;
   /** Nothing to carry yet. */
   carryables: Carryable[];
-  /** The sea, which needs a clock to move. */
+  /** The sea and the pond, which need a clock to move. */
   water: { update(time: number): void };
-  /** Flat markers that are safe to return to after a fall. */
+  /** Places that are safe to return to after a fall. */
   checkpoints: Vector3[];
   /** Where he starts, and which way he faces. */
   spawn: Vector3;
   spawnFacing: number;
+  /** How far out he can swim before the current turns him back. */
+  seaLimit: number;
   triangleCount: number;
 }
 
@@ -114,45 +131,50 @@ function grassTexture(): CanvasTexture {
   return texture;
 }
 
-/** One ring of the island's shell, as a fraction of the edge and a height. */
-interface Ring {
-  rho: number;
-  y: number;
-  /** On the land: its height is the ground's, not a fixed one. */
-  land?: boolean;
+/** The same check in sand, a little paler and warmer. */
+function sandTexture(): CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const half = size / 2;
+    for (let y = 0; y < 2; y += 1) {
+      for (let x = 0; x < 2; x += 1) {
+        context.fillStyle = (x + y) % 2 === 0 ? '#f2dc9b' : '#f7e4a8';
+        context.fillRect(x * half, y * half, half, half);
+      }
+    }
+    for (let i = 0; i < 30; i += 1) {
+      const x = Math.floor(hash(i, 11) * (size - 3));
+      const y = Math.floor(hash(i, 12) * (size - 3));
+      context.fillStyle = hash(i, 13) > 0.5 ? '#e6cd8a' : '#fff0c2';
+      context.fillRect(x, y, 2, 2);
+    }
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.magFilter = NearestFilter;
+  texture.minFilter = LinearMipmapLinearFilter;
+  texture.anisotropy = 4;
+  return texture;
 }
 
 /**
- * The top, from the middle out. The rings are close enough together — two
- * and a half metres or so — to follow a hill, and the last three roll the
- * grass over the edge.
+ * The rings the land is drawn with, as fractions of the coastline's distance
+ * at each bearing: close together (two metres or so) over the island, the
+ * shore and the shallows where there is something to see, and wider apart
+ * further out where the sea floor is flat and deep.
  */
-const LAND_RINGS = 36;
-const TOP_RINGS: Ring[] = [
-  { rho: 0, y: 0, land: true },
-  ...Array.from({ length: LAND_RINGS }, (_, i) => ({
-    rho: ((i + 1) / LAND_RINGS) * 0.96,
-    y: 0,
-    land: true,
-  })),
-  { rho: 0.985, y: -0.18 },
-  { rho: 1.0, y: -0.8 },
-  { rho: 1.005, y: -1.7 },
-];
-
-/** The underside: the cliff, then a taper to a ragged point far below. */
-const ROCK_RINGS: Ring[] = [
-  { rho: 1.005, y: -1.7 },
-  { rho: 1.0, y: -4 },
-  { rho: 0.995, y: -12 },
-  { rho: 0.97, y: -21 },
-  { rho: 0.86, y: -29 },
-  { rho: 0.66, y: -37 },
-  { rho: 0.4, y: -44 },
-  { rho: 0.22, y: -51 },
-  { rho: 0.08, y: -56 },
-  { rho: 0, y: -58 },
-];
+function landRings(): number[] {
+  const rings: number[] = [];
+  for (let i = 1; i <= 58; i += 1) rings.push((i / 58) * 1.62);
+  for (let rho = 1.74; rho <= 2.35; rho += 0.12) rings.push(rho);
+  return rings;
+}
 
 export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorld {
   const root = new Group();
@@ -163,330 +185,223 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
   solid.name = 'island-solid';
   root.add(solid);
 
-  /** The position of a ring's vertex at a bearing. */
-  const place = (ring: Ring, i: number, rowSeed: number, rough: number): Vector3 => {
-    const angle = (i / SEGMENTS) * Math.PI * 2;
-    // Ragged where it is rock: pushed in and out and up and down a little,
-    // by amounts that repeat round the seam so the ends meet.
-    const j = i % SEGMENTS;
-    // Only ever inward. The rock is never wider than the grass above it, so
-    // there is no ledge sticking out of the cliff to land on and be left
-    // standing on, below the island, as the place to be put back to.
-    const shake = rough * Math.abs(hash(j, rowSeed) - 0.5);
-    const rho = ring.rho === 0 ? 0 : ring.rho * (1 - shake * 0.22);
-    const edge = islandEdge(angle) * rho;
-    const x = Math.cos(angle) * edge;
-    const z = Math.sin(angle) * edge;
-    if (ring.land) return new Vector3(x, terrainHeight(x, z), z);
-    return new Vector3(x, ring.y + rough * (hash(j, rowSeed + 40) - 0.5) * 2.4, z);
-  };
-
-  /** A shell between rings: positions, indices and a colour per vertex. */
-  const shell = (
-    rings: Ring[],
-    rough: number,
-    colourOf: (row: number, i: number, p: Vector3) => Color,
-    uvOf?: (p: Vector3) => [number, number],
-  ): BufferGeometry => {
-    const positions: number[] = [];
-    const colours: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    const rows: number[] = [];
-
-    rings.forEach((ring, row) => {
-      if (ring.rho === 0) {
-        const p = new Vector3(0, ring.land ? terrainHeight(0, 0) : ring.y, 0);
-        positions.push(p.x, p.y, p.z);
-        const c = colourOf(row, 0, p);
-        colours.push(c.r, c.g, c.b);
-        if (uvOf) uvs.push(...uvOf(p));
-        rows.push(1);
-        return;
-      }
-      // The first and last ring of a shell are shared with their neighbours
-      // and are left smooth, so the grass meets the rock without a seam.
-      const edgeRing = row === 0 || row === rings.length - 1;
-      // And the rock is smooth where it leaves the grass and ragged only
-      // further down, where nobody can reach it.
-      const roughHere = rough * Math.min(1, row / 4);
-      for (let i = 0; i < SEGMENTS; i += 1) {
-        const p = place(ring, i, row + Math.round(rings[0].y * 3), edgeRing ? 0 : roughHere);
-        positions.push(p.x, p.y, p.z);
-        const c = colourOf(row, i, p);
-        colours.push(c.r, c.g, c.b);
-        if (uvOf) uvs.push(...uvOf(p));
-      }
-      rows.push(SEGMENTS);
-    });
-
-    // Stitch ring to ring. A single vertex (the middle, or the bottom
-    // point) fans out to the ring beside it.
-    let start = 0;
-    for (let row = 0; row < rings.length - 1; row += 1) {
-      const a = start;
-      const b = start + rows[row];
-      for (let i = 0; i < SEGMENTS; i += 1) {
-        const n = (i + 1) % SEGMENTS;
-        if (rows[row] === 1) {
-          indices.push(a, b + n, b + i);
-        } else if (rows[row + 1] === 1) {
-          indices.push(a + i, a + n, b);
-        } else {
-          indices.push(a + i, a + n, b + i, a + n, b + n, b + i);
-        }
-      }
-      start = b;
-    }
-
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-    geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
-    if (uvOf) geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return geometry;
-  };
-
   // ---- The land ---------------------------------------------------------------
-  // One shell for the whole top, then each triangle goes to the grass or to
-  // the bare rock according to how steep it is: grass where he would walk,
-  // rock where it is too steep for anything to grow and the colour says so.
-  // The split is a hard edge, which is how the old worlds did it.
-  const GRASS = new Color('#ffffff');
-  const LIP = new Color('#d9f2b0');
-  const FRINGE = new Color('#8fb85a');
-  const landRows = TOP_RINGS.length - 3;
-  const top = shell(
-    TOP_RINGS,
-    0,
-    (row, _i, p) => {
-      if (row > landRows + 1) return FRINGE;
-      if (row > landRows) return LIP;
-      // Higher ground is a touch brighter, as if nearer the sun.
-      const lift = 0.9 + Math.min(0.14, p.y / 90);
-      return GRASS.clone().multiplyScalar(lift);
-    },
-    (p) => [p.x / GRASS_TILE, p.z / GRASS_TILE],
-  );
-  const rowOf = (v: number) => (v === 0 ? 0 : 1 + Math.floor((v - 1) / SEGMENTS));
-  const position = top.attributes.position as BufferAttribute;
-  const grassIndex: number[] = [];
-  const bareFaces: Array<[number, number, number]> = [];
-  {
-    const index = top.index as BufferAttribute;
-    const a = new Vector3();
-    const b = new Vector3();
-    const c = new Vector3();
-    for (let t = 0; t < index.count; t += 3) {
-      const i0 = index.getX(t);
-      const i1 = index.getX(t + 1);
-      const i2 = index.getX(t + 2);
-      a.fromBufferAttribute(position, i0);
-      b.fromBufferAttribute(position, i1);
-      c.fromBufferAttribute(position, i2);
-      const normalY = Math.abs(
-        b.clone().sub(a).cross(c.clone().sub(a)).normalize().y,
-      );
-      const averageY = (a.y + b.y + c.y) / 3;
-      const lip = Math.max(rowOf(i0), rowOf(i1), rowOf(i2)) > landRows;
-      if (!lip && (normalY < 0.78 || averageY > 21)) bareFaces.push([i0, i1, i2]);
-      else grassIndex.push(i0, i1, i2);
+  // One heightfield, from the middle of the island out to the deep sea floor,
+  // laid on rings round the coastline so the shore is followed closely
+  // wherever it bends. Then each triangle goes to the sand, the grass or the
+  // bare rock by how high and how steep it is. The splits are hard edges,
+  // which is how the old worlds did it.
+  const rings = landRings();
+  const positions: number[] = [0, terrainHeight(0, 0), 0];
+  const uvs: number[] = [0, 0];
+  for (const rho of rings) {
+    for (let i = 0; i < SEGMENTS; i += 1) {
+      const angle = (i / SEGMENTS) * Math.PI * 2;
+      const d = islandEdge(angle) * rho;
+      const x = Math.cos(angle) * d;
+      const z = Math.sin(angle) * d;
+      positions.push(x, terrainHeight(x, z), z);
+      uvs.push(x / GRASS_TILE, z / GRASS_TILE);
     }
   }
-  top.setIndex(grassIndex);
-  const grass = new Mesh(
-    top,
-    new MeshStandardMaterial({
-      map: grassTexture(),
-      vertexColors: true,
-      roughness: 1,
-    }),
-  );
-  grass.name = 'island-grass';
-  grass.receiveShadow = true;
-  grass.castShadow = true;
-  solid.add(grass);
+  const indices: number[] = [];
+  for (let i = 0; i < SEGMENTS; i += 1) indices.push(0, 1 + ((i + 1) % SEGMENTS), 1 + i);
+  for (let r = 0; r < rings.length - 1; r += 1) {
+    const a = 1 + r * SEGMENTS;
+    const b = a + SEGMENTS;
+    for (let i = 0; i < SEGMENTS; i += 1) {
+      const n = (i + 1) % SEGMENTS;
+      indices.push(a + i, a + n, b + i, a + n, b + n, b + i);
+    }
+  }
+  const land = new BufferGeometry();
+  land.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  land.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+  land.setIndex(indices);
+  land.computeVertexNormals();
 
+  // Colour per vertex, multiplied into the texture: grass a touch brighter
+  // higher up, as if nearer the sun; sand darkening and cooling as it goes
+  // under the water.
+  {
+    const p = land.attributes.position as BufferAttribute;
+    const colours = new Float32Array(p.count * 3);
+    const deep = new Color('#7fa7a0');
+    for (let i = 0; i < p.count; i += 1) {
+      const y = p.getY(i);
+      const c = new Color('#ffffff');
+      if (y < 0) c.lerp(deep, Math.min(1, -y / 8));
+      else c.multiplyScalar(0.9 + Math.min(0.14, y / 90));
+      colours.set([c.r, c.g, c.b], i * 3);
+    }
+    land.setAttribute('color', new BufferAttribute(colours, 3));
+  }
+
+  // Each triangle goes to the rock, the sand or the grass. Where one meets
+  // another the triangle is cut along the line between them, so the edge of
+  // a beach or the foot of a cliff is a clean line across the ground rather
+  // than the saw-tooth that whole triangles make. The pieces are the same
+  // surface, so what is drawn and what is solid stay one thing.
+  type Vertex = { p: number[]; n: number[]; uv: number[]; c: number[] };
+  type Tri = [Vertex, Vertex, Vertex];
+  const vertexOf = (i: number): Vertex => {
+    const pos = land.attributes.position as BufferAttribute;
+    const nor = land.attributes.normal as BufferAttribute;
+    const uv = land.attributes.uv as BufferAttribute;
+    const col = land.attributes.color as BufferAttribute;
+    return {
+      p: [pos.getX(i), pos.getY(i), pos.getZ(i)],
+      n: [nor.getX(i), nor.getY(i), nor.getZ(i)],
+      uv: [uv.getX(i), uv.getY(i)],
+      c: [col.getX(i), col.getY(i), col.getZ(i)],
+    };
+  };
+  const mix = (a: Vertex, b: Vertex, t: number): Vertex => {
+    const l = (x: number[], y: number[]) => x.map((v, k) => v + (y[k] - v) * t);
+    return { p: l(a.p, b.p), n: l(a.n, b.n), uv: l(a.uv, b.uv), c: l(a.c, b.c) };
+  };
+  /** Cuts a triangle where `value` crosses zero: [below zero, at or above]. */
+  const cut = (tri: Tri, value: (v: Vertex) => number): [Tri[], Tri[]] => {
+    const s = tri.map(value);
+    const neg = s.map((v) => v < 0);
+    const count = neg.filter(Boolean).length;
+    if (count === 3) return [[tri], []];
+    if (count === 0) return [[], [tri]];
+    // The vertex alone on its side, first, keeping the winding.
+    const lone = neg.findIndex((v) => (count === 1 ? v : !v));
+    const a = tri[lone];
+    const b = tri[(lone + 1) % 3];
+    const c = tri[(lone + 2) % 3];
+    const sa = s[lone];
+    const sb = s[(lone + 1) % 3];
+    const sc = s[(lone + 2) % 3];
+    const ab = mix(a, b, sa / (sa - sb));
+    const ac = mix(a, c, sa / (sa - sc));
+    const alone: Tri[] = [[a, ab, ac]];
+    const rest: Tri[] = [
+      [ab, b, c],
+      [ab, c, ac],
+    ];
+    return count === 1 ? [alone, rest] : [rest, alone];
+  };
+  // Rock where the ground is too steep for anything to grow, and on the
+  // highest tops; judged on the smooth slope at each corner.
+  const softness = (v: Vertex) => Math.min(Math.abs(v.n[1]) - 0.8, (21 - v.p[1]) / 20);
+  // Sand below a beach line that wanders a little, and round the pond.
+  const sandiness = (v: Vertex) => {
+    const [x, y, z] = v.p;
+    const top = BEACH_TOP + 0.3 * Math.sin(x * 0.21 + z * 0.13) + 0.2 * Math.sin(z * 0.27 - x * 0.08);
+    const pond = Math.max(
+      y - (POND.surface + 0.35),
+      Math.hypot(x - POND.x, z - POND.z) - (POND.r + 2.5),
+    );
+    return -Math.min(y - top, pond);
+  };
+  const grassTris: Tri[] = [];
+  const sandTris: Tri[] = [];
+  const rockTris: Tri[] = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const tri: Tri = [vertexOf(indices[t]), vertexOf(indices[t + 1]), vertexOf(indices[t + 2])];
+    const [rock, soft] = cut(tri, softness);
+    rockTris.push(...rock);
+    for (const piece of soft) {
+      const [grass, sand] = cut(piece, sandiness);
+      grassTris.push(...grass);
+      sandTris.push(...sand);
+    }
+  }
+  const geometryOf = (tris: Tri[], colourOf?: (tri: Tri, index: number) => Color) => {
+    const positions: number[] = [];
+    const normals: number[] = [];
+    const uvs: number[] = [];
+    const colours: number[] = [];
+    tris.forEach((tri, index) => {
+      const face = colourOf?.(tri, index);
+      for (const v of tri) {
+        positions.push(...v.p);
+        normals.push(...v.n);
+        uvs.push(...v.uv);
+        colours.push(...(face ? [face.r, face.g, face.b] : v.c));
+      }
+    });
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+    geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
+    geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+    geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
+    return geometry;
+  };
+  const surface = (name: string, geometry: BufferGeometry, material: MeshStandardMaterial) => {
+    const mesh = new Mesh(geometry, material);
+    mesh.name = name;
+    mesh.receiveShadow = true;
+    mesh.castShadow = true;
+    solid.add(mesh);
+  };
+  surface(
+    'island-grass',
+    geometryOf(grassTris),
+    new MeshStandardMaterial({ map: grassTexture(), vertexColors: true, roughness: 1 }),
+  );
+  surface(
+    'island-sand',
+    geometryOf(sandTris),
+    new MeshStandardMaterial({ map: sandTexture(), vertexColors: true, roughness: 1 }),
+  );
   // The bare rock, flat shaded face by face, banded by height, and white
   // on the highest tops.
   {
     const ROCK = ['#92857a', '#7d7168', '#9d9082', '#6f655c'].map((c) => new Color(c));
     const SNOW = new Color('#f1f5fa');
-    const positions: number[] = [];
-    const colours: number[] = [];
-    bareFaces.forEach(([i0, i1, i2], face) => {
-      const ys = [i0, i1, i2].map((i) => position.getY(i));
-      const averageY = (ys[0] + ys[1] + ys[2]) / 3;
+    const geometry = geometryOf(rockTris, (tri, face) => {
+      const y = (tri[0].p[1] + tri[1].p[1] + tri[2].p[1]) / 3;
       const colour =
-        averageY > 23.5
+        y > 23.5
           ? SNOW.clone()
-          : ROCK[Math.floor(averageY / 2.2 + hash(face % 7, 2)) % ROCK.length].clone();
+          : ROCK[Math.floor(Math.abs(y) / 2.2 + hash(face % 7, 2)) % ROCK.length].clone();
       colour.multiplyScalar(0.9 + hash(face, 5) * 0.2);
-      for (const i of [i0, i1, i2]) {
-        positions.push(position.getX(i), position.getY(i), position.getZ(i));
-        colours.push(colour.r, colour.g, colour.b);
-      }
+      if (y < 0) colour.multiplyScalar(0.8);
+      return colour;
     });
-    if (positions.length > 0) {
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-      geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
-      geometry.computeVertexNormals();
-      const bare = new Mesh(
-        geometry,
-        new MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }),
-      );
-      bare.name = 'island-bare-rock';
-      bare.receiveShadow = true;
-      bare.castShadow = true;
-      solid.add(bare);
-    }
+    geometry.deleteAttribute('uv');
+    surface(
+      'island-bare-rock',
+      geometry,
+      new MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }),
+    );
   }
 
-  // ---- The rock -------------------------------------------------------------
-  // Strata of a few browns, banded by depth and broken up by bearing, with
-  // a brightness jitter per face so every facet catches the light on its own.
-  const STRATA = ['#b9784a', '#a96a40', '#c98a58', '#946036'].map((c) => new Color(c));
-  const rockGeometry = shell(ROCK_RINGS, 1, (row, i) => {
-    if (row === 0) return FRINGE;
-    const band = (Math.floor(i / 6) + row * 2) % STRATA.length;
-    const colour = STRATA[band].clone();
-    // Darker as it falls away from the light, never black.
-    colour.multiplyScalar(1 - Math.min(0.45, row * 0.05));
-    return colour;
-  }).toNonIndexed();
+  // Past the last ring the sea floor carries on, flat, under the open sea.
+  // Only looked at, through the water: the current turns him back long
+  // before he could reach it.
   {
-    const c = rockGeometry.attributes.color as BufferAttribute;
-    for (let face = 0; face < c.count / 3; face += 1) {
-      const shade = 0.88 + hash(face, 9) * 0.24;
-      for (let v = 0; v < 3; v += 1) {
-        const k = face * 3 + v;
-        c.setXYZ(k, c.getX(k) * shade, c.getY(k) * shade, c.getZ(k) * shade);
-      }
-    }
+    // The same sand, tinted the way the deepest of the land is, so there is
+    // no seam where the one gives way to the other.
+    const texture = sandTexture();
+    texture.repeat.set(9000 / GRASS_TILE, 9000 / GRASS_TILE);
+    const floor = new Mesh(
+      new PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2),
+      new MeshStandardMaterial({ map: texture, color: '#7fa7a0', roughness: 1 }),
+    );
+    floor.name = 'sea-floor';
+    floor.position.y = SEA_FLOOR - 0.3;
+    root.add(floor);
   }
-  rockGeometry.computeVertexNormals();
-  const rock = new Mesh(
-    rockGeometry,
-    new MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }),
-  );
-  rock.name = 'island-rock';
-  rock.receiveShadow = true;
-  rock.castShadow = true;
-  solid.add(rock);
 
   // ---- Where he starts ------------------------------------------------------
-  // On the south side, looking in toward the middle of the island.
-  const southAngle = Math.PI / 2;
-  const spawn = new Vector3(0, 0, islandEdge(southAngle) * 0.62);
-  const pad = new Mesh(
-    new CylinderGeometry(3, 3, 0.08, 28),
-    new MeshStandardMaterial({ color: '#3fbf8a', roughness: 0.8 }),
+  // In the meadow just up from the south beach, looking inland toward the
+  // mountains, with the sea behind him.
+  const spawn = new Vector3(
+    MEADOWS.start.x,
+    terrainHeight(MEADOWS.start.x, MEADOWS.start.z) + 0.05,
+    MEADOWS.start.z,
   );
-  pad.name = 'start-pad';
-  pad.position.set(spawn.x, 0.04, spawn.z);
-  pad.receiveShadow = true;
-  root.add(pad);
 
-  // ---- The road ---------------------------------------------------------------
-  // Laid on the level ground it was cut into: a darker edge, a lighter
-  // surface on it, and a plaza where the roads meet. Drawn a few
-  // centimetres up and pulled toward the camera, so that it never flickers
-  // against the grass underneath from far away.
+  // ---- Trees, palms, bushes, rocks, flowers -----------------------------------
+  // Scattered by rule rather than placed by hand, so reshaping the land
+  // reshapes where they stand: on ground that suits each, never on the open
+  // meadows or in the pond, and in drifts rather than evenly.
   {
-    const ribbons: BufferGeometry[] = [];
-    const EDGE = new Color('#b08a52');
-    const SURFACE = new Color('#e2c68a');
-    const strip = (path: typeof ROAD_PATHS[number], half: number, y: number, colour: Color) => {
-      const positions: number[] = [];
-      const colours: number[] = [];
-      const indices: number[] = [];
-      path.forEach((point, i) => {
-        const before = path[Math.max(0, i - 1)];
-        const after = path[Math.min(path.length - 1, i + 1)];
-        const dx = after.x - before.x;
-        const dz = after.y - before.y;
-        const length = Math.hypot(dx, dz) || 1;
-        const nx = -dz / length;
-        const nz = dx / length;
-        for (const side of [-1, 1]) {
-          positions.push(point.x + nx * half * side, y, point.y + nz * half * side);
-          colours.push(colour.r, colour.g, colour.b);
-        }
-        if (i > 0) {
-          const k = i * 2;
-          indices.push(k - 2, k - 1, k, k - 1, k + 1, k);
-        }
-      });
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-      geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
-      geometry.setIndex(indices);
-      geometry.computeVertexNormals();
-      // Facing up whichever way the strip happened to be wound.
-      const normal = geometry.attributes.normal as BufferAttribute;
-      for (let i = 0; i < normal.count; i += 1) normal.setXYZ(i, 0, 1, 0);
-      return geometry;
-    };
-    for (const path of ROAD_PATHS) {
-      ribbons.push(strip(path, ROAD_HALF + 0.55, 0.05, EDGE));
-      ribbons.push(strip(path, ROAD_HALF - 0.1, 0.07, SURFACE));
-    }
-    const disc = (radius: number, y: number, colour: Color) => {
-      const geometry = new CylinderGeometry(radius, radius, 0.02, 40).toNonIndexed();
-      geometry.translate(PLOTS.plaza.x, y, PLOTS.plaza.z);
-      const n = geometry.attributes.position.count;
-      const colours = new Float32Array(n * 3);
-      for (let i = 0; i < n; i += 1) colours.set([colour.r, colour.g, colour.b], i * 3);
-      geometry.setAttribute('color', new BufferAttribute(colours, 3));
-      return geometry;
-    };
-    // Ribbons are indexed and the discs are not, so everything is brought
-    // to one form before being joined.
-    const parts = [
-      ...ribbons.map((g) => g.toNonIndexed()),
-      disc(10.5, 0.05, EDGE),
-      disc(9.6, 0.07, SURFACE),
-    ].map((g) => {
-      g.deleteAttribute('uv');
-      return g;
-    });
-    const merged = mergeGeometries(parts);
-    if (merged) {
-      const material = new MeshStandardMaterial({
-        vertexColors: true,
-        roughness: 1,
-        polygonOffset: true,
-        polygonOffsetFactor: -3,
-        polygonOffsetUnits: -3,
-      });
-      const road = new Mesh(merged, material);
-      road.name = 'road';
-      road.receiveShadow = true;
-      root.add(road);
-    }
-  }
-
-  // ---- Trees, boulders, flowers -------------------------------------------------
-  // Scattered by a rule rather than placed by hand, so reshaping the land
-  // reshapes where they stand: on ground that is not steep, off the road
-  // and off the level places, in drifts rather than evenly.
-  {
-    const slopeAt = (x: number, z: number) => {
-      const e = 1.2;
-      const dx = terrainHeight(x + e, z) - terrainHeight(x - e, z);
-      const dz = terrainHeight(x, z + e) - terrainHeight(x, z - e);
-      return Math.hypot(dx, dz) / (2 * e);
-    };
-    const clear = (x: number, z: number, margin: number) => {
-      if (!overIsland(x, z, 9)) return false;
-      if (roadDistance(x, z) < ROAD_HALF + margin) return false;
-      for (const plot of Object.values(PLOTS)) {
-        if (Math.hypot(x - plot.x, z - plot.z) < plot.r + margin) return false;
-      }
-      return true;
-    };
     const tint = (geometry: BufferGeometry, colour: Color, jitter = 0.1, seed = 0) => {
       const g = geometry.index ? geometry.toNonIndexed() : geometry;
       g.deleteAttribute('uv');
@@ -501,13 +416,27 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
       g.setAttribute('color', new BufferAttribute(colours, 3));
       return g;
     };
-    const move = (g: BufferGeometry, x: number, y: number, z: number, sx = 1, sy = sx, sz = sx, spin = 0) => {
-      const m = new Matrix4().compose(
-        new Vector3(x, y, z),
-        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), spin),
-        new Vector3(sx, sy, sz),
-      );
-      return g.applyMatrix4(m);
+    const move = (
+      g: BufferGeometry,
+      x: number,
+      y: number,
+      z: number,
+      sx = 1,
+      sy = sx,
+      sz = sx,
+      spin = 0,
+      tilt?: Quaternion,
+    ) => {
+      const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), spin);
+      if (tilt) q.premultiply(tilt);
+      return g.applyMatrix4(new Matrix4().compose(new Vector3(x, y, z), q, new Vector3(sx, sy, sz)));
+    };
+    /** Downhill at a point, as a unit vector on the ground. */
+    const downhill = (x: number, z: number) => {
+      const dx = terrainHeight(x + 1, z) - terrainHeight(x - 1, z);
+      const dz = terrainHeight(x, z + 1) - terrainHeight(x, z - 1);
+      const l = Math.hypot(dx, dz) || 1;
+      return { x: -dx / l, z: -dz / l };
     };
 
     const trunks: BufferGeometry[] = [];
@@ -516,101 +445,228 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
     const flowers: BufferGeometry[] = [];
     const LEAVES = ['#3fae3a', '#4cbc43', '#35a047', '#58c24a'].map((c) => new Color(c));
     const PINES = ['#2a8a4c', '#34a05a', '#277a47'].map((c) => new Color(c));
+    const FRONDS = ['#3db54a', '#4cc455', '#36a443'].map((c) => new Color(c));
+    const BUSHES = ['#3a9e3c', '#46ad44', '#5bbd4c'].map((c) => new Color(c));
     const BARK = new Color('#7b5532');
+    const PALM_BARK = new Color('#a27a4c');
     const STONE = ['#9b9a98', '#8a8987', '#a8a6a2'].map((c) => new Color(c));
-    const trees: Array<[number, number, boolean]> = [];
 
-    for (let gx = -ISLAND_RADIUS; gx <= ISLAND_RADIUS; gx += 4.6) {
-      for (let gz = -ISLAND_RADIUS; gz <= ISLAND_RADIUS; gz += 4.6) {
+    // Where the woods are: a slow wave over the island, so there are stands
+    // of trees with meadow between them rather than an even sprinkle.
+    const wood = (x: number, z: number) =>
+      Math.sin(x * 0.045 + 1.2) * Math.sin(z * 0.05 - 0.4) + 0.35 * Math.sin((x + z) * 0.11);
+    const onGrass = (y: number) => y > BEACH_TOP + 0.45;
+
+    // Broadleaf trees and pines.
+    let n = 0;
+    for (let gx = -ISLAND_RADIUS * 1.3; gx <= ISLAND_RADIUS * 1.3; gx += 4.6) {
+      for (let gz = -ISLAND_RADIUS * 1.3; gz <= ISLAND_RADIUS * 1.3; gz += 4.6) {
         const x = gx + (hash(gx, gz) - 0.5) * 3.6;
         const z = gz + (hash(gz, gx) - 0.5) * 3.6;
-        if (!clear(x, z, 7)) continue;
-        // Drifts: a slow wave decides where there is wood and where meadow.
-        const wood = Math.sin(x * 0.045 + 1.2) * Math.sin(z * 0.05 - 0.4) + 0.35 * Math.sin((x + z) * 0.11);
-        if (wood < 0.12 || hash(x, z) < 0.35) continue;
-        if (slopeAt(x, z) > 0.55) continue;
         const y = terrainHeight(x, z);
-        if (y > 17) continue;
-        trees.push([x, z, y > 6 || hash(z, x) > 0.72]);
-      }
-    }
-    trees.forEach(([x, z, pine], n) => {
-      const y = terrainHeight(x, z);
-      const size = 0.85 + hash(n, 3) * 0.55;
-      const spin = hash(n, 8) * 6.28;
-      trunks.push(
-        tint(move(new CylinderGeometry(0.42, 0.55, 3, 7), x, y + 1.5 * size, z, size), BARK, 0.06, n),
-      );
-      if (pine) {
-        const c = PINES[n % PINES.length];
-        for (let k = 0; k < 3; k += 1) {
-          const r = (3.2 - k * 0.8) * size;
+        if (!onGrass(y) || y > 17 || keptOpen(x, z, 6)) continue;
+        if (wood(x, z) < 0.12 || hash(x, z) < 0.35) continue;
+        if (slopeAt(x, z) > 0.55) continue;
+        const pine = y > 6 || hash(z, x) > 0.72;
+        const size = 0.85 + hash(n, 3) * 0.55;
+        const spin = hash(n, 8) * 6.28;
+        trunks.push(
+          tint(move(new CylinderGeometry(0.42, 0.55, 3, 7), x, y + 1.3 * size, z, size), BARK, 0.06, n),
+        );
+        if (pine) {
+          const c = PINES[n % PINES.length];
+          for (let k = 0; k < 3; k += 1) {
+            const r = (3.2 - k * 0.8) * size;
+            foliage.push(
+              tint(
+                move(new CylinderGeometry(0, r, 3.4 * size, 7), x, y + (3.6 + k * 1.9) * size, z, 1, 1, 1, spin),
+                c,
+                0.07,
+                n + k,
+              ),
+            );
+          }
+        } else {
+          const c = LEAVES[n % LEAVES.length];
           foliage.push(
-            tint(
-              move(new CylinderGeometry(0, r, 3.4 * size, 7), x, y + (3.6 + k * 1.9) * size, z, 1, 1, 1, spin),
-              c,
-              0.07,
-              n + k,
-            ),
+            tint(move(new IcosahedronGeometry(2.9, 1), x, y + 5.0 * size, z, size, size * 0.9, size, spin), c, 0.08, n),
+          );
+          foliage.push(
+            tint(move(new IcosahedronGeometry(2.0, 1), x + 1.4 * size, y + 3.6 * size, z + 0.6 * size, size), c, 0.08, n + 1),
           );
         }
-      } else {
-        const c = LEAVES[n % LEAVES.length];
-        foliage.push(
-          tint(move(new IcosahedronGeometry(2.9, 1), x, y + 5.0 * size, z, size, size * 0.9, size, spin), c, 0.08, n),
-        );
-        foliage.push(
-          tint(move(new IcosahedronGeometry(2.0, 1), x + 1.4 * size, y + 3.6 * size, z + 0.6 * size, size), c, 0.08, n + 1),
-        );
+        n += 1;
       }
-    });
+    }
 
-    // Boulders: ringed round the outcrops, and a few on the open ground.
-    const boulder = (x: number, z: number, r: number, seed: number) => {
+    // Palms along the back of the beaches and on the islet, leaning out
+    // toward the water the way palms do.
+    let palms = 0;
+    for (let gx = -150; gx <= 150; gx += 5.2) {
+      for (let gz = -150; gz <= 150; gz += 5.2) {
+        const x = gx + (hash(gx, gz + 9) - 0.5) * 4;
+        const z = gz + (hash(gz + 9, gx) - 0.5) * 4;
+        const y = terrainHeight(x, z);
+        // By the shore: the back of a beach, or anywhere on a scrap of land
+        // out in the sea.
+        const offshore = inland(x, z) < 0;
+        if (y < 0.55 || y > (offshore ? 5 : BEACH_TOP + 1.1) || keptOpen(x, z, 3)) continue;
+        if (!offshore && inland(x, z) > 24) continue;
+        if (slopeAt(x, z) > (offshore ? 0.6 : 0.32) || hash(x + 3, z) < (offshore ? 0.4 : 0.74)) continue;
+        const lean = downhill(x, z);
+        const size = 0.9 + hash(palms, 21) * 0.35;
+        const segments = 6;
+        let px = x;
+        let py = y - 0.2;
+        let pz = z;
+        for (let k = 0; k < segments; k += 1) {
+          // Each piece leans a little more than the one below: a gentle curve.
+          const bend = 0.05 + k * 0.045;
+          const length = 1.15 * size;
+          const dir = new Vector3(lean.x * bend, 1, lean.z * bend).normalize();
+          const tilt = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir);
+          const r = (0.36 - k * 0.03) * size;
+          const piece = new CylinderGeometry(r * 0.9, r, length, 6);
+          trunks.push(
+            tint(
+              move(piece, px + dir.x * length * 0.5, py + dir.y * length * 0.5, pz + dir.z * length * 0.5, 1, 1, 1, 0, tilt),
+              PALM_BARK.clone().multiplyScalar(k % 2 ? 0.92 : 1.05),
+              0.05,
+              palms + k,
+            ),
+          );
+          px += dir.x * length;
+          py += dir.y * length;
+          pz += dir.z * length;
+        }
+        // The fronds: long flattened leaves drooping from the crown.
+        const c = FRONDS[palms % FRONDS.length];
+        for (let k = 0; k < 7; k += 1) {
+          const yaw = (k / 7) * Math.PI * 2 + hash(palms, k) * 0.4;
+          const leaf = new CylinderGeometry(0.02, 0.55, 3.4 * size, 4);
+          leaf.translate(0, 1.7 * size, 0);
+          leaf.scale(1, 1, 0.22);
+          const droop = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 1.25 + hash(k, palms) * 0.35);
+          const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+          leaf.applyQuaternion(droop).applyQuaternion(turn).translate(px, py, pz);
+          foliage.push(tint(leaf, c, 0.08, palms * 7 + k));
+        }
+        foliage.push(tint(move(new IcosahedronGeometry(0.45 * size, 0), px, py - 0.1, pz), new Color('#6b8f2e'), 0.05, palms));
+        palms += 1;
+      }
+    }
+
+    // Bushes, round the edges of the woods and along the back of the beach.
+    // Waist high and soft: he pushes through them.
+    let bushes = 0;
+    for (let gx = -ISLAND_RADIUS * 1.2; gx <= ISLAND_RADIUS * 1.2; gx += 3.7) {
+      for (let gz = -ISLAND_RADIUS * 1.2; gz <= ISLAND_RADIUS * 1.2; gz += 3.7) {
+        const x = gx + (hash(gx + 5, gz) - 0.5) * 3;
+        const z = gz + (hash(gz, gx + 5) - 0.5) * 3;
+        const y = terrainHeight(x, z);
+        if (!onGrass(y) || y > 15 || keptOpen(x, z, 2) || slopeAt(x, z) > 0.6) continue;
+        const w = wood(x, z);
+        const edgeOfWood = w > -0.05 && w < 0.25;
+        const backOfBeach = inland(x, z) < 26;
+        if (!(edgeOfWood || backOfBeach) || hash(x, z + 7) < 0.78) continue;
+        const c = BUSHES[bushes % BUSHES.length];
+        const size = 0.7 + hash(bushes, 2) * 0.6;
+        foliage.push(tint(move(new IcosahedronGeometry(1, 0), x, y + 0.45 * size, z, size * 1.2, size * 0.8, size * 1.1, hash(bushes, 4) * 6), c, 0.1, bushes));
+        foliage.push(tint(move(new IcosahedronGeometry(0.7, 0), x + 0.7 * size, y + 0.35 * size, z + 0.3 * size, size), c, 0.1, bushes + 1));
+        bushes += 1;
+      }
+    }
+
+    // Boulders, rocks in the surf and sea stacks.
+    const boulder = (x: number, z: number, r: number, seed: number, sink = 0.35) => {
       const y = terrainHeight(x, z);
-      const g = new IcosahedronGeometry(r, 0);
       boulders.push(
         tint(
-          move(g, x, y + r * 0.35, z, 1, 0.75 + hash(seed, 1) * 0.3, 1, hash(seed, 2) * 6.28),
+          move(new IcosahedronGeometry(r, 0), x, y + r * sink, z, 1, 0.75 + hash(seed, 1) * 0.3, 1, hash(seed, 2) * 6.28),
           STONE[seed % STONE.length],
           0.1,
           seed,
         ),
       );
     };
+    const clearFor = (x: number, z: number, size: number) =>
+      !keptOpen(x, z, size + 1.5) && Math.hypot(x - spawn.x, z - spawn.z) > 10;
     RISES.filter((r) => r.rough > 1.5).forEach((r, k) => {
-      for (let n = 0; n < 7; n += 1) {
-        const a = hash(k, n) * 6.28;
-        const d = r.r * (0.35 + hash(n, k) * 0.45);
+      for (let m = 0; m < 7; m += 1) {
+        const a = hash(k, m) * 6.28;
+        const d = r.r * (0.35 + hash(m, k) * 0.45);
         const x = r.x + Math.cos(a) * d;
         const z = r.z + Math.sin(a) * d;
-        const size = 1.2 + hash(n, k + 4) * 2.2;
-        // Clear of the level places by its own width, so no boulder leans in.
-        if (clear(x, z, size + 1.5)) boulder(x, z, size, k * 10 + n);
+        const size = 1.2 + hash(m, k + 4) * 2.2;
+        if (clearFor(x, z, size)) boulder(x, z, size, k * 10 + m);
       }
     });
-    for (let n = 0; n < 40; n += 1) {
-      const a = hash(n, 77) * 6.28;
-      const d = Math.sqrt(hash(n, 78)) * ISLAND_RADIUS * 0.82;
+    for (let m = 0; m < 46; m += 1) {
+      const a = hash(m, 77) * 6.28;
+      const d = Math.sqrt(hash(m, 78)) * ISLAND_RADIUS * 0.85;
       const x = Math.cos(a) * d;
       const z = Math.sin(a) * d;
-      const size = 0.9 + hash(n, 79) * 1.4;
-      if (clear(x, z, size + 1.5) && slopeAt(x, z) < 0.6) boulder(x, z, size, 100 + n);
+      const size = 0.9 + hash(m, 79) * 1.4;
+      if (onGrass(terrainHeight(x, z)) && clearFor(x, z, size) && slopeAt(x, z) < 0.6) boulder(x, z, size, 100 + m);
+    }
+    // In the surf: half in the water where the shore is steepest, so the
+    // rocky stretches read as rocky and the sandy ones stay clear.
+    for (let m = 0; m < 260; m += 1) {
+      const angle = hash(m, 91) * Math.PI * 2;
+      const d = islandEdge(angle) * (0.94 + hash(m, 92) * 0.14);
+      const x = Math.cos(angle) * d;
+      const z = Math.sin(angle) * d;
+      const y = terrainHeight(x, z);
+      if (y < -1.4 || y > 0.8) continue;
+      if (slopeAt(x, z) < 0.22 && hash(m, 93) > 0.12) continue;
+      const size = 0.8 + hash(m, 94) * 1.5;
+      if (clearFor(x, z, size)) boulder(x, z, size, 200 + m, 0.2);
+    }
+    // Sea stacks: tall pillars of rock standing in the water off the cliffs
+    // at the back of the island.
+    for (let m = 0; m < 6; m += 1) {
+      const angle = -Math.PI / 2 + (m - 2.5) * 0.32 + (hash(m, 51) - 0.5) * 0.15;
+      let x = 0;
+      let z = 0;
+      // Out to where the water is a few metres deep.
+      for (let r = islandEdge(angle); r < 170; r += 1) {
+        x = Math.cos(angle) * r;
+        z = Math.sin(angle) * r;
+        if (terrainHeight(x, z) < -3.5 - hash(m, 52) * 2) break;
+      }
+      const base = terrainHeight(x, z);
+      const height = -base + 4 + hash(m, 53) * 6;
+      const width = 2.2 + hash(m, 54) * 1.4;
+      const pieces = 3;
+      for (let k = 0; k < pieces; k += 1) {
+        const w = width * (1 - k * 0.2);
+        const h = height / pieces;
+        const g = new IcosahedronGeometry(1, 0);
+        boulders.push(
+          tint(
+            move(g, x + (hash(m, k) - 0.5) * 0.6, base + h * (k + 0.5), z + (hash(k, m) - 0.5) * 0.6, w, h * 0.75, w * 0.9, hash(m, k + 9) * 6),
+            STONE[(m + k) % STONE.length].clone().multiplyScalar(0.92),
+            0.12,
+            300 + m * 5 + k,
+          ),
+        );
+      }
     }
 
-    // Flowers, in handfuls beside the roads and across the meadows.
+    // Flowers, in handfuls across the grass.
     const BLOOM = ['#ffffff', '#ffe14d', '#ff7aa8'].map((c) => new Color(c));
-    for (let n = 0; n < 420; n += 1) {
-      const a = hash(n, 31) * 6.28;
-      const d = Math.sqrt(hash(n, 32)) * ISLAND_RADIUS * 0.88;
+    for (let m = 0; m < 460; m += 1) {
+      const a = hash(m, 31) * 6.28;
+      const d = Math.sqrt(hash(m, 32)) * ISLAND_RADIUS * 0.95;
       const x = Math.cos(a) * d;
       const z = Math.sin(a) * d;
-      if (!overIsland(x, z, 6) || roadDistance(x, z) < ROAD_HALF + 1 || slopeAt(x, z) > 0.45) continue;
+      if (!onGrass(terrainHeight(x, z)) || slopeAt(x, z) > 0.45) continue;
+      if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 3) continue;
       for (let k = 0; k < 3; k += 1) {
-        const fx = x + (hash(n, k) - 0.5) * 2.4;
-        const fz = z + (hash(k, n) - 0.5) * 2.4;
+        const fx = x + (hash(m, k) - 0.5) * 2.4;
+        const fz = z + (hash(k, m) - 0.5) * 2.4;
         flowers.push(
-          tint(move(new IcosahedronGeometry(0.11, 0), fx, terrainHeight(fx, fz) + 0.1, fz), BLOOM[(n + k) % 3], 0.05, n),
+          tint(move(new IcosahedronGeometry(0.11, 0), fx, terrainHeight(fx, fz) + 0.1, fz), BLOOM[(m + k) % 3], 0.05, m),
         );
       }
     }
@@ -627,8 +683,7 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
       mesh.receiveShadow = true;
       target.add(mesh);
     };
-    // Trunks and boulders can be walked into; the leaves overhead and the
-    // flowers underfoot cannot, which is how the old worlds did it too.
+    // Trunks and rocks stop him; leaves, fronds, bushes and flowers do not.
     add('tree-trunks', trunks, solid, true);
     add('boulders', boulders, solid, true);
     add('foliage', foliage, root, true);
@@ -638,13 +693,34 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
     if (flowerMesh) flowerMesh.userData.thickest = 0.22;
   }
 
-  // ---- The sea ------------------------------------------------------------
-  // Far below, and a long way out in every direction. It is only ever
-  // looked at, since falling to it hits the floor of the world first and
-  // puts him back on his feet at the last pad.
+  // ---- The water ------------------------------------------------------------
+  // The pond first: its bottom dips a little below sea level, and the water
+  // asked for there is the pond's, not the sea's.
+  const pond = buildPond();
+  root.add(pond.mesh);
+  collision.addWater(
+    new Box3(
+      new Vector3(POND.x - POND.r - 2, POND.surface - 4, POND.z - POND.r - 2),
+      new Vector3(POND.x + POND.r + 2, POND.surface, POND.z + POND.r + 2),
+    ),
+    POND.surface,
+    (x, z) => Math.hypot(x - POND.x, z - POND.z) < POND.r + 1.2,
+  );
   const sea = buildSea();
   root.add(sea.mesh);
-  const water = sea;
+  collision.addWater(
+    new Box3(
+      new Vector3(-SEA_LIMIT - 30, SEA_FLOOR - 4, -SEA_LIMIT - 30),
+      new Vector3(SEA_LIMIT + 30, SEA_LEVEL, SEA_LIMIT + 30),
+    ),
+    SEA_LEVEL,
+  );
+  const water = {
+    update(time: number) {
+      sea.update(time);
+      pond.update(time);
+    },
+  };
 
   collision.addSolid(solid);
 
@@ -664,13 +740,36 @@ export function buildIsland(scene: Scene, collision: CollisionWorld): IslandWorl
     checkpoints: [spawn.clone()],
     spawn,
     spawnFacing: Math.PI,
+    seaLimit: SEA_LIMIT,
     triangleCount: Math.round(triangleCount),
+  };
+}
+
+/** The pond's surface: still, clearer and greener than the sea. */
+function buildPond(): { mesh: Mesh; update(time: number): void } {
+  const material = new MeshStandardMaterial({
+    color: '#4fb8c9',
+    roughness: 0.3,
+    transparent: true,
+    opacity: 0.78,
+    side: DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new Mesh(new CircleGeometry(POND.r + 1.6, 48).rotateX(-Math.PI / 2), material);
+  mesh.name = 'pond';
+  mesh.position.set(POND.x, POND.surface, POND.z);
+  return {
+    mesh,
+    update(time: number) {
+      material.opacity = 0.76 + Math.sin(time * 0.8) * 0.02;
+    },
   };
 }
 
 /**
  * The sea: one big flat plane of bright blue with lighter wave lines that
- * drift slowly across it. A texture rather than a shader, because at this
+ * drift slowly across it, a little see-through so the sand shows under the
+ * shallows and the shore fades into the deep. A texture rather than a shader, because at this
  * distance a texture is all it can be, and a shader on a plane this large
  * shimmers into rings.
  */
@@ -704,7 +803,15 @@ function buildSea(): { mesh: Mesh; update(time: number): void } {
   texture.anisotropy = 4;
   const mesh = new Mesh(
     new PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2),
-    new MeshStandardMaterial({ map: texture, roughness: 0.55, metalness: 0 }),
+    new MeshStandardMaterial({
+      map: texture,
+      roughness: 0.55,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.74,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
   );
   mesh.name = 'sea';
   mesh.position.y = SEA_LEVEL;

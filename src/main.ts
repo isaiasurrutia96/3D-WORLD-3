@@ -31,7 +31,7 @@ import {
   overIsland,
   terrainHeight,
 } from './world/Island.ts';
-import { GATES, PLOTS, ROAD_PATHS, RISES } from './world/Landscape.ts';
+import { MEADOWS, POND, RISES, SEA_LIMIT, inland, slopeAt } from './world/Landscape.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -74,8 +74,10 @@ class Game {
     water: { update(time: number): void };
   };
   private racingScene: ReturnType<typeof buildRacingScene> | null = null;
-  /** The go-kart, standing by the start. Null in the arena. */
+  /** The go-kart. Not in the scene while the island is nature only. */
   private kartMode: KartMode | null = null;
+  /** How far out to sea he can swim, or null where there is no sea. */
+  private seaLimit: number | null = null;
   private readonly spawn: Vector3;
   private readonly spawnFacing: number;
   private readonly player: Player;
@@ -99,13 +101,12 @@ class Game {
     } else {
       const island = buildIsland(this.engine.scene, this.collision);
       this.engine.setFogScale(0.22);
-      // The four circuits and the bridges to them. The bridge decks are
-      // solid, so he can walk out onto them.
-      const racing = buildRacingScene();
-      this.engine.scene.add(racing.root);
-      this.collision.addSolid(racing.solid);
-      island.triangleCount += racing.triangleCount;
-      this.racingScene = racing;
+      // The island is nature only for now. The four circuits, their bridges
+      // and the kart are kept (src/racing/) and not put in the scene; to
+      // bring them back, build them here as before:
+      //   this.racingScene = buildRacingScene(); scene.add(root); addSolid(solid)
+      //   this.kartMode = new KartMode(scene, { x, y, z, yaw })
+      this.seaLimit = island.seaLimit;
       this.world = island;
       this.course = island;
       this.spawn = island.spawn;
@@ -126,16 +127,6 @@ class Game {
     this.player.facing = this.spawnFacing;
     this.player.carryables = this.course.carryables;
     this.engine.scene.add(this.player.object);
-
-    if (!this.arena) {
-      // The kart waits just beside the start pad, pointing up the road.
-      this.kartMode = new KartMode(this.engine.scene, {
-        x: this.spawn.x + 7,
-        y: this.spawn.y,
-        z: this.spawn.z - 3,
-        yaw: Math.PI,
-      });
-    }
 
     this.cameraRig = new CameraRig(this.engine.camera, this.collision);
     this.cameraRig.reset(this.player);
@@ -297,6 +288,8 @@ class Game {
     if (this.input.wasPressed('togglePointerLock')) this.input.togglePointerLock();
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.updateMovement(delta);
+    // Swimming out too far, the current turns him back.
+    if (this.seaLimit !== null) this.player.holdWithin(this.seaLimit);
     this.cameraRig.update(delta, this.player);
     // Only the circuits near enough to be seen are drawn.
     this.racingScene?.update(
@@ -382,6 +375,7 @@ class Game {
       input: this.input,
       cameraRig: this.cameraRig,
       kart: this.kartMode,
+      spawn: this.spawn,
       touch: this.touch,
       touchControls: this.touchControls,
       /** Lets go of the page's gesture handling, for a test that wants to. */
@@ -600,12 +594,12 @@ class Game {
       },
 
       /**
-       * The island: that he can stand on it, that every part of it is ground,
-       * that the places meant to be level are level, that the roads can be
-       * walked end to end, that the hills can be climbed, that its edge is an
-       * edge and that going over it puts him back on his feet. Everything is
-       * read from the landscape's own description, so reshaping the land does
-       * not break it.
+       * The island: that he can stand on it, that every part of it and the
+       * sea floor round it is ground, that the open meadows are open, that
+       * he can walk down a beach into the sea and back out, swim in the
+       * pond, be turned back by the current far out, and climb the hills.
+       * Everything is read from the landscape's own description, so
+       * reshaping the land does not break it.
        */
       simulateIsland: (dt = 1 / 60) => {
         const stick = { x: 0, y: 0 };
@@ -621,7 +615,10 @@ class Game {
         } as unknown as Input;
         const player = this.player;
         const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
-        const step = (yaw = 0) => player.update(dt, stub, yaw);
+        const step = (yaw = 0) => {
+          player.update(dt, stub, yaw);
+          if (this.seaLimit !== null) player.holdWithin(this.seaLimit);
+        };
         const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
         const results: Record<string, unknown> = {};
         const down = (x: number, z: number) =>
@@ -662,22 +659,26 @@ class Game {
         results.start = {
           state: player.stateName,
           y: round(player.position.y),
-          onPad: Math.hypot(player.position.x - this.spawn.x, player.position.z - this.spawn.z) < 0.5,
+          onSpot: Math.hypot(player.position.x - this.spawn.x, player.position.z - this.spawn.z) < 0.5,
+          onGround: player.onGround,
         };
 
-        // Every part of the top is ground, and how rough it is. Looked at
-        // straight down from above at a couple of thousand points.
+        // Every part of the island is ground, and so is the sea floor out to
+        // where the current turns him back. Looked at straight down at a few
+        // thousand points.
         {
           let holes = 0;
           let tried = 0;
           let steep = 0;
-          let lowest = Infinity;
+          let landPoints = 0;
           let highest = -Infinity;
           let wrong = 0;
+          let seaHoles = 0;
+          let seaTried = 0;
           const wrongAt: string[] = [];
           for (let a = 0; a < 72; a += 1) {
             const angle = (a / 72) * Math.PI * 2;
-            for (let r = 0.02; r <= 0.93; r += 0.03) {
+            for (let r = 0.02; r <= 0.95; r += 0.03) {
               const d = islandEdge(angle) * r;
               const x = Math.cos(angle) * d;
               const z = Math.sin(angle) * d;
@@ -687,15 +688,21 @@ class Game {
                 holes += 1;
                 continue;
               }
-              lowest = Math.min(lowest, hit.y);
               highest = Math.max(highest, hit.y);
-              // The drawn ground and the solid ground are one thing.
-              // Anything standing on it (a boulder, a trunk) is above, which is fine.
-              if (hit.y < terrainHeight(x, z) - 3 || hit.y > terrainHeight(x, z) + 12) {
+              // The drawn ground and the solid ground are one thing. Anything
+              // standing on it (a boulder, a trunk) is above, which is fine.
+              if (hit.y < terrainHeight(x, z) - 1.2 || hit.y > terrainHeight(x, z) + 12) {
                 wrong += 1;
                 if (wrongAt.length < 4) wrongAt.push(`${round(x, 1)},${round(z, 1)}: ${round(hit.y, 1)} vs ${round(terrainHeight(x, z), 1)}`);
               }
-              if (hit.normal.y < Math.cos((52 * Math.PI) / 180)) steep += 1;
+              if (hit.y > 0) {
+                landPoints += 1;
+                if (hit.normal.y < Math.cos((52 * Math.PI) / 180)) steep += 1;
+              }
+            }
+            for (let r = islandEdge(angle) + 5; r < SEA_LIMIT; r += 12) {
+              seaTried += 1;
+              if (!down(Math.cos(angle) * r, Math.sin(angle) * r)) seaHoles += 1;
             }
           }
           results.ground = {
@@ -703,113 +710,131 @@ class Game {
             holes,
             wrong,
             wrongAt,
-            steep: round(steep / tried, 3),
-            lowest: round(lowest),
+            steep: round(steep / Math.max(1, landPoints), 3),
             highest: round(highest),
+            seaTried,
+            seaHoles,
           };
         }
 
-        // The level places are level, and the roads are too.
+        // The meadows left open are gentle, and nothing stands on them.
         {
-          const places = Object.entries(PLOTS).map(([name, plot]) => {
-            let worst = 0;
-            for (let a = 0; a < 16; a += 1) {
-              const angle = (a / 16) * Math.PI * 2;
-              const hit = down(
-                plot.x + Math.cos(angle) * plot.r * 0.8,
-                plot.z + Math.sin(angle) * plot.r * 0.8,
-              );
-              worst = Math.max(worst, hit ? Math.abs(hit.y) : 9);
+          const rows = Object.entries(MEADOWS).map(([name, m]) => {
+            let steepest = 0;
+            let blocked = 0;
+            const points: Array<[number, number]> = [[m.x, m.z]];
+            for (let ring = 0.4; ring <= 0.85; ring += 0.45) {
+              for (let a = 0; a < 12; a += 1) {
+                const angle = (a / 12) * Math.PI * 2;
+                points.push([m.x + Math.cos(angle) * m.r * ring, m.z + Math.sin(angle) * m.r * ring]);
+              }
             }
-            return { name, worst: round(worst, 3) };
+            for (const [x, z] of points) {
+              const hit = down(x, z);
+              if (!hit || hit.y > terrainHeight(x, z) + 0.2) blocked += 1;
+              else steepest = Math.max(steepest, Math.acos(Math.min(1, hit.normal.y)));
+            }
+            return { name, steepest: round((steepest * 180) / Math.PI, 1), blocked };
           });
-          let roadWorst = 0;
-          let roadPoints = 0;
-          for (const path of ROAD_PATHS) {
-            for (const point of path) {
-              // From just above the road, so a gateway's beam overhead is not
-              // taken for the ground.
-              const hit = this.collision.groundProbe(new Vector3(point.x, 3, point.y), 10);
-              roadWorst = Math.max(roadWorst, hit ? Math.abs(hit.y) : 9);
-              roadPoints += 1;
-            }
-          }
-          results.level = {
-            places,
-            levelPlaces: places.every((p) => p.worst < 0.03),
-            roadPoints,
-            roadWorst: round(roadWorst, 3),
+          results.meadows = {
+            rows,
+            open: rows.every((r) => r.blocked === 0 && r.steepest < 14),
           };
         }
 
-        // Past the edge there is nothing: probes just outside find no
-        // ground, so what looks like the edge is the edge.
+        // Down the beach and into the sea, and back out again, on every side
+        // of the island where the shore is a beach (the mountains at the back
+        // meet the sea as rock, and nothing asks him to scramble down those).
         {
-          let ground = 0;
-          let tried = 0;
-          for (let a = 0; a < 72; a += 1) {
-            const angle = (a / 72) * Math.PI * 2;
-            const d = islandEdge(angle) + 4;
-            // Where a bridge leaves the island there is ground by design.
-            const atGate = Object.values(GATES).some(
-              (g) => Math.abs(Math.atan2(Math.sin(angle - g.angle), Math.cos(angle - g.angle))) < 0.25,
-            );
-            if (atGate) continue;
-            if (down(Math.cos(angle) * d, Math.sin(angle) * d)) ground += 1;
-            tried += 1;
-          }
-          results.beyond = { tried, ground };
-        }
-
-        // Each road walked from the plaza to the end of it, and the way in
-        // from the start to the plaza: no stalls, never off the level.
-        {
-          const walks = ROAD_PATHS.map((path, index) => {
-            const from = index === 0 ? path[0] : path[0];
-            put(from.x, from.y, 0);
-            for (let i = 0; i < frames(0.3); i += 1) step();
-            let worstY = 0;
-            let arrived = true;
-            const t0 = player.position.clone();
-            for (let k = 4; k < path.length; k += 4) {
-              const r = walkTo(path[k].x, path[k].y, 6);
-              worstY = Math.max(worstY, Math.abs(r.highest), Math.abs(r.lowest));
-              if (!r.arrived) arrived = false;
+          const rows: unknown[] = [];
+          for (let k = 0; k < 24; k += 1) {
+            const angle = ((k + 0.25) / 24) * Math.PI * 2;
+            const ox = Math.cos(angle);
+            const oz = Math.sin(angle);
+            const edge = islandEdge(angle);
+            // From thirty metres in, out to thirty metres off the shore.
+            let rough = false;
+            for (let r = edge - 30; r < edge + 10; r += 2) {
+              const x = ox * r;
+              const z = oz * r;
+              if (terrainHeight(x, z) > 7 || (terrainHeight(x, z) > 0 && slopeAt(x, z) > 0.6)) rough = true;
             }
-            const last = path[path.length - 1];
-            const r = walkTo(last.x, last.y, 6);
-            if (!r.arrived) arrived = false;
-            return {
-              road: index,
-              arrived,
-              length: round(
-                path.reduce((n, p, i) => (i ? n + Math.hypot(p.x - path[i - 1].x, p.y - path[i - 1].y) : 0), 0),
-                0,
-              ),
-              worstY: round(worstY, 2),
-              ended: round(Math.hypot(player.position.x - last.x, player.position.z - last.y), 1),
-            };
-            void t0;
-          });
-          results.roads = { walks, allWalked: walks.every((w) => w.arrived && w.worstY < 0.3) };
+            if (rough) continue;
+            put(ox * (edge - 30), oz * (edge - 30), 0);
+            for (let i = 0; i < frames(0.4); i += 1) step();
+            let swam = false;
+            for (let i = 0; i < frames(25) && !swam; i += 1) {
+              stick.x = ox;
+              stick.y = oz;
+              step();
+              if (player.stateName.startsWith('swim') && inland(player.position.x, player.position.z) < -8) swam = true;
+            }
+            let out = false;
+            for (let i = 0; i < frames(30) && !out; i += 1) {
+              stick.x = -ox;
+              stick.y = -oz;
+              step();
+              out = player.onGround && player.position.y > 0.3;
+            }
+            stick.x = 0;
+            stick.y = 0;
+            rows.push({
+              angle: Math.round((angle * 180) / Math.PI),
+              swam,
+              out,
+              at: `${round(player.position.x, 1)},${round(player.position.y, 1)},${round(player.position.z, 1)} ${player.stateName}`,
+            });
+          }
+          results.shore = {
+            rows,
+            tried: rows.length,
+            allBack: rows.length >= 6 && rows.every((r) => (r as { swam: boolean }).swam && (r as { out: boolean }).out),
+          };
         }
 
-        // The hills and mountains climbed: walked straight up toward the
-        // top from a foot-of-the-slope start, to see whether they can be
-        // got up at all, and how far.
+        // The pond is water he swims in.
+        {
+          put(POND.x, POND.z, 0);
+          player.teleport(new Vector3(POND.x, POND.surface + 1, POND.z), 0);
+          for (let i = 0; i < frames(2.5); i += 1) step();
+          results.pond = { state: player.stateName, y: round(player.position.y) };
+        }
+
+        // Out at sea, swimming straight away from the island: the current
+        // turns him back at the limit, and he is still swimming.
+        {
+          const r0 = SEA_LIMIT - 8;
+          player.teleport(new Vector3(r0, 0.5, 0), Math.PI / 2);
+          let furthest = 0;
+          for (let i = 0; i < frames(12); i += 1) {
+            stick.x = 1;
+            stick.y = 0;
+            step();
+            furthest = Math.max(furthest, Math.hypot(player.position.x, player.position.z));
+          }
+          stick.x = 0;
+          results.seaLimit = {
+            limit: SEA_LIMIT,
+            furthest: round(furthest, 1),
+            state: player.stateName,
+          };
+        }
+
+        // The hills climbed: walked straight up toward the top from a
+        // foot-of-the-slope start, to see whether they can be got up at all.
         {
           // From many sides, taking the best: a trunk or a boulder across
           // one line up is a reason to try another, not a failed hill.
           const climb = (rise: (typeof RISES)[number]) => {
             const top = terrainHeight(rise.x, rise.z);
+            const foot = (sx: number, sz: number) => terrainHeight(sx, sz);
             let best = 0;
-            // Sixteen sides, and the one that faces the plaza.
             const toward = Math.atan2(-rise.z, -rise.x);
             for (let k = 0; k < 17; k += 1) {
               const bearing = k === 16 ? toward : (k / 16) * Math.PI * 2;
               const sx = rise.x + Math.cos(bearing) * rise.r * 0.95;
               const sz = rise.z + Math.sin(bearing) * rise.r * 0.95;
-              if (!overIsland(sx, sz, 6) || terrainHeight(sx, sz) > 3) continue;
+              if (!overIsland(sx, sz, 6) || foot(sx, sz) < 0.5 || foot(sx, sz) > top - 2) continue;
               put(sx, sz, 0);
               for (let i = 0; i < frames(0.4); i += 1) step();
               const r = walkTo(rise.x, rise.z, 30);
@@ -822,64 +847,12 @@ class Game {
               share: round(top > 0.5 ? Math.min(1, best / top) : 1, 2),
             };
           };
-          // Hills are for walking up. Mountains and outcrops are scenery: they
-          // are as steep as they look, and nothing asks to climb them.
-          // (Only those still standing: a road cut through one takes it away.)
-          const names = RISES.map((r, i) => ({ r, i })).filter(
-            ({ r }) => r.rough < 1.1 && terrainHeight(r.x, r.z) > 3,
-          );
-          const rows = names.map(({ r }) => climb(r));
+          // Hills are for walking up. Mountains and outcrops are scenery.
+          const rows = RISES.filter((r) => r.rough < 1.1 && overIsland(r.x, r.z, 6)).map((r) => climb(r));
           results.climbs = {
             rows,
             worst: Math.min(...rows.map((c) => c.share)),
           };
-        }
-
-        // Running off the edge in eight directions: he goes over it, falls,
-        // and is put back on the island on his feet. The runway is the flat
-        // lip, outside where the hills are.
-        {
-          const rows: unknown[] = [];
-          let allBack = true;
-          for (let k = 0; k < 8; k += 1) {
-            // Between the compass points, clear of the four bridges.
-            const angle = ((k + 0.5) / 8) * Math.PI * 2;
-            const heading = Math.atan2(Math.cos(angle), Math.sin(angle));
-            // On the level lip itself, the last few metres before the edge,
-            // wherever the hills round the rim happen to be.
-            const x = Math.cos(angle) * islandEdge(angle) * 0.955;
-            const z = Math.sin(angle) * islandEdge(angle) * 0.955;
-            put(x, z, heading);
-            // Settle, and learn that this spot is safe to come back to.
-            for (let i = 0; i < frames(0.5); i += 1) step();
-            stick.x = Math.cos(angle);
-            stick.y = Math.sin(angle);
-            let wentOver = false;
-            let lowest = 0;
-            for (let i = 0; i < frames(14); i += 1) {
-              step();
-              lowest = Math.min(lowest, player.position.y);
-              if (!wentOver && !overIsland(player.position.x, player.position.z) && player.position.y < -2) {
-                wentOver = true;
-                stick.x = 0;
-                stick.y = 0;
-              }
-            }
-            stick.x = 0;
-            stick.y = 0;
-            const respawned = lowest < TUNING.killPlaneY * 0.9;
-            const back = overIsland(player.position.x, player.position.z) && player.onGround;
-            if (!(wentOver && respawned && back)) allBack = false;
-            rows.push({
-              angle: Math.round((angle * 180) / Math.PI),
-              wentOver,
-              fellTo: round(lowest, 1),
-              respawned,
-              backOnIsland: back,
-              endedAt: `${round(player.position.x, 1)},${round(player.position.y, 1)},${round(player.position.z, 1)} ${player.stateName}`,
-            });
-          }
-          results.falling = { rows, allBack };
         }
 
         // The size of the world against the size of him.
