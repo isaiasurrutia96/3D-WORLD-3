@@ -27,8 +27,10 @@ const AUTO_FOLLOW_DELAY = 1.1;
  */
 const ISO_PITCH = Math.atan(1 / Math.SQRT2);
 const ISO_FOV = 18;
-/** Far enough that about eighteen metres of ground fit top to bottom. */
-const ISO_DISTANCE = 58;
+/** Far enough that about thirty metres of ground fit top to bottom. */
+const ISO_DISTANCE = 96;
+/** And at least this many metres across, so a phone held upright sees as wide. */
+const ISO_MIN_WIDTH = 26;
 /** The diagonal it starts on: from the front left. */
 const ISO_YAW = -Math.PI / 4;
 
@@ -216,8 +218,11 @@ export class CameraRig {
     }
     const cosPitch = Math.cos(this.pitch);
     this.toCamera.set(Math.sin(this.yaw) * cosPitch, Math.sin(this.pitch), Math.cos(this.yaw) * cosPitch);
-    this.currentDistance = ISO_DISTANCE;
-    this.camera.position.copy(this.smoothedFocus).addScaledVector(this.toCamera, ISO_DISTANCE);
+    // Pulled further back on a narrow screen, so the view is as wide there.
+    const across = 2 * Math.tan(MathUtils.degToRad(ISO_FOV / 2)) * Math.max(0.2, this.camera.aspect);
+    const distance = Math.max(ISO_DISTANCE, ISO_MIN_WIDTH / across);
+    this.currentDistance = distance;
+    this.camera.position.copy(this.smoothedFocus).addScaledVector(this.toCamera, distance);
     this.camera.lookAt(this.smoothedFocus);
   }
 
