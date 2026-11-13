@@ -33,6 +33,7 @@ import {
 } from './world/Island.ts';
 import { GATES, PLOTS, ROAD_PATHS, RISES } from './world/Landscape.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
+import { KartMode } from './racing/KartMode.ts';
 import {
   COURSE_MARKS,
   COURSE_POOL,
@@ -73,6 +74,8 @@ class Game {
     water: { update(time: number): void };
   };
   private racingScene: ReturnType<typeof buildRacingScene> | null = null;
+  /** The go-kart, standing by the start. Null in the arena. */
+  private kartMode: KartMode | null = null;
   private readonly spawn: Vector3;
   private readonly spawnFacing: number;
   private readonly player: Player;
@@ -122,6 +125,16 @@ class Game {
     this.player.facing = this.spawnFacing;
     this.player.carryables = this.course.carryables;
     this.engine.scene.add(this.player.object);
+
+    if (!this.arena) {
+      // The kart waits just beside the start pad, pointing up the road.
+      this.kartMode = new KartMode(this.engine.scene, {
+        x: this.spawn.x + 7,
+        y: this.spawn.y,
+        z: this.spawn.z - 3,
+        yaw: Math.PI,
+      });
+    }
 
     this.cameraRig = new CameraRig(this.engine.camera, this.collision);
     this.cameraRig.reset(this.player);
@@ -216,6 +229,12 @@ class Game {
     // Holding shift goes back to the very start instead.
     if (event.code === 'Backspace') {
       event.preventDefault();
+      // From the kart, Backspace brings it home and puts him on his feet.
+      if (this.kartMode?.driving) {
+        this.kartMode.sendHome();
+        this.kartMode.driving = false;
+        this.player.object.visible = true;
+      }
       const target = event.shiftKey ? this.spawn : this.lastPad();
       this.player.teleport(target, event.shiftKey ? this.spawnFacing : this.player.facing);
       this.cameraRig.reset(this.player);
@@ -231,6 +250,42 @@ class Game {
     }
   };
 
+  /**
+   * Moves whoever is being played this frame: the character on foot, or the
+   * kart he is driving. The one button that does both jobs — climb in, get
+   * out — is read here, before either of them sees it, so a single press can
+   * never both step out of the kart and pick up a crate.
+   */
+  private updateMovement(delta: number): void {
+    const kart = this.kartMode;
+    if (!kart) {
+      this.player.update(delta, this.input, this.cameraRig.movementYaw, this.cameraRig.lookPitch);
+      return;
+    }
+    const now = performance.now();
+    let swapped = false;
+    if (this.input.wasPressed('grab')) {
+      if (kart.driving) {
+        swapped = kart.exit(this.player, now);
+      } else if (!this.player.carried && kart.isNear(this.player)) {
+        swapped = kart.enter(this.player);
+        if (!swapped) {
+          kart.message = this.player.onGround ? 'Come closer to the kart' : 'Land before getting in';
+        }
+      }
+    }
+    if (kart.driving) {
+      kart.update(delta, this.input, this.player);
+    } else {
+      if (!swapped) {
+        this.player.update(delta, this.input, this.cameraRig.movementYaw, this.cameraRig.lookPitch);
+      }
+      kart.update(delta, this.input, this.player);
+    }
+    this.hud.setKart(kart.driving ? kart.mph : null);
+    this.touchControls?.setDriving(kart.driving);
+  }
+
   private frame = (): void => {
     if (!this.running) return;
     requestAnimationFrame(this.frame);
@@ -240,7 +295,7 @@ class Game {
     this.input.update(this.settings.cameraSensitivity, this.settings.invertCameraY);
     if (this.input.wasPressed('togglePointerLock')) this.input.togglePointerLock();
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
-    this.player.update(delta, this.input, this.cameraRig.movementYaw, this.cameraRig.lookPitch);
+    this.updateMovement(delta);
     this.cameraRig.update(delta, this.player);
     // Only the circuits near enough to be seen are drawn.
     this.racingScene?.update(
@@ -297,6 +352,16 @@ class Game {
    * beside a ladder impossible to simply walk off.
    */
   private currentOffer(): { action: ActionName; key: string; label: string } | null {
+    const kart = this.kartMode;
+    if (kart?.driving) {
+      const said = kart.currentMessage(performance.now());
+      const stopped = Math.abs(kart.state.speed) <= 0.75;
+      return { action: 'grab', key: 'R', label: said || (stopped ? 'Get out' : 'Stop to get out') };
+    }
+    if (kart && !this.player.carried && kart.isNear(this.player)) {
+      const said = kart.currentMessage(performance.now());
+      return { action: 'grab', key: 'R', label: said || 'Drive' };
+    }
     if (this.player.ladderToClimbDown()) return { action: 'climbDown', key: 'G', label: 'Climb down' };
     if (this.player.carried) return { action: 'grab', key: 'R', label: 'Throw' };
     if (this.player.findCarryTarget()) return { action: 'grab', key: 'R', label: 'Pick up' };
@@ -310,6 +375,7 @@ class Game {
       player: this.player,
       input: this.input,
       cameraRig: this.cameraRig,
+      kart: this.kartMode,
       touch: this.touch,
       touchControls: this.touchControls,
       /** Lets go of the page's gesture handling, for a test that wants to. */
@@ -3499,6 +3565,10 @@ class Game {
           if (!(object instanceof Mesh)) return;
           if (inSolid.has(object)) return;
           if (this.player.rig.root.getObjectById(object.id)) return;
+          // The kart is something he climbs into, not something he stands on.
+          for (let a: Object3D | null = object.parent; a; a = a.parent) {
+            if (a.userData.vehicle) return;
+          }
           const name = object.name || object.geometry.type;
           loose[name] = (loose[name] ?? 0) + 1;
           // Measured on the geometry itself rather than on a world box: a

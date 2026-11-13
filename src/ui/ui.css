@@ -213,6 +213,35 @@
 .hud__fps--ok { color: #ffd34d; }
 .hud__fps--poor { color: #ff8b7a; }
 
+/* The kart's speed, large and in the middle of the bottom edge. */
+.hud__kart {
+  position: absolute;
+  left: 50%;
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(8, 20, 38, 0.6);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.hud__kart[hidden] {
+  display: none;
+}
+.hud__kart b {
+  font-size: 30px;
+  line-height: 1;
+}
+.hud__kart span {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
 .hud__prompt {
   position: absolute;
   left: 50%;
@@ -703,6 +732,11 @@
   top: calc(8px + env(safe-area-inset-top, 0px));
   font-size: 11px;
   padding: 6px 9px;
+}
+
+/* In the kart the four jump buttons have nothing to do. */
+.touch.is-driving .touch__pad {
+  display: none;
 }
 
 /* The button above the pad is the prompt, and says it without a key. */

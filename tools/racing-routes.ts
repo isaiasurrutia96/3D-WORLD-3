@@ -15,7 +15,7 @@
  */
 import { Vector3 } from 'three';
 import { BRIDGES, COURSES, worldPhysics } from '../src/racing/Routes.ts';
-import { ROAD_PATHS } from '../src/world/Landscape.ts';
+import { ROAD_PATHS, overIsland, terrainHeight } from '../src/world/Landscape.ts';
 // @ts-ignore — plain JavaScript, checked by its own tests.
 import { createVehicleState, stepVehicle } from '../apps/letsgo-racing/src/vehicle-controller.js';
 
@@ -201,11 +201,53 @@ function drive(index: number): Report {
   };
 }
 
+/**
+ * A kart driven flat out at the side of a mountain, from several directions,
+ * must stop against it: it does not sink into the land, and it does not
+ * drive up the steep sides of the mountains.
+ */
+function mountainWall(): { tried: number; through: number; deepest: number } {
+  let through = 0;
+  let deepest = 0;
+  const starts: Array<[number, number, number]> = [
+    [-14, -28, 0],
+    [-14, -40, 0],
+    [-30, -48, -0.8],
+    [10, -36, 0.5],
+    [-2, -34, -0.3],
+  ];
+  for (const [x, z, bearing] of starts) {
+    const state = createVehicleState();
+    state.x = x;
+    state.z = z;
+    state.y = terrainHeight(x, z);
+    state.yaw = Math.PI + bearing;
+    let bad = false;
+    let highest = 0;
+    for (let frame = 0; frame < 60 * 14; frame += 1) {
+      stepVehicle(state, { throttle: 1, brake: false, steer: 0 }, DT, worldPhysics);
+      // Only over the land: past the edge it is meant to fall.
+      const sunk = overIsland(state.x, state.z) ? terrainHeight(state.x, state.z) - state.y : 0;
+      deepest = Math.max(deepest, sunk);
+      if (sunk > 0.8) bad = true;
+      highest = Math.max(highest, state.y);
+    }
+    // The mountains rise to 29 metres; a kart that gets above 16 has driven
+    // up their sides, which are too steep for it.
+    if (highest > 16) bad = true;
+    if (bad) through += 1;
+  }
+  return { tried: starts.length, through, deepest: Math.round(deepest * 100) / 100 };
+}
+
 const only = process.argv[2] ? [Number(process.argv[2])] : [0, 1, 2, 3];
 const reports = only.map(drive);
 for (const r of reports) console.log(JSON.stringify(r));
 const bad = reports.filter(
   (r) => r.fell || r.stuck || !r.reachedEnd || r.gatesPassed < r.gates || r.railSeconds > 3,
 );
+const wall = process.argv[2] ? { tried: 0, through: 0, deepest: 0 } : mountainWall();
+if (wall.tried) console.log(JSON.stringify({ mountainWall: wall }));
+if (wall.through) bad.push({ course: 'mountain wall' } as never);
 console.log(bad.length ? `FAILED: ${bad.map((r) => r.course).join(', ')}` : 'all four circuits driven from the island');
 process.exit(bad.length ? 1 : 0);

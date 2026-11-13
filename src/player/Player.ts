@@ -2547,6 +2547,19 @@ export class Player {
     this.lastSafePosition.copy(position);
   }
 
+  /**
+   * Rides along with something he is driving: put where it is, turned the way
+   * it is turned and moving as it moves, and not simulated at all. This is
+   * all the camera reads of him, so it is all that has to be kept true.
+   */
+  rideAlong(x: number, y: number, z: number, facing: number, vx: number, vz: number): void {
+    this.object.position.set(x, y, z);
+    this.facing = facing;
+    this.velocity.set(vx, 0, vz);
+    this.state = 'ground';
+    this.syncCapsuleFromPosition();
+  }
+
   teleport(position: Vector3, facing = this.facing): void {
     this.dropCarried();
     this.object.position.copy(position);

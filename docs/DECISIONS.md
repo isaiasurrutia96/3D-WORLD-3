@@ -391,6 +391,37 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, fourth entry. Racing joins the island: stage two, the
+kart.** A go-kart stands beside the start pad, and he can climb into it, drive
+it and step out of it, at a keyboard and on a phone.
+
+**1. What is the racing game's.** The kart model, the vehicle physics, the
+test for whether he can climb in and the search for somewhere to step out.
+None of it is copied; `src/racing/KartMode.ts` imports it and joins it to the
+island.
+
+**2. How he gets in and out.** One button, R, which on a phone is the gold
+button above the move buttons. Beside the kart it says Drive; in it, Get out,
+or Stop to get out while it is moving. It cannot be got out of while moving,
+which is the racing game's rule. Backspace brings the kart home.
+
+**3. How it is driven.** The stick or E S D F: forward is throttle, back is
+brake and then reverse, sideways steers. On a phone the four jump buttons go
+away while driving, since they do nothing there. The speed is shown in miles
+an hour.
+
+**4. How the camera follows.** While driving the character is not simulated;
+he is hidden and placed where the kart is, facing and moving as it does,
+which is all the island's camera reads of him. So the camera needed no change.
+
+**5. Checked.** With real key presses and with real touches on an emulated
+phone: walk up, be offered the kart, climb in, drive, be refused when trying
+to get out while moving, brake to a stop and get out beside it.
+
+**6. Not done.** He is hidden in the kart, not sitting in it. There are no
+laps, checkpoints, timing, items or opponents yet, none of the racing
+screens, and the kart stays where he leaves it.
+
 **13 November 2026, third entry. Racing joins the island: stage one, the
 layout and the roads.** Requested by the owner, who also asked for a
 checkpoint first (`checkpoint-8-island-landscape`, section J). This is the

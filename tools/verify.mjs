@@ -1073,6 +1073,58 @@ const island = await (async () => {
     timeout: 60000,
   });
   await islandPage.waitForTimeout(1500);
+  // The kart, with real key presses: walk up to it, climb in, drive, find
+  // that he cannot get out while it is moving, stop, and get out.
+  const kart = {};
+  {
+    const look = () =>
+      islandPage.evaluate(() => {
+        const d = window.__letsgo.debug;
+        const k = d.kart;
+        return {
+          driving: k.driving,
+          x: k.state.x,
+          z: k.state.z,
+          speed: k.state.speed,
+          visible: d.player.object.visible,
+          px: d.player.position.x,
+          pz: d.player.position.z,
+          prompt: document.querySelector('.hud__prompt')?.textContent ?? '',
+          speedo: document.querySelector('.hud__kart')?.hidden === false,
+        };
+      });
+    // Next to the kart, as if he had walked there.
+    await islandPage.evaluate(() => {
+      const d = window.__letsgo.debug;
+      const k = d.kart.state;
+      d.player.teleport(d.player.position.clone().set(k.x - 2.4, 0, k.z + 1.5), Math.PI / 2);
+    });
+    await islandPage.waitForTimeout(700);
+    kart.near = await look();
+    kart.promptWhenNear = kart.near.prompt;
+    await islandPage.keyboard.press('KeyR');
+    await islandPage.waitForTimeout(400);
+    kart.entered = await look();
+    await islandPage.keyboard.down('KeyE');
+    // Until it is really moving, not for a fixed time: how much of that is
+    // simulated depends on how busy this machine is.
+    await islandPage
+      .waitForFunction(() => window.__letsgo.debug.kart.state.speed > 12, null, { timeout: 30000 })
+      .catch(() => {});
+    await islandPage.waitForTimeout(600);
+    kart.driving = await look();
+    await islandPage.keyboard.press('KeyR');
+    await islandPage.waitForTimeout(300);
+    kart.refused = await look();
+    await islandPage.keyboard.up('KeyE');
+    await islandPage.keyboard.down('KeyD');
+    await islandPage.waitForFunction(() => Math.abs(window.__letsgo.debug.kart.state.speed) < 0.3, null, { timeout: 15000 }).catch(() => {});
+    await islandPage.keyboard.up('KeyD');
+    await islandPage.keyboard.press('KeyR');
+    await islandPage.waitForTimeout(500);
+    kart.exited = await look();
+  }
+
   const result = await islandPage.evaluate(() => {
     const d = window.__letsgo.debug;
     d.freeze();
@@ -1081,6 +1133,7 @@ const island = await (async () => {
       audit: d.collisionAudit(),
     };
   });
+  result.kart = kart;
   // Looked at the way he sees it: from the start, and from well above.
   await islandPage.evaluate(() => {
     const d = window.__letsgo.debug;
@@ -1138,12 +1191,27 @@ const island = await (async () => {
   if (sim.scale.narrowest / 1.82 < 60) {
     problems.push(`island: only ${sim.scale.heightsAcross} character heights across — it is not big enough`);
   }
+  {
+    const k = island.kart;
+    if (!/Drive/.test(k.promptWhenNear)) problems.push(`kart: walking up to it offered "${k.promptWhenNear}", not a way to drive it`);
+    if (!k.entered.driving || k.entered.visible) problems.push('kart: pressing R beside it did not put him in it');
+    if (!k.entered.speedo) problems.push('kart: no speedometer while driving');
+    if (!(k.driving.speed > 8) || Math.hypot(k.driving.x - k.entered.x, k.driving.z - k.entered.z) < 4) {
+      problems.push(`kart: holding E only reached ${k.driving.speed} m/s`);
+    }
+    if (!k.refused.driving) problems.push('kart: he got out while it was moving');
+    if (k.exited.driving || !k.exited.visible) problems.push('kart: he did not get out once it had stopped');
+    if (Math.hypot(k.exited.px - k.exited.x, k.exited.pz - k.exited.z) > 4) {
+      problems.push('kart: he got out nowhere near it');
+    }
+  }
   for (const fault of islandAudit.faults) problems.push(`island collision and geometry disagree: ${fault}`);
   for (const name of Object.keys(islandAudit.walkThrough)) {
     if (!ALLOWED_WALK_THROUGH.includes(name)) {
       problems.push(`island: "${name}" has body but is not solid`);
     }
   }
+  island.kartSummary = ` kart           ${island.kart.promptWhenNear} > in at ${island.kart.entered.speedo} > ${Math.round(island.kart.driving.speed)} m/s with E held > R while moving: ${island.kart.refused.driving ? 'refused' : 'LET HIM OUT'} > out beside it: ${!island.kart.exited.driving}`;
   island.summary =
     ` island         start ${sim.start.state} on the pad · ${sim.ground.tried} ground points, ` +
     `${sim.ground.holes} holes, ground from ${sim.ground.lowest}m to ${sim.ground.highest}m, ` +
@@ -1452,8 +1520,13 @@ console.log(
 }
 
 console.log(island.summary);
+console.log(island.kartSummary);
 for (const line of routes.split('\n').filter((l) => l.startsWith('{'))) {
   const r = JSON.parse(line);
+  if (r.mountainWall) {
+    console.log(` mountain wall   ${r.mountainWall.tried} flat-out runs at the mountains, ${r.mountainWall.through} went into the rock, deepest ${r.mountainWall.deepest}m`);
+    continue;
+  }
   console.log(
     ` ${r.course.padEnd(16)} island > ${r.bridgeMetres}m bridge > ${r.lapMetres}m lap in ${r.seconds}s · ` +
       `${r.gatesPassed}/${r.gates} gates · rails touched ${r.railSeconds}s · fell ${r.fell}`,

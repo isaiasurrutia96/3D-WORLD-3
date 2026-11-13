@@ -268,6 +268,22 @@ export class TouchControls {
     this.contextButton.classList.toggle('is-offered', action !== null);
   }
 
+  /**
+   * Whether he is in the kart. The four jump buttons do nothing there, so
+   * they go away and the stick is left to steer and the one button to get
+   * out; what a finger on one of them was holding is let go first.
+   */
+  setDriving(driving: boolean): void {
+    if (this.root.classList.contains('is-driving') === driving) return;
+    this.root.classList.toggle('is-driving', driving);
+    if (driving) {
+      for (const pointerId of Array.from(this.pressed.keys())) {
+        const held = this.pressed.get(pointerId);
+        if (held && held.element !== this.contextButton) this.releaseButton(pointerId, false);
+      }
+    }
+  }
+
   private moveStick(event: PointerEvent): void {
     const dx = event.clientX - this.stickOriginX;
     const dy = event.clientY - this.stickOriginY;

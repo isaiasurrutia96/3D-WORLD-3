@@ -130,10 +130,10 @@ const bridgeRails = createRailResolver(BRIDGES.flatMap((b) => b.rails));
 
 /**
  * How steep the land can be before a kart treats it as a wall: a rise of
- * this much over the length of the kart's body is a step it climbs, more is
- * a face it stops against.
+ * this much for every metre travelled, which is about 37 degrees. Hills are
+ * gentler than that and are driven up; the sides of the mountains are not.
  */
-const KART_CLIMB = 0.9;
+const KART_SLOPE = 0.75;
 
 /** The ground under a point: the land, the bridges, the circuits. */
 function supportHeight(x: number, z: number, maximum = Infinity): number | null {
@@ -164,14 +164,21 @@ function resolveHorizontal(
 ): { x: number; z: number } {
   let resolved = resolveTrackRails(x, z, nextX, nextZ, feetY, radius, height) as { x: number; z: number };
   resolved = bridgeRails(x, z, resolved.x, resolved.z, feetY, radius, height) as { x: number; z: number };
-  // Land that rises faster than a kart can climb is a wall. Only where
-  // there is no road under the kart: on a bridge the land is not in play.
+  // Land that rises faster than a kart can climb is a wall. Judged by the
+  // slope of the move, not by the height of the land, so that standing on a
+  // hillside and stepping out sideways is not mistaken for driving into one.
+  // Only where there is no road under the kart: on a bridge the land is not
+  // in play.
   if (overIsland(resolved.x, resolved.z) && !onRoad(resolved.x, resolved.z)) {
-    const rise = terrainHeight(resolved.x, resolved.z) - feetY;
-    if (rise > KART_CLIMB) {
+    const steep = (fromX: number, fromZ: number, toX: number, toZ: number) => {
+      const moved = Math.hypot(toX - fromX, toZ - fromZ);
+      if (moved < 1e-6) return false;
+      return terrainHeight(toX, toZ) - terrainHeight(fromX, fromZ) > KART_SLOPE * moved;
+    };
+    if (steep(x, z, resolved.x, resolved.z)) {
       // Slide along whichever axis is still open, else stop where it was.
-      const openX = terrainHeight(resolved.x, z) - feetY <= KART_CLIMB;
-      const openZ = terrainHeight(x, resolved.z) - feetY <= KART_CLIMB;
+      const openX = !steep(x, z, resolved.x, z);
+      const openZ = !steep(x, z, x, resolved.z);
       resolved = { x: openX ? resolved.x : x, z: openZ ? resolved.z : z };
     }
   }

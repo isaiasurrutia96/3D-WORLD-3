@@ -29,6 +29,9 @@ export class Hud {
   /** The one-line offer shown when a button would do something here. */
   private readonly prompt: HTMLDivElement;
   private promptText = '';
+  /** The speed readout shown while driving a kart. */
+  private readonly kart: HTMLDivElement;
+  private kartText = '';
   private visible = true;
 
   constructor(container: HTMLElement) {
@@ -50,6 +53,11 @@ export class Hud {
     build.innerHTML = `<span class="hud__build">build ${__BUILD_STAMP__}</span>`;
     hud.appendChild(build);
 
+    this.kart = document.createElement('div');
+    this.kart.className = 'hud__kart';
+    this.kart.hidden = true;
+    hud.appendChild(this.kart);
+
     this.prompt = document.createElement('div');
     this.prompt.className = 'hud__prompt';
     hud.appendChild(this.prompt);
@@ -69,6 +77,15 @@ export class Hud {
     this.promptText = next;
     this.prompt.textContent = next;
     this.prompt.classList.toggle('is-visible', next !== '');
+  }
+
+  /** Shows the kart's speed in miles an hour, or hides it with null. */
+  setKart(mph: number | null): void {
+    const next = mph === null ? '' : String(mph);
+    if (next === this.kartText) return;
+    this.kartText = next;
+    this.kart.hidden = mph === null;
+    this.kart.innerHTML = mph === null ? '' : `<b>${mph}</b><span>MPH</span>`;
   }
 
   toggleStats(): void {
