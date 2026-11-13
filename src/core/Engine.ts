@@ -124,6 +124,7 @@ export class Engine {
   readonly sky: Sky;
 
   readonly sun: DirectionalLight;
+  private sunDirection: Vector3 = SUN_DIRECTION;
   private readonly hemisphere: HemisphereLight;
   private readonly ambient: AmbientLight;
   private readonly fog: FogExp2;
@@ -360,9 +361,18 @@ export class Engine {
     this.bloomPass?.resolution.set(width, height);
   };
 
+  /**
+   * Puts the sun somewhere else, for a world whose light comes from another
+   * side. The shadows and the sky's glow follow it.
+   */
+  setSunDirection(direction: Vector3): void {
+    this.sunDirection = direction.clone().normalize();
+    this.sky.setLook({ sun: this.sunDirection });
+  }
+
   /** Keeps the shadow frustum centred on the player so it stays sharp. */
   focusShadowsOn(target: Vector3): void {
-    const direction = this.studio ? STUDIO_SUN_DIRECTION : SUN_DIRECTION;
+    const direction = this.studio ? STUDIO_SUN_DIRECTION : this.sunDirection;
     const distance = this.studio ? STUDIO_SUN_DISTANCE : this.preset.shadowDistance * 1.4;
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();

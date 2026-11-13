@@ -407,6 +407,30 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, seventh entry. The block island rebuilt from two views.**
+Asked for by the owner: a faithful reconstruction of the island from an
+overhead and an angled reference picture of it, not an interpretation.
+
+**1. How.** The overhead picture's block grid was measured (15 px across,
+10.6 px deep, so it is seen from 45 degrees) and every row's outline, the
+three terraces, the stone path, the pool and each tree, bush and rock were
+read off it cell by cell into explicit tables in `src/world/VoxelIsland.ts`.
+Nothing is placed at random. The angled picture set the thickness, the
+terrace heights (two blocks, the high one four) and the stone underside.
+Both camera views can be held with `?view=overhead` and `?view=angled`, and
+were compared against the pictures side by side while refining.
+
+**2. Inferences, where the pictures do not say.** The two pictures draw the
+grid at different angles; the overhead's is used. The ground under crowns and
+the far side of the underside cannot be seen. Rocks are cubes of one and a
+half blocks; crowns and bushes are half blocks. The island is now 64 by 76
+blocks (about 29 m by 34 m).
+
+**3. Lighting for this world only.** The sun comes from the upper left, the
+sky colours match the pictures, there is no haze, and a soft fill light keeps
+faces turned from the sun bright. The rest of the game's lighting is
+unchanged.
+
 **13 November 2026, sixth entry. The block island.** Asked for by the owner:
 scratch the island and start again from a reference picture of a small
 floating island built of cubes, built block for block at the picture's own
