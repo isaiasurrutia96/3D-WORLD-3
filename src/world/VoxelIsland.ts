@@ -254,35 +254,41 @@ class Cells {
 }
 
 /**
+ * How many grid cells across one drawn cube is, for kinds bigger than their
+ * grid: the stone underside is two-block cubes, a rock three half blocks.
+ */
+const CUBE_CELLS: Partial<Record<Kind, number>> = { stone: 2, rock: 3 };
+
+/**
  * The faces of a set of cubes that can be seen, as one geometry: a face is
  * left out where another cube of the set is against it. Each face is
- * exactly on its cell and has a flat normal and its kind's colour, the same
- * on every cube: neighbouring faces that lie in one plane are one even,
- * matte colour, with no line between them. Only which way a face is turned
- * changes its shade, which is what shows the island's edges and steps.
+ * exactly on its cell, has a flat normal, its kind's colour, and a 0–1
+ * square across it for the rounded-block texture, so every block reads as
+ * a soft cube with rounded edges and corners, as in the reference pictures.
+ * The faces themselves still meet: the roundness is in the shading only.
  */
 function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colours: number[] = [];
+  const uvs: number[] = [];
   const s = cells.size;
   const o = cells.origin;
-  // Each side: its normal, and its four corners in the cube's 0–1 space
-  // wound to face outward.
-  const SIDES: Array<{ n: [number, number, number]; c: Array<[number, number, number]> }> = [
-    { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]] },
-    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]] },
-    { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] },
-    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] },
-    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]] },
-    { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]] },
+  // Each side: its normal, its four corners in the cube's 0–1 space wound
+  // to face outward, and which two axes run across it.
+  const SIDES: Array<{ n: [number, number, number]; c: Array<[number, number, number]>; u: number; v: number }> = [
+    { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], u: 2, v: 1 },
+    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], u: 2, v: 1 },
+    { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], u: 0, v: 2 },
+    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], u: 0, v: 2 },
+    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], u: 0, v: 1 },
+    { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], u: 0, v: 1 },
   ];
   const colour = new Color();
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
-    // The painted face this replaced was a shade under white; the same
-    // brightness is kept without it.
-    colour.set(COLOURS[kind]).multiplyScalar(0.93);
+    const across = CUBE_CELLS[kind] ?? 1;
+    colour.set(COLOURS[kind]);
     for (const side of SIDES) {
       const [nx, ny, nz] = side.n;
       const neighbour = cells.get(x + nx, y + ny, z + nz);
@@ -293,10 +299,12 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
       // A grass block's sides are a deeper green than its top, which is
       // what makes each terrace step stand out from the lawn above it.
       const grassSide = ny === 0 && kind === 'grass' ? 0.78 : 1;
+      const cell = [x, y, z];
       for (const i of [0, 1, 2, 0, 2, 3]) {
         const corner = side.c[i];
         positions.push(o.x + (x + corner[0]) * s, o.y + (y + corner[1]) * s, o.z + (z + corner[2]) * s);
         normals.push(nx, ny, nz);
+        uvs.push((cell[side.u] + corner[side.u]) / across, (cell[side.v] + corner[side.v]) / across);
         colours.push(colour.r * lit * grassSide, colour.g * lit * grassSide, colour.b * lit * grassSide);
       }
     }
@@ -304,8 +312,75 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
+  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
   geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
   return geometry;
+}
+
+/**
+ * The rounded block, as two textures for one face: how much light reaches
+ * each point (a little less toward the rounded edges and corners), and which
+ * way each point faces (curving away at the edges), so the light and the sun
+ * fall on every block as on a cube with soft, rounded corners.
+ */
+function roundedBlock(): { shade: CanvasTexture; bumps: CanvasTexture } {
+  const size = 64;
+  /** Corner radius and the width of the curved edge, as parts of the face. */
+  const RADIUS = 0.2;
+  const EDGE = 0.17;
+  // Height across the face: flat in the middle, falling away round the edge.
+  const height = (u: number, v: number) => {
+    const qx = Math.abs(u - 0.5) - (0.5 - RADIUS);
+    const qy = Math.abs(v - 0.5) - (0.5 - RADIUS);
+    const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - RADIUS;
+    const t = Math.min(1, Math.max(0, -outside / EDGE));
+    // A quarter circle: the profile of a rounded edge.
+    return Math.sqrt(1 - (1 - t) * (1 - t));
+  };
+  const make = (fill: (u: number, v: number) => [number, number, number]) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    if (context) {
+      const image = context.createImageData(size, size);
+      for (let py = 0; py < size; py += 1) {
+        for (let px = 0; px < size; px += 1) {
+          const [r, g, b] = fill((px + 0.5) / size, 1 - (py + 0.5) / size);
+          const k = (py * size + px) * 4;
+          image.data[k] = r;
+          image.data[k + 1] = g;
+          image.data[k + 2] = b;
+          image.data[k + 3] = 255;
+        }
+      }
+      context.putImageData(image, 0, 0);
+    }
+    const texture = new CanvasTexture(canvas);
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = RepeatWrapping;
+    texture.anisotropy = 4;
+    return texture;
+  };
+  const shade = make((u, v) => {
+    const h = height(u, v);
+    // Soft: full light on the face, easing to about three quarters in the
+    // crease between two blocks.
+    const light = Math.round(255 * (0.74 + 0.26 * h));
+    return [light, light, light];
+  });
+  shade.colorSpace = SRGBColorSpace;
+  const step = 1 / size;
+  const bumps = make((u, v) => {
+    const dx = (height(u + step, v) - height(u - step, v)) / (2 * step);
+    const dy = (height(u, v + step) - height(u, v - step)) / (2 * step);
+    const strength = 0.06;
+    const nx = -dx * strength;
+    const ny = -dy * strength;
+    const l = Math.hypot(nx, ny, 1);
+    return [Math.round((nx / l * 0.5 + 0.5) * 255), Math.round((ny / l * 0.5 + 0.5) * 255), Math.round((1 / l * 0.5 + 0.5) * 255)];
+  });
+  return { shade, bumps };
 }
 
 /** Water: bright cyan with pale lines like light on its surface. */
@@ -573,9 +648,15 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   // Drawn with the colours as they are, not passed through the film curve
   // the rest of the game uses: the pictures are bright and saturated, and
   // that curve greys them.
-  // Matte and untextured: each surface is its colour and its light, nothing
-  // painted on.
-  const material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  // Matte, with every block shaded as a soft cube with rounded corners.
+  const rounded = roundedBlock();
+  const material = new MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+    map: rounded.shade,
+    normalMap: rounded.bumps,
+  });
   material.toneMapped = false;
   const mesh = (name: string, geometry: BufferGeometry, parent: Group, shadows = true) => {
     const m = new Mesh(geometry, material);
