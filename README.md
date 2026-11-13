@@ -18,9 +18,11 @@ npm ci --prefix apps/letsgo-racing
 ```
 
 The games keep their own package files, Three.js/Vite versions, entry points,
-worlds, controls, cameras and saved-game behavior. There is no shared runtime
-or movement/world integration. Open the local address printed by the command
-for the game being tested; racing defaults to port 5174.
+worlds, controls, cameras and saved-game behavior. The root world now reuses
+racing track/road code for the integration explicitly requested in November;
+see AGENTS.md. The new terrain preview remains independent. Open the local
+address printed by the command for the world being tested; racing defaults
+to port 5174, and the terrain preview to 5275.
 
 `npm run build` builds only the movement world into `dist/`.
 `npm run build:racing` builds only racing into `apps/letsgo-racing/dist/`.
