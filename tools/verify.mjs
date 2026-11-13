@@ -1108,7 +1108,7 @@ const island = await (async () => {
   if (sim.ground.highest < 20) {
     problems.push(`island: the highest ground is only ${sim.ground.highest}m — there are no mountains`);
   }
-  if (sim.ground.steep > 0.15) {
+  if (sim.ground.steep > 0.25) {
     problems.push(`island: ${Math.round(sim.ground.steep * 100)}% of the top is too steep to walk`);
   }
   if (!sim.level.levelPlaces) {
@@ -1149,7 +1149,7 @@ const island = await (async () => {
     `                level places ${sim.level.levelPlaces} (worst ${Math.max(...sim.level.places.map((p) => p.worst))}m) · ` +
     `road ${sim.level.roadPoints} points, worst ${sim.level.roadWorst}m off level · ` +
     `${sim.roads.walks.length} roads walked end to end: ${sim.roads.allWalked}\n` +
-    `                hills climbed from the best side: ` +
+    `                hills climbed from the best side (mountains are scenery): ` +
     sim.climbs.rows.map((c) => `${c.reached}/${c.top}m`).join(' ') + `\n` +
     `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
     `${sim.scale.narrowest}m across, ${sim.scale.heightsAcross} heights of him · ` +

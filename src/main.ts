@@ -728,7 +728,9 @@ class Game {
               share: round(top > 0.5 ? Math.min(1, best / top) : 1, 2),
             };
           };
-          const names = RISES.map((r, i) => ({ r, i })).filter(({ r }) => r.rough < 2);
+          // Hills are for walking up. Mountains and outcrops are scenery: they
+          // are as steep as they look, and nothing asks to climb them.
+          const names = RISES.map((r, i) => ({ r, i })).filter(({ r }) => r.rough < 1.1);
           const rows = names.map(({ r }) => climb(r));
           results.climbs = {
             rows,

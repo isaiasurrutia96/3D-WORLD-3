@@ -191,11 +191,11 @@ function heightAllowed(x: number, z: number): number {
     near = Math.min(near, Math.hypot(x - plot.x, z - plot.z) - plot.r);
   }
   const d = Math.max(0, near);
-  const fromPlots = 1.15 * d;
+  const fromPlots = 1.7 * d;
   // And off the rim: a clean lip all round, then the land free to climb. A
   // mountain rising steeply from the edge is rock and is meant to look it.
   const e = Math.max(0, islandEdge(Math.atan2(z, x)) - Math.hypot(x, z) - 4);
-  return Math.min(fromPlots, 1.6 * e);
+  return Math.min(fromPlots, 2.1 * e);
 }
 
 /** The lower of two heights, rounded off where they cross. */
