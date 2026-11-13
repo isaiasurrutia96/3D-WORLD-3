@@ -407,6 +407,33 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, sixth entry. The block island.** Asked for by the owner:
+scratch the island and start again from a reference picture of a small
+floating island built of cubes, built block for block at the picture's own
+scale so the world itself can be tested, to be expanded later.
+
+**1. Confirmed.** The game's world is now `src/world/VoxelIsland.ts`: blocks
+of 0.45 m, so the character is about four blocks tall as in the picture; an
+island 48 by 40 blocks (about 22 m by 18 m) of grass, three blocks of earth
+and a stone underside tapering to a ragged point; a lawn, a terrace along the
+back (two blocks) with a higher step (three), a short stone path, five
+trees, four berry bushes, five rock piles, a pool spilling over the front
+edge as a waterfall, and block clouds. Ground, trunks and rocks are solid;
+leaves, bushes, water and clouds are not. The pool is shallow and is walked
+in, not swum.
+
+**2. Kept, not in the scene.** The old island (`world/Island.ts`,
+`world/Landscape.ts`), the four race circuits and the kart (`src/racing/`).
+The natural-island draft of the same day was thrown away at the owner's
+request. Codex's separate block island at `/island/` (apps/letsgo-island) is
+a different build and is untouched; the owner chose a separate exact copy in
+the game over reusing it.
+
+**3. A movement fix found by this island.** A place to be put back to after
+a fall is now only remembered where there is ground straight under the
+middle of him. Before, the very lip of a drop could be remembered, and being
+put back there made him slide off and fall again, over and over.
+
 **13 November 2026, fifth entry. A page that showed nothing.** Reported by the
 owner: the game showed a dark empty page in Firefox and nothing else.
 

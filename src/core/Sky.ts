@@ -108,6 +108,11 @@ export class Sky extends Group {
     }
   }
 
+  /** Shows or hides the drawn clouds, for a world that brings its own. */
+  setCloudsVisible(visible: boolean): void {
+    for (const cloud of this.clouds) cloud.visible = visible;
+  }
+
   update(delta: number, cameraPosition: { x: number; z: number }): void {
     for (const cloud of this.clouds) {
       const drift = cloud.userData.drift as number;

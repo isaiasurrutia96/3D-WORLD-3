@@ -2524,13 +2524,27 @@ export class Player {
       this.safePositionTimer <= 0 &&
       this.state === 'ground' &&
       this.onGround &&
-      this.speed < 7
+      this.speed < 7 &&
+      this.groundUnderCentre()
     ) {
       this.safePositionTimer = 0.45;
       this.lastSafePosition.copy(this.object.position);
     }
 
     if (this.object.position.y < TUNING.killPlaneY) this.respawn();
+  }
+
+  /**
+   * Whether there is ground straight under the middle of him, and not only
+   * under the edge of his feet. Standing on the very lip of a drop counts as
+   * on the ground, but it is no place to put him back to: set down there, he
+   * slides off and falls again, over and over.
+   */
+  private groundUnderCentre(): boolean {
+    const p = this.object.position;
+    const probe = new Vector3(p.x, p.y + 0.3, p.z);
+    const hit = this.world.groundProbe(probe, 0.6);
+    return hit !== null && Math.abs(hit.y - p.y) < 0.2 && hit.normal.y > 0.6;
   }
 
   respawn(): void {

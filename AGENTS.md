@@ -67,3 +67,11 @@ new work should use this repository as the shared source.
   helpers (`createRoadSurface`, `createRailResolver`, `trackRoadSurface`,
   `resolveTrackRails`, `accessBridges`) that the island uses; its behaviour
   is unchanged and its tests pass. Review `src/racing/` before changing those.
+
+- **13 November 2026 — the root game's world is now a block island.** The
+  owner asked for a small block island built to a reference picture, at the
+  picture's scale, in the root game (`src/world/VoxelIsland.ts`), as a
+  separate build from apps/letsgo-island. The old root island and the racing
+  integration (`src/racing/`) are kept in the code but no longer built into
+  the scene; `tools/racing-routes.ts` is not run by `tools/verify.mjs` while
+  they are out.
