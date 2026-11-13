@@ -255,57 +255,202 @@ class Cells {
 
 /**
  * How many grid cells across one drawn cube is, for kinds bigger than their
- * grid: the stone underside is two-block cubes, a rock three half blocks.
+ * grid: a rock is three half blocks.
  */
-const CUBE_CELLS: Partial<Record<Kind, number>> = { stone: 2, rock: 3 };
+const CUBE_CELLS: Partial<Record<Kind, number>> = { rock: 3 };
+
+/** How round a block's exposed edges and corners are, as a part of a block. */
+const ROUND = 0.34;
 
 /**
  * The faces of a set of cubes that can be seen, as one geometry: a face is
- * left out where another cube of the set is against it. Each face is
- * exactly on its cell, has a flat normal, its kind's colour, and a 0–1
- * square across it for the rounded-block texture, so every block reads as
- * a soft cube with rounded edges and corners, as in the reference pictures.
- * The faces themselves still meet: the roundness is in the shading only.
+ * left out where another cube of the set is against it.
+ *
+ * Every block is rounded where it is exposed. Where two of its faces that
+ * can both be seen meet — the edge of a terrace, the rim of the island, the
+ * corner of a rock — the edge and the corner really curve: the face is cut
+ * finer near that edge and each point is pulled onto a rounded cube, so the
+ * outline of the island is made of soft blocks. Two neighbouring faces round
+ * the same edge onto the same curve, so they meet with no gap. Where a block
+ * lies flat against another the faces stay flat and meet; the soft line
+ * between them there is the rounded-block texture.
  */
-function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
+function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, curveSteps = 2): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colours: number[] = [];
   const uvs: number[] = [];
   const s = cells.size;
   const o = cells.origin;
-  // Each side: its normal, its four corners in the cube's 0–1 space wound
-  // to face outward, and which two axes run across it.
-  const SIDES: Array<{ n: [number, number, number]; c: Array<[number, number, number]>; u: number; v: number }> = [
-    { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], u: 2, v: 1 },
-    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], u: 2, v: 1 },
-    { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], u: 0, v: 2 },
-    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], u: 0, v: 2 },
-    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], u: 0, v: 1 },
-    { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], u: 0, v: 1 },
+  const r = round ? ROUND : 0;
+  const solidAt = (x: number, y: number, z: number) => {
+    const k = cells.get(x, y, z);
+    return k !== undefined && (!only || only(k));
+  };
+  // Each side: its normal axis and sign, and the two axes across it.
+  const SIDES: Array<{ a: number; sign: 1 | -1; u: number; v: number }> = [
+    { a: 0, sign: 1, u: 2, v: 1 },
+    { a: 0, sign: -1, u: 2, v: 1 },
+    { a: 1, sign: 1, u: 0, v: 2 },
+    { a: 1, sign: -1, u: 0, v: 2 },
+    { a: 2, sign: 1, u: 0, v: 1 },
+    { a: 2, sign: -1, u: 0, v: 1 },
   ];
+  /**
+   * Where to cut a face across one axis: finer toward each rounded edge.
+   * Two steps round a big block smoothly; one is enough for small ones
+   * (leaves, bushes, clouds), whose curve is lit smoothly either way.
+   */
+  const cuts = (low: boolean, high: boolean) => {
+    const band = curveSteps >= 2 ? [0.4, 1] : [1];
+    const out = [0];
+    if (low) for (const b of band) out.push(b * r);
+    if (high) for (const b of [...band].reverse()) out.push(1 - b * r);
+    out.push(1);
+    return out;
+  };
   const colour = new Color();
+  const p = [0, 0, 0];
+  const q = [0, 0, 0];
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
     const across = CUBE_CELLS[kind] ?? 1;
     colour.set(COLOURS[kind]);
+    const cell = [x, y, z];
+    // Which of the block's six sides can be seen: those are the ones it is
+    // rounded toward.
+    const open = [
+      [!solidAt(x - 1, y, z), !solidAt(x + 1, y, z)],
+      [!solidAt(x, y - 1, z), !solidAt(x, y + 1, z)],
+      [!solidAt(x, y, z - 1), !solidAt(x, y, z + 1)],
+    ];
+    /**
+     * A hidden side of this block, against a neighbour, can still show a
+     * sliver at a corner: where the neighbour rounds off an edge that runs
+     * into this block and this block does not round the same way (an inner
+     * corner of a stepped outline). That corner of the hidden side is drawn,
+     * a square as wide as the rounding, so there is no gap to see through.
+     */
+    const fillCorners = (side: (typeof SIDES)[number]) => {
+      if (r <= 0) return;
+      const step = [0, 0, 0];
+      step[side.a] = side.sign;
+      const n = [x + step[0], y + step[1], z + step[2]];
+      for (const su of [0, 1]) {
+        for (const sv of [0, 1]) {
+          const du = [0, 0, 0];
+          const dv = [0, 0, 0];
+          du[side.u] = su ? 1 : -1;
+          dv[side.v] = sv ? 1 : -1;
+          const neighbourOpenU = !solidAt(n[0] + du[0], n[1] + du[1], n[2] + du[2]);
+          const neighbourOpenV = !solidAt(n[0] + dv[0], n[1] + dv[1], n[2] + dv[2]);
+          if (!neighbourOpenU || !neighbourOpenV) continue;
+          if (open[side.u][su] && open[side.v][sv]) continue;
+          const u0 = su ? 1 - r : 0;
+          const u1 = su ? 1 : r;
+          const v0 = sv ? 1 - r : 0;
+          const v1 = sv ? 1 : r;
+          const at = (pu: number, pv: number) => {
+            const c = [0, 0, 0];
+            c[side.a] = side.sign > 0 ? 1 : 0;
+            c[side.u] = pu;
+            c[side.v] = pv;
+            return [o.x + (x + c[0]) * s, o.y + (y + c[1]) * s, o.z + (z + c[2]) * s];
+          };
+          const a = at(u0, v0);
+          const b = at(u1, v0);
+          const c = at(u1, v1);
+          const d = at(u0, v1);
+          const uxv = side.u === (side.a + 1) % 3 ? 1 : -1;
+          const order = uxv * side.sign < 0 ? [a, c, b, a, d, c] : [a, b, c, a, c, d];
+          const nx = side.a === 0 ? side.sign : 0;
+          const ny = side.a === 1 ? side.sign : 0;
+          const nz = side.a === 2 ? side.sign : 0;
+          const lit = ny > 0 ? 1 : ny < 0 ? 0.55 : nx < 0 ? 0.9 : nz > 0 ? 0.8 : nx > 0 ? 0.68 : 0.72;
+          for (const v of order) {
+            positions.push(v[0], v[1], v[2]);
+            normals.push(nx, ny, nz);
+            uvs.push(0.5, 0.5);
+            colours.push(colour.r * lit, colour.g * lit, colour.b * lit);
+          }
+        }
+      }
+    };
     for (const side of SIDES) {
-      const [nx, ny, nz] = side.n;
-      const neighbour = cells.get(x + nx, y + ny, z + nz);
-      if (neighbour && (!only || only(neighbour))) continue;
+      if (!open[side.a][side.sign > 0 ? 1 : 0]) {
+        fillCorners(side);
+        continue;
+      }
+      const nx = side.a === 0 ? side.sign : 0;
+      const ny = side.a === 1 ? side.sign : 0;
+      const nz = side.a === 2 ? side.sign : 0;
       // How the picture shades a cube: brightest on top, the side toward
       // the sun (the left) next, the front, then the sides turned away.
       const lit = ny > 0 ? 1 : ny < 0 ? 0.55 : nx < 0 ? 0.9 : nz > 0 ? 0.8 : nx > 0 ? 0.68 : 0.72;
       // A grass block's sides are a deeper green than its top, which is
       // what makes each terrace step stand out from the lawn above it.
       const grassSide = ny === 0 && kind === 'grass' ? 0.78 : 1;
-      const cell = [x, y, z];
-      for (const i of [0, 1, 2, 0, 2, 3]) {
-        const corner = side.c[i];
-        positions.push(o.x + (x + corner[0]) * s, o.y + (y + corner[1]) * s, o.z + (z + corner[2]) * s);
-        normals.push(nx, ny, nz);
-        uvs.push((cell[side.u] + corner[side.u]) / across, (cell[side.v] + corner[side.v]) / across);
-        colours.push(colour.r * lit * grassSide, colour.g * lit * grassSide, colour.b * lit * grassSide);
+      const cr = colour.r * lit * grassSide;
+      const cg = colour.g * lit * grassSide;
+      const cb = colour.b * lit * grassSide;
+      const us = cuts(open[side.u][0], open[side.u][1]);
+      const vs = cuts(open[side.v][0], open[side.v][1]);
+      /** One point of the face, pulled onto the rounded block. */
+      const point = (su: number, sv: number) => {
+        p[side.a] = side.sign > 0 ? 1 : 0;
+        p[side.u] = su;
+        p[side.v] = sv;
+        let dx = 0;
+        let dy = 0;
+        let dz = 0;
+        for (let k = 0; k < 3; k += 1) {
+          q[k] = p[k];
+          if (r > 0 && p[k] > 1 - r && open[k][1]) q[k] = 1 - r;
+          if (r > 0 && p[k] < r && open[k][0]) q[k] = r;
+        }
+        dx = p[0] - q[0];
+        dy = p[1] - q[1];
+        dz = p[2] - q[2];
+        const l = Math.hypot(dx, dy, dz);
+        let px = p[0];
+        let py = p[1];
+        let pz = p[2];
+        let mx = nx;
+        let my = ny;
+        let mz = nz;
+        if (l > 1e-6) {
+          mx = dx / l;
+          my = dy / l;
+          mz = dz / l;
+          px = q[0] + mx * r;
+          py = q[1] + my * r;
+          pz = q[2] + mz * r;
+        }
+        return {
+          pos: [o.x + (x + px) * s, o.y + (y + py) * s, o.z + (z + pz) * s],
+          normal: [mx, my, mz],
+          uv: [(cell[side.u] + su) / across, (cell[side.v] + sv) / across],
+        };
+      };
+      for (let i = 0; i < us.length - 1; i += 1) {
+        for (let j = 0; j < vs.length - 1; j += 1) {
+          const a = point(us[i], vs[j]);
+          const b = point(us[i + 1], vs[j]);
+          const c = point(us[i + 1], vs[j + 1]);
+          const d = point(us[i], vs[j + 1]);
+          // Wound to face outward: u × v points along the normal for some
+          // sides and against it for others.
+          const uxv = [0, 0, 0];
+          uxv[side.a] = (side.u === (side.a + 1) % 3 ? 1 : -1);
+          const flip = uxv[side.a] * side.sign < 0;
+          const order = flip ? [a, c, b, a, d, c] : [a, b, c, a, c, d];
+          for (const v of order) {
+            positions.push(v.pos[0], v.pos[1], v.pos[2]);
+            normals.push(v.normal[0], v.normal[1], v.normal[2]);
+            uvs.push(v.uv[0], v.uv[1]);
+            colours.push(cr, cg, cb);
+          }
+        }
       }
     }
   }
@@ -584,8 +729,7 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
           inside += lump - 0.05;
           // Only a shell is kept: the inside of a crown is never seen.
           if (inside < 0 || inside > 0.22) continue;
-          const height = (y + 0.5) / ey;
-          crowns.set(cx + x, Math.round(cy) + y, cz + z, height > 0.2 ? 'leafTop' : height > -0.3 ? 'leaf' : 'leafLow');
+          crowns.set(cx + x, Math.round(cy) + y, cz + z, 'leaf');
         }
       }
     }
@@ -671,11 +815,18 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   mesh('block-rocks', facesOf(rocks), solid);
   // Leaves and bushes: he passes through them. Named for what they are, so
   // the check for things with body that are not solid can say why.
-  const crownMesh = mesh('foliage', facesOf(crowns), root);
+  // The crowns are one solid green, with no lines between their blocks:
+  // their roundness shows in the light alone.
+  const crownMesh = mesh('foliage', facesOf(crowns, undefined, true, 1), root);
+  const crownMaterial = material.clone();
+  crownMaterial.map = null;
+  crownMaterial.normalMap = null;
+  crownMaterial.toneMapped = false;
+  crownMesh.material = crownMaterial;
   crownMesh.userData.thickest = BLOCK / 2;
-  const bushes = mesh('foliage', facesOf(fine), root);
+  const bushes = mesh('foliage', facesOf(fine, undefined, true, 1), root);
   bushes.userData.thickest = BLOCK / 2;
-  const clouds = mesh('clouds', facesOf(sky), root, false);
+  const clouds = mesh('clouds', facesOf(sky, undefined, true, 1), root, false);
   clouds.userData.thickest = 0;
   // The clouds are a long way off and should not grey out with distance.
   const cloudMaterial = material.clone();
