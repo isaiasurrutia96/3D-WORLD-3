@@ -143,9 +143,9 @@ interface Rise {
  */
 export const RISES: Rise[] = [
   // The back of the island: small mountains.
-  { x: -6, z: -50, r: 36, h: 32, rough: 1.4 },
-  { x: 22, z: -58, r: 30, h: 24, rough: 1.2 },
-  { x: -44, z: -52, r: 24, h: 20, rough: 1.1 },
+  { x: -14, z: -62, r: 42, h: 30, rough: 1.4 },
+  { x: 24, z: -62, r: 34, h: 24, rough: 1.2 },
+  { x: -46, z: -52, r: 26, h: 16, rough: 1.1 },
   // Hills along the flanks and front, well clear of the start.
   { x: -48, z: 44, r: 28, h: 12, rough: 0.6 },
   { x: 48, z: 44, r: 26, h: 11, rough: 0.6 },
@@ -165,10 +165,9 @@ export const RISES: Rise[] = [
 function rise(x: number, z: number, r: Rise): number {
   const d = Math.hypot(x - r.x, z - r.z);
   if (d >= r.r) return 0;
-  // Mountains come to a point and hills to a round top: the same rise, a
-  // different curve over it. Neither is steeper than the limit below.
-  const u = 1 - d / r.r;
-  const t = r.rough >= 1.1 && r.rough < 2 ? Math.pow(u, 1.45) : smoothstep(0, 1, u);
+  // A round, broad top rather than a point: it is the shape the mountains
+  // were liked in, and a plateau can be walked on where a peak cannot.
+  const t = smoothstep(0, 1, 1 - d / r.r);
   // A little grain, strongest where the ground is roughest, and fading to
   // nothing at the foot so the rise meets the ground without a seam.
   const grain =
@@ -192,11 +191,11 @@ function heightAllowed(x: number, z: number): number {
     near = Math.min(near, Math.hypot(x - plot.x, z - plot.z) - plot.r);
   }
   const d = Math.max(0, near);
-  const fromPlots = 0.85 * d;
+  const fromPlots = 1.15 * d;
   // And off the rim: a clean lip all round, then the land free to climb. A
   // mountain rising steeply from the edge is rock and is meant to look it.
   const e = Math.max(0, islandEdge(Math.atan2(z, x)) - Math.hypot(x, z) - 4);
-  return Math.min(fromPlots, 1.0 * e);
+  return Math.min(fromPlots, 1.6 * e);
 }
 
 /** The lower of two heights, rounded off where they cross. */

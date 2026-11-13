@@ -738,15 +738,17 @@ class Game {
 
         // Running off the edge in eight directions: he goes over it, falls,
         // and is put back on the island on his feet. The runway is the flat
-        // rim, outside where the hills are.
+        // lip, outside where the hills are.
         {
           const rows: unknown[] = [];
           let allBack = true;
           for (let k = 0; k < 8; k += 1) {
             const angle = (k / 8) * Math.PI * 2;
             const heading = Math.atan2(Math.cos(angle), Math.sin(angle));
-            const x = Math.cos(angle) * islandEdge(angle) * 0.9;
-            const z = Math.sin(angle) * islandEdge(angle) * 0.9;
+            // On the level lip itself, the last few metres before the edge,
+            // wherever the hills round the rim happen to be.
+            const x = Math.cos(angle) * islandEdge(angle) * 0.955;
+            const z = Math.sin(angle) * islandEdge(angle) * 0.955;
             put(x, z, heading);
             // Settle, and learn that this spot is safe to come back to.
             for (let i = 0; i < frames(0.5); i += 1) step();
