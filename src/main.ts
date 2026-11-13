@@ -71,6 +71,11 @@ class Game {
   private kartMode: KartMode | null = null;
   /** The block island, when it is the world. */
   private voxel: VoxelIslandWorld | null = null;
+  /**
+   * `?view=overhead` or `?view=angled` holds the camera where one of the
+   * two reference pictures was taken from, to compare the island with it.
+   */
+  private readonly fixedView = new URLSearchParams(window.location.search).get('view');
   private readonly spawn: Vector3;
   private readonly spawnFacing: number;
   private readonly player: Player;
@@ -98,8 +103,12 @@ class Game {
       // here as before: this.racingScene = buildRacingScene(), add its root
       // and solid, and this.kartMode = new KartMode(scene, { x, y, z, yaw }).
       const island = buildVoxelIsland(this.engine.scene, this.collision);
-      this.engine.setFogScale(0.22);
+      // Clear air: the island floats in open sky, with nothing to haze.
+      this.engine.setFogScale(0);
       this.voxel = island;
+      // Lit and coloured the way the reference pictures are.
+      this.engine.setSunDirection(island.sunDirection);
+      this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
       // Its clouds are blocks; the sky's drawn ones would not match.
       this.engine.sky.setCloudsVisible(false);
       this.world = island;
@@ -273,6 +282,19 @@ class Game {
     this.touchControls?.setDriving(kart.driving);
   }
 
+  /** Holds the camera at one of the reference views, if one was asked for. */
+  private applyFixedView(name: string | null = this.fixedView): boolean {
+    const view = name === 'overhead' || name === 'angled' ? this.voxel?.views[name] : undefined;
+    if (!view) return false;
+    const camera = this.engine.camera;
+    camera.fov = view.fov;
+    camera.position.copy(view.from);
+    camera.lookAt(view.at);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    return true;
+  }
+
   private frame = (): void => {
     if (!this.running) return;
     requestAnimationFrame(this.frame);
@@ -284,6 +306,7 @@ class Game {
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.updateMovement(delta);
     this.cameraRig.update(delta, this.player);
+    const held = this.applyFixedView();
     // Only the circuits near enough to be seen are drawn.
     this.racingScene?.update(
       this.player.position.x,
@@ -295,7 +318,10 @@ class Game {
     for (const carryable of this.course.carryables) carryable.update(delta, this.collision);
     this.course.water.update(this.engine.clock.elapsedTime);
     this.effects.update(delta);
-    this.engine.focusShadowsOn(this.player.position);
+    // From a reference view the whole island is in the picture, so the
+    // shadows are centred on it and not on him.
+    const view = held && (this.fixedView === 'overhead' || this.fixedView === 'angled') ? this.voxel?.views[this.fixedView] : undefined;
+    this.engine.focusShadowsOn(view ? view.at : this.player.position);
 
     // What the screen looks like follows the camera, not the character. He
     // can be treading water with his head out while the camera sits below
@@ -686,49 +712,45 @@ class Game {
           }
           let beyond = 0;
           let beyondTried = 0;
-          const { x: hx, z: hz } = island.halfSize;
-          for (let t = -1; t <= 1; t += 0.05) {
-            for (const [x, z] of [
-              [t * hx, -hz - 0.3],
-              [t * hx, hz + 0.3],
-              [-hx - 0.3, t * hz],
-              [hx + 0.3, t * hz],
-            ]) {
+          const box = island.bounds;
+          for (let x = box.minX - 1.6; x <= box.maxX + 1.6; x += 0.45) {
+            for (let z = box.minZ - 1.6; z <= box.maxZ + 1.6; z += 0.45) {
+              if (island.topAt(x, z) !== null) continue;
+              // Clear of the edge by more than his own width.
+              if (
+                island.topAt(x + 0.3, z) !== null ||
+                island.topAt(x - 0.3, z) !== null ||
+                island.topAt(x, z + 0.3) !== null ||
+                island.topAt(x, z - 0.3) !== null
+              ) {
+                continue;
+              }
               beyondTried += 1;
-              if (down(x, z, 3)) beyond += 1;
+              if (down(x, z, 4)) beyond += 1;
             }
           }
           results.ground = { columns: island.columns.length, holes, low, lowAt, beyond, beyondTried };
         }
 
-        // Up onto the terrace (one block) and the high step (two), from the
-        // lawn in front of them: walking first, then with a jump.
+        // Up onto the low terrace from the lawn, from there up onto the high
+        // one, and back down to the lawn: walking first, then with a jump.
         {
-          const B = 0.45;
-          const climb = (fromX: number, fromZ: number, toX: number, toZ: number) => {
-            put(fromX, fromZ, Math.PI);
-            const target = island.topAt(toX, toZ) ?? 0;
-            const walked = walkTo(toX, toZ, 4);
-            const walkedUp = walked.arrived && player.position.y > target - 0.1;
-            if (walkedUp) return { target: round(target), walked: true, jumped: false };
-            put(fromX, fromZ, Math.PI);
-            const jumped = walkTo(toX, toZ, 6, 0.9);
-            return {
-              target: round(target),
-              walked: false,
-              jumped: jumped.arrived && player.position.y > target - 0.1,
-            };
+          const m = island.marks;
+          const climb = (from: { x: number; z: number }, to: { x: number; z: number }) => {
+            const target = island.topAt(to.x, to.z) ?? 0;
+            put(from.x, from.z, Math.PI);
+            const walked = walkTo(to.x, to.z, 4);
+            if (walked.arrived && player.position.y > target - 0.1) return { target: round(target), walked: true, jumped: false };
+            put(from.x, from.z, Math.PI);
+            const jumped = walkTo(to.x, to.z, 8, 0.9);
+            return { target: round(target), walked: false, jumped: jumped.arrived && player.position.y > target - 0.1 };
           };
-          // The lawn three blocks in front of the terrace, at x = 20 blocks.
-          const terraceX = -10.8 + 20.5 * B;
-          const highX = -10.8 + 30.5 * B;
-          const z = (cell: number) => -9 + (cell + 0.5) * B;
-          results.terrace = climb(terraceX, z(9), terraceX, z(3));
-          // From the terrace up to the high step, just beside its tree.
-          results.highStep = climb(highX + 3 * B, z(5), highX + 3 * B, z(1));
-          // And down off both, back to the lawn.
-          put(highX + 3 * B, z(1), 0);
-          const off = walkTo(highX + 3 * B, z(9), 5);
+          results.terrace = climb(m.lawnBeforeTerrace, m.terrace);
+          results.highStep = climb(m.terraceBeforeHigh, m.high);
+          put(m.high.x, m.high.z, 0);
+          const off = walkTo(m.lawnBelowHigh.x, m.lawnBelowHigh.z, 6);
+          // Coming down four blocks he can arrive still in the air; let him land.
+          for (let i = 0; i < frames(0.8); i += 1) step();
           results.backDown = { arrived: off.arrived, y: round(player.position.y) };
         }
 
@@ -737,7 +759,7 @@ class Game {
         // what stops him.
         {
           const rows = island.trunks.map((t) => {
-            const foot = island.topAt(t.x - 0.5, t.z - 0.5);
+            const foot = island.topAt(t.x - 0.2, t.z - 0.2);
             let nearest = Infinity;
             let tried = 0;
             for (let k = 0; k < 8; k += 1) {
@@ -757,44 +779,37 @@ class Game {
 
         // Down into the pool and back out.
         {
-          const B = 0.45;
-          const px = -10.8 + 40.5 * B;
-          const pz = -9 + 33.5 * B;
-          put(px, pz - 6 * B, 0);
-          const into = walkTo(px, pz, 4);
+          const m = island.marks;
+          put(m.besidePool.x, m.besidePool.z, 0);
+          const into = walkTo(m.inPool.x, m.inPool.z, 5);
           const floor = round(player.position.y);
-          const out = walkTo(px, pz - 6 * B, 6, 0.9);
+          const out = walkTo(m.besidePool.x, m.besidePool.z, 8, 0.9);
           results.pool = { into: into.arrived, floor, out: out.arrived && player.position.y > -0.1 };
         }
 
-        // Off the edge in eight directions: he falls, and is put back on the
-        // island on his feet.
+        // Off the edge at eight places round the island: he falls, and is put
+        // back on the island on his feet.
         {
           const rows: unknown[] = [];
           let allBack = true;
-          const { x: hx, z: hz } = island.halfSize;
-          // Toward the front and the sides: the back is walled by the terrace.
-          for (let k = 0; k < 8; k += 1) {
-            const angle = 0.15 + (k / 7) * (Math.PI + 0.2);
-            const ox = Math.cos(angle);
-            const oz = Math.sin(angle);
-            // From the open lawn toward the middle, outward.
-            put(ox * 2, 1.5 + oz * 2, 0);
+          for (const run of island.edgeRuns) {
+            const l = Math.hypot(run.dx, run.dz);
+            put(run.x, run.z, 0);
             let wentOver = false;
             let lowest = 0;
             for (let i = 0; i < frames(12); i += 1) {
-              stick.x = wentOver ? 0 : ox;
-              stick.y = wentOver ? 0 : oz;
+              stick.x = wentOver ? 0 : run.dx / l;
+              stick.y = wentOver ? 0 : run.dz / l;
               step();
               lowest = Math.min(lowest, player.position.y);
-              if (Math.abs(player.position.x) > hx + 0.2 || Math.abs(player.position.z) > hz + 0.2) wentOver = true;
+              if (player.position.y < -3) wentOver = true;
             }
             stick.x = 0;
             stick.y = 0;
             const back = island.topAt(player.position.x, player.position.z) !== null && player.onGround;
             if (!(wentOver && back)) allBack = false;
             rows.push({
-              angle: Math.round((angle * 180) / Math.PI),
+              from: `${round(run.x, 1)},${round(run.z, 1)}`,
               wentOver,
               fellTo: round(lowest, 1),
               back,
@@ -3615,6 +3630,16 @@ class Game {
         return hit ? { y: Math.round(hit.y * 1000) / 1000, normalY: Math.round(hit.normal.y * 100) / 100 } : null;
       },
 
+      /** Draws one frame from a reference view, with or without the figure. */
+      renderView: (name: string, showPlayer = false): boolean => {
+        const view = name === 'overhead' || name === 'angled' ? this.voxel?.views[name] : undefined;
+        if (!view || !this.applyFixedView(name)) return false;
+        this.player.object.visible = showPlayer;
+        this.engine.focusShadowsOn(view.at);
+        this.engine.render(1 / 60);
+        this.player.object.visible = true;
+        return true;
+      },
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;
         const target = this.player.position;

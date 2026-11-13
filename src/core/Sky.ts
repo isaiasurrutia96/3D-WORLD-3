@@ -56,11 +56,12 @@ const SKY_FRAGMENT = /* glsl */ `
 
 export class Sky extends Group {
   private readonly clouds: Mesh[] = [];
+  private readonly material: ShaderMaterial;
 
   constructor(sunDirection: { x: number; y: number; z: number }, cloudCount: number) {
     super();
 
-    const material = new ShaderMaterial({
+    const material = (this.material = new ShaderMaterial({
       uniforms: {
         topColor: { value: new Color('#2f7fe0') },
         horizonColor: { value: new Color('#bfe4f7') },
@@ -72,7 +73,7 @@ export class Sky extends Group {
       fragmentShader: SKY_FRAGMENT,
       side: BackSide,
       depthWrite: false,
-    });
+    }));
 
     const dome = new Mesh(new SphereGeometry(1, 24, 16), material);
     // Named so that the check for things you can walk through can say what
@@ -106,6 +107,18 @@ export class Sky extends Group {
       this.clouds.push(cloud);
       this.add(cloud);
     }
+  }
+
+  /**
+   * Changes where the sun is and what colours the sky runs through, for a
+   * world that is lit and coloured its own way.
+   */
+  setLook(look: { sun?: { x: number; y: number; z: number }; top?: string; horizon?: string; bottom?: string }): void {
+    const u = this.material.uniforms;
+    if (look.sun) u.sunDirection.value = look.sun;
+    if (look.top) (u.topColor.value as Color).set(look.top);
+    if (look.horizon) (u.horizonColor.value as Color).set(look.horizon);
+    if (look.bottom) (u.bottomColor.value as Color).set(look.bottom);
   }
 
   /** Shows or hides the drawn clouds, for a world that brings its own. */
