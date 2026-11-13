@@ -1,84 +1,76 @@
-# LetsGo reference block island — terrain viewer
+# Two-reference floating voxel island
 
-Standalone at /3D-WORLD-3/island/. This revision follows the supplied island
-picture more closely: rounded grass/earth/stone blocks, lobed tree crowns,
-irregular rock columns underneath, broad rear terraces, berry shrubs, a short
-stone walkway, a turquoise side pool and a transparent segmented waterfall.
-The earlier enlarged main lawn and upper ground remain. The source picture
-does not expose a complete 3D grid, so the hidden sides/underside are inferred;
-this is not a verified exact block-for-block reconstruction of the image.
-No avatar or playable minigames are connected to this viewer yet.
+Interactive world preview at /3D-WORLD-3/island/. The two supplied images are
+treated as views of ONE island. The illustrated explorer is omitted: there
+is no avatar, racing, minigame logic, or gameplay HUD in this scene.
 
 ## Run
 
-Use Node.js 24 and the repository's pinned root dependencies:
+Use Node.js 24 and the root's pinned dependencies:
 
     npm ci
     npm run dev:island
     npm run test:island
     npm run build:island
 
-Drag to orbit, scroll/pinch to zoom, use Overview / Top view, or press R.
-npm run build:all preserves the separate movement and racing sites and adds
-this viewer at dist/island/.
+Angled and Overhead select the reference camera presets. Drag to orbit;
+scroll/pinch to zoom; R restores Angled. Graphics offers Low / Medium / High,
+remembered under letsgo.island.graphics.v1. Low remains the default and a
+Canvas 2D compatibility view works when WebGL cannot start. Medium/High need
+working WebGL. Idle views do not render continuously.
 
-## Graphics menu
+## Reconstruction plan
 
-The Graphics selector applies changes without reloading:
-- Low (default): rounded exterior faces, baked colors/shading, pixel ratio
-  capped at 1, no shadow maps.
-- Medium: rounded faces with Lambert lighting, cached 1024-pixel shadow map,
-  pixel ratio capped at 1.5.
-- High: smoother rounded corners, standard rough materials with fine bump
-  detail, cached soft 2048-pixel shadows, pixel ratio capped at 2.
+src/reference-layout.js is the canonical, explicit plan: the irregular
+footprint polygon, stepped rear terrace polygons and heights, all five tree
+placements and crown variants, five rock clusters with enumerated blocks,
+four shrubs, stone-path cells, pond polygon, narrow waterfall outlet and
+authored underside layers. No random function chooses scenery placement or
+feature counts. A fixed hash is used only for material colors/grain.
 
-All levels use identical block data, pool dimensions, scenery placement and
-solid volumes. Changing quality disposes old geometry/materials/shadow targets.
-The selector remembers its preference under letsgo.island.graphics.v1;
-racing ghost keys and other game storage are not changed. Unsupported storage
-does not prevent loading.
+The more overhead image supplies horizontal placement. The angled image
+guides thickness, heights, tapered rock mass, canopy silhouettes and lighting.
+The Overhead camera is elevated rather than a strict 90-degree plan view,
+matching the supplied image; Angled uses a mild perspective projection.
+Both cameras render the same cells; switching views never rearranges them.
 
-WebGL initialization retains ordinary-adapter and low-power retries. When no
-WebGL context can be created, Canvas 2D projects the same island into the
-interactive Low compatibility view. Medium/High are disabled there because
-their lighting needs 3D graphics support. The view controls still work.
-There is no continuous animation loop; idle views do not keep rendering.
-Exact speed on the user's Mac has not been measured.
+src/layout.js rasterizes the plan onto one integer grid. src/props.js fills
+the named tree, rock and shrub plans. src/sky.js makes the three explicit
+cloud groups. src/blocks.js preserves individually editable source cells,
+exposed-face discovery and merged solid volumes. src/block-mesh.js batches
+rounded exterior faces and cushions while keeping neighbor joins sealed.
+src/water.js follows the irregular pond and its narrow, fading waterfall.
+The main lawn stays flat and unobstructed.
 
-## Source and editing
+The existing standalone games and their saved ghost keys remain separate.
+This preview has no player controller; geometry tests do not prove movement
+behavior for an avatar that has not been connected.
 
-- src/blocks.js: integer grid, individual editing, exposed-face discovery and
-  merged solid collision volumes. Water and background clouds are nonsolid.
-- src/layout.js: expanded land, soft stepped terraces, pool cutout and rock lobes.
-- src/props.js: clustered tree crowns, roots, rock piles, shrubs and walkway.
-- src/sky.js: block-cloud scenery.
-- src/block-mesh.js: rounded exterior face patches, smooth normals, recessed
-  sealing faces, per-block colors, material tiers and tiny berry details.
-  Connected neighbor faces keep matching boundary coordinates; they are not
-  independently rounded inward into open seams.
-- src/water.js: transparent RGBA pool, ripples, connected lip and fall ribbons.
-  Water uses double-sided faces with no opaque reflective underside.
-- src/quality.js: tier settings and isolated preference persistence.
-- src/main.js: scene lighting, graphics menu, camera and on-demand drawing.
-- src/canvas-view.js: software scene projection for unavailable WebGL.
+## Graphics
 
-The inspection API is window.__letsgoIsland:
-- world.get(x,y,z), world.snap(x,y,z), world.cells
-- setBlock(x,y,z,type), null removes a cell and rebuilds the displayed scene
-- setQuality('low'|'medium'|'high')
-- collisionBoxes (fresh merged full volumes), stats
+Low uses rounded faces, baked colors/shading, no shadow maps and pixel ratio 1.
+Medium adds Lambert lighting and cached 1024-pixel shadows, ratio up to 1.5.
+High uses smoother corners, rough/bump materials, softer cached 2048-pixel
+shadows and ratio up to 2. Tier changes preserve the entire layout. The old
+geometry/materials/shadow targets are disposed on change. Software fallback
+supports the same camera projections and Low controls without WebGL.
 
-Visual rounding does not change solid cell coverage. The viewer has no player
-controller, so geometry tests do not prove an avatar will never snag. A building
-UI, partial-chunk edit optimization, swimming and player integration are future
-work. All content is procedural/local; there are no remote asset dependencies.
+## Inspection and comparison
 
-## Validation
+window.__letsgoIsland provides world, setBlock(x,y,z,type), collisionBoxes,
+setQuality(level), setView('overhead'|'angled'), stats and referenceLandmarks().
+setBlock(...,null) removes one cell and rebuilds the view. No building UI is
+included. referenceLandmarks() projects approximate, manually interpreted
+overhead anchors; those are guides, not a full-image pixel similarity score.
 
-Unit checks cover exact cell editing, hidden internal faces, merged volume
-coverage, supported land and sealed exterior boundaries, finite rounded
-positions/normals across tiers, pool solidity and transparent water geometry.
-Browser checks cover all graphics tiers, persisted selection, unchanged block
-data/ghost storage, responsive controls, and Firefox with WebGL disabled.
+See docs/two-view-comparison.md for the calibration assumptions and visual
+comparison checklist. Unseen surfaces and inconsistent perspective details
+require small inferences. This is not a claim of literal block-for-block
+recovery from the pictures.
 
-Restore point: checkpoint-before-island-quality-2026-11-13 at c4dbea5.
+Validation covers deterministic reconstruction, supported/closed terrain,
+the open center, feature counts, transparent water and rounded geometry.
+Browser checks cover both presets, orbit/zoom, all graphics tiers, saved
+selection, untouched ghost storage, phone layouts and Firefox without WebGL.
+
+Restore point: checkpoint-before-two-view-island-2026-11-13 at 93f7199.

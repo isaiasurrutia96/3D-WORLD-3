@@ -11,7 +11,7 @@ export function createCanvasView(original,initialFaces){
   setSize(w,h){width=w;height=h;canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);},
   render(_scene,camera){
    camera.updateMatrixWorld();const m=camera.matrixWorldInverse.elements,p=camera.projectionMatrix.elements,c=camera.matrixWorld.elements;
-   const project=([x,y,z])=>[(p[0]*(m[0]*x+m[4]*y+m[8]*z+m[12])+p[12]+1)*width*.5,(-p[5]*(m[1]*x+m[5]*y+m[9]*z+m[13])-p[13]+1)*height*.5];
+   const project=([x,y,z])=>{const vx=m[0]*x+m[4]*y+m[8]*z+m[12],vy=m[1]*x+m[5]*y+m[9]*z+m[13],vz=m[2]*x+m[6]*y+m[10]*z+m[14],w=p[3]*vx+p[7]*vy+p[11]*vz+p[15];return[((p[0]*vx+p[12])/w+1)*width*.5,(1-(p[5]*vy+p[13])/w)*height*.5];};
    const visible=[];
    for(const face of faces){
     const n=face.normal;if(n[0]*c[8]+n[1]*c[9]+n[2]*c[10]<=.001)continue;

@@ -17,6 +17,13 @@ the worlds**. The projects belong in this repository, with separate runtimes.
   turquoise pool and waterfall from the reference. Low/Medium/High graphics
   change rounding detail, lighting, shadows and resolution, never block layout.
   The open lawn replaces the earlier decorative golf and dirt loop.
+  The latest refinement treats the two supplied reference images as one
+  canonical island: explicit footprint/terrace/feature plans are in
+  `apps/letsgo-island/src/reference-layout.js`. Keep its five trees, five
+  rock clusters, four shrubs and clear central lawn. Angled and Overhead
+  are camera presets for the same cells; do not rearrange objects per view.
+  Do not use randomness to choose scenery placements or infer literal
+  block-for-block accuracy from passing geometry tests.
   No playable minigames, avatar, movement rewrite, arena or obstacles yet.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's

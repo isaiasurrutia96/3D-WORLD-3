@@ -3,7 +3,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {DIRECTIONS} from './blocks.js';
 import {noise} from './layout.js';
 import {QUALITY} from './quality.js';
-const palette={grass:'#98d02b',earth:'#bf8b50',stone:'#9996a0',trunk:'#9f6937',leaf:'#7eb91e',leafLight:'#9dcb2b',rock:'#b9b6bd',path:'#d8cbb0',berry:'#8bb828',cloud:'#ffffff'};
+const palette={grass:'#93d91e',earth:'#da965a',stone:'#b1a7ae',trunk:'#b07839',leaf:'#a0ce12',leafLight:'#c0e526',rock:'#d0c5c5',path:'#e0d4bb',berry:'#98cb24',cloud:'#ffffff',sand:'#d4b879'};
 const corners=[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]];
 export function facePoints(face,inset=0,lift=0){
  const {n,u,v}=DIRECTIONS[face.direction];
@@ -42,7 +42,7 @@ export function createBlockMeshes(faces,level='low'){
  for(const face of faces){
   const sky=face.type==='cloud',key=Math.floor(face.x/16)+','+Math.floor(face.z/16)+(sky?',cloud':'');
   if(!chunks.has(key))chunks.set(key,{positions:[],normals:[],colors:[],uvs:[],indices:[],sky});
-  const batch=chunks.get(key),{n,u,v}=DIRECTIONS[face.direction],radius=.12;
+  const batch=chunks.get(key),{n,u,v}=DIRECTIONS[face.direction],radius=.19;
   const coordinates=settings.segments===2?[-.5,-.5+radius*.3,-.5+radius,.5-radius,.5-radius*.3,.5]:[-.5,-.5+radius,.5-radius,.5];
   const size=coordinates.length,base=batch.positions.length/3,color=level==='low'?face.color:face.baseColor;
   for(const b of coordinates)for(const a of coordinates){
@@ -53,8 +53,8 @@ export function createBlockMeshes(faces,level='low'){
    const delta=p.map((value,i)=>value-core[i]),length=Math.hypot(...delta),normal=delta.map(value=>value/length);
    // A shallow cushion on each face keeps the small blocks individually legible.
    // The cushion falls to zero at the shared boundary, which remains sealed.
-   const fa=Math.min(1,(.5-Math.abs(a))/radius),fb=Math.min(1,(.5-Math.abs(b))/radius),height=.045*fa*fb;
-   const da=Math.abs(a)>.5-radius?-.045*Math.sign(a)*fb/radius:0,db=Math.abs(b)>.5-radius?-.045*Math.sign(b)*fa/radius:0;
+   const fa=Math.min(1,(.5-Math.abs(a))/radius),fb=Math.min(1,(.5-Math.abs(b))/radius),height=.095*fa*fb;
+   const da=Math.abs(a)>.5-radius?-.095*Math.sign(a)*fb/radius:0,db=Math.abs(b)>.5-radius?-.095*Math.sign(b)*fa/radius:0;
    const smooth=normal.map((value,i)=>value-u[i]*da-v[i]*db),normalLength=Math.hypot(...smooth);
    batch.positions.push(face.x+.5+core[0]+normal[0]*radius+n[0]*height,face.y+.5+core[1]+normal[1]*radius+n[1]*height,face.z+.5+core[2]+normal[2]*radius+n[2]*height);
    batch.normals.push(...smooth.map(value=>value/normalLength));batch.colors.push(...color);batch.uvs.push(a+.5,b+.5);

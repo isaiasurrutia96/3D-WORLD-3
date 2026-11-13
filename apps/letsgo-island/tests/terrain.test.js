@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BlockWorld,DIRECTIONS} from '../src/blocks.js';
-import {createLand,surfaceHeight,contains,topCell,POOL,inPool} from '../src/layout.js';
+import {createLand,surfaceHeight,contains,topCell,POOL,inPool,HALF_X,HALF_Z,FALL} from '../src/layout.js';
+import {TREE_PLAN,ROCK_PLAN,SHRUB_PLAN} from '../src/reference-layout.js';
 import {createIslandData,createTerrain} from '../src/terrain.js';
 import {facePoints,disposeBlockMeshes} from '../src/block-mesh.js';
 import {createWaterFaces,createWaterMeshes} from '../src/water.js';
@@ -24,14 +25,14 @@ test('merged collision volumes cover each solid cell exactly once and rebuild af
  for(const [key,cell]of world.cells)if(cell.type!=='cloud')assert.equal(counts.get(key),1);
  assert.equal(world.solidAt(1.5,.5,1.5),false);assert.equal(world.solidAt(.5,1.5,.5),true);
 });
-test('the enlarged main lawn and upper terrace are supported by closed sealed terrain',()=>{
+test('the reference footprint and terraces have supported, closed solid boundaries',()=>{
  const world=createLand(),edges=new Map();let flat=0,upper=0;
- for(let x=-39;x<39;x++)for(let z=-31;z<31;z++){
-  if(!contains(x,z))continue;const top=topCell(x,z);if(top===0)flat++;if(top===4)upper++;
-  assert.equal(surfaceHeight(x+.5,z+.5),top+1);assert.equal(world.get(x,top,z)?.type,'grass');
+ for(let x=-HALF_X;x<HALF_X;x++)for(let z=-HALF_Z;z<HALF_Z;z++){
+  if(!contains(x,z))continue;const top=topCell(x,z);if(top===0)flat++;if(top===3)upper++;
+  assert.equal(surfaceHeight(x+.5,z+.5),top+1);assert.equal(world.get(x,top,z)?.type,inPool(x,z)?'sand':'grass');
   assert.ok(world.get(x,top-1,z),'no unsupported lawn blocks');
  }
- assert.ok(flat>3500,'generous main flat lawn');assert.ok(upper>=400,'large upper lawn');
+ assert.ok(flat>1800,'large open main lawn');assert.ok(upper>100,'separate upper lawn');
  for(const face of world.exposedFaces()){
   if(face.type==='water')continue;
   const n=DIRECTIONS[face.direction].n,neighbor=world.get(face.x+n[0],face.y+n[1],face.z+n[2]);assert.ok(!neighbor||neighbor.type==='water');
@@ -42,7 +43,7 @@ test('the enlarged main lawn and upper terrace are supported by closed sealed te
 });
 test('rounded island geometry stays finite in Low and High while the cell layout remains unchanged',()=>{
  const data=createIslandData(),group=createTerrain(data);
- assert.ok(data.world.cells.size>50000);assert.ok(data.faces.length<32000);
+ assert.ok(data.world.cells.size>20000);assert.ok(data.faces.length<32000);
  assert.ok(group.children.length<=36);assert.ok(group.userData.triangles<650000);
  const revision=data.world.revision,high=createTerrain(data,'high');assert.equal(data.world.revision,revision);
  assert.ok(high.userData.triangles>group.userData.triangles);assert.ok(high.userData.triangles<1500000);
@@ -52,13 +53,26 @@ test('rounded island geometry stays finite in Low and High while the cell layout
 test('the restored pool has a solid bed, nonsolid water and a transparent fall at its outside lip',()=>{
  const world=createLand();
  for(let x=POOL.minX;x<POOL.maxX;x++)for(let z=POOL.minZ;z<POOL.maxZ;z++){
-  assert.ok(inPool(x,z));assert.ok(world.solidAt(x+.5,-1.5,z+.5));assert.equal(world.solidAt(x+.5,.5,z+.5),false);
+  if(!contains(x,z)||!inPool(x,z))continue;
+  assert.ok(world.solidAt(x+.5,-1.5,z+.5));assert.equal(world.solidAt(x+.5,.5,z+.5),false);
  }
  const faces=createWaterFaces(world),water=createWaterMeshes(faces),material=water.children[0].material;
- assert.ok(faces.some(face=>face.points.some(point=>point[1]<-30)));
- assert.ok(faces.some(face=>face.points.some(point=>Math.abs(point[0]-POOL.maxX)<.15&&point[1]===POOL.level)));
+ assert.ok(faces.some(face=>face.points.some(point=>point[1]<-25)));
+ assert.ok(faces.some(face=>face.points.some(point=>Math.hypot(point[0]-FALL.x,point[2]-FALL.z)<1.5&&point[1]===POOL.level)));
  assert.equal(material.transparent,true);assert.equal(material.depthWrite,false);
  const alpha=water.children[0].geometry.attributes.color;assert.equal(alpha.itemSize,4);
  for(let i=0;i<alpha.count;i++)assert.ok(alpha.getW(i)>0&&alpha.getW(i)<=1);
  disposeBlockMeshes(water);
+});
+test('the reference has five grounded trees, five rock clusters, four shrubs and an unobstructed center',()=>{
+ const first=createIslandData(),second=createIslandData();
+ assert.deepEqual([...first.world.cells],[...second.world.cells],'the same plan must reconstruct identical cells');
+ assert.equal(TREE_PLAN.length,5);assert.equal(ROCK_PLAN.length,5);assert.equal(SHRUB_PLAN.length,4);
+ for(const plan of TREE_PLAN){const base=surfaceHeight(plan.x,plan.z);assert.notEqual(base,null);assert.equal(first.world.get(plan.x,base,plan.z)?.type,'trunk');}
+ for(let x=-18;x<=13;x++)for(let z=-10;z<=14;z++){
+  assert.equal(topCell(x,z),0,'the central lawn stays flat');
+  for(let y=1;y<12;y++)assert.equal(first.world.get(x,y,z),undefined,'no scenery in the open center');
+ }
+ const water=[...first.world.cells.values()].filter(cell=>cell.type==='water'&&cell.y===0);
+ assert.ok(water.length>50&&water.length<120,'the pond stays compact');
 });
