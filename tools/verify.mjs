@@ -1103,7 +1103,11 @@ const island = await (async () => {
     // is: the offer is drawn from the same frame that decides it.
     await islandPage
       .waitForFunction(
-        () => /Drive/.test(document.querySelector('.hud__prompt')?.textContent ?? ''),
+        () =>
+          /Drive/.test(document.querySelector('.hud__prompt')?.textContent ?? '') &&
+          // The offer shows as soon as he is close; getting in also needs him
+          // to have landed, and a press before then is rightly refused.
+          window.__letsgo.debug.kart.canEnter(window.__letsgo.debug.player),
         null,
         { timeout: 40000 },
       )
