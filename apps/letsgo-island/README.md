@@ -51,3 +51,21 @@ textures, external assets, online services or storage writes.
   surface support, full path/course containment and stream-to-fall continuity.
 
 Restore point: `checkpoint-before-island-terrain-2026-11-13` at `141de23`.
+
+
+## Firefox graphics startup
+
+The standard path retains the original antialiasing and high-performance
+request, including on mobile. If a browser/driver rejects that context,
+`src/renderer.js` retries without antialiasing using the default adapter, then
+the low-power adapter. Each retry uses a fresh canvas because a rejected
+constructor can leave a diagnostic context attached to its first canvas.
+Compatibility mode uses a 1x pixel ratio and a 1024-pixel shadow map to reduce
+GPU memory pressure; terrain, materials, cameras and animation stay the same.
+
+If WebGL 2 is unavailable in every mode, show an actionable Firefox graphics
+message with a Retry button. Do not present that condition as a missing world
+file. The site cannot override a browser's disabled/blocked graphics support.
+`tests/renderer.test.js` verifies supported startup, both fallback paths,
+fresh-canvas handling and fully unavailable graphics.
+Restore point: `checkpoint-before-island-startup-fix-2026-11-13` at `17b25e5`.

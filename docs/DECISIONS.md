@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 13 November 2026 — separate floating-island terrain preview.
+Last updated: 13 November 2026 — Firefox island graphics startup fallback.
 
 ## Repository consolidation — 9 November 2026
 
@@ -149,6 +149,22 @@ are procedural and local, with desktop/touch orbit, zoom and camera reset.
 The island reads the root's pinned library dependencies, but imports no other
 world runtime. Existing package versions and racing package isolation remain.
 Restore point: `checkpoint-before-island-terrain-2026-11-13` at `141de23`.
+
+## Firefox island startup — 13 November 2026
+
+**Reported by the project owner.** The island's own loading message appears
+on laptop Firefox, while the same world opens on mobile. That message is
+emitted by renderer construction, so the observed failure is graphics startup,
+not a missing terrain file. The exact client driver restriction is unknown.
+
+Preserve the working standard path. Retry rejected graphics startup on a fresh
+canvas without antialiasing/default power preference, then with low-power
+preference. Lower pixel/shadow resolution only on fallback. Keep terrain,
+scenery, controls, other worlds and browser records unchanged. When no WebGL 2
+context can be created, show Firefox hardware-acceleration guidance and Retry.
+Verify in Firefox with normal startup, rejected standard attributes, low-power
+fallback, and fully unavailable graphics; recheck the existing mobile path.
+Restore point: `checkpoint-before-island-startup-fix-2026-11-13` at `17b25e5`.
 
 ---
 

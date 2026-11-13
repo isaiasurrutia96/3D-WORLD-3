@@ -14,7 +14,11 @@
     <header><span class="brand">LetsGo<sup>®</sup></span><span class="place">ISLAND</span></header>
     <nav aria-label="Island camera"><button id="overview" type="button">Overview</button><button id="top-view" type="button">Top view</button></nav>
     <p id="camera-hint">Drag to look around <span>·</span> Scroll to zoom</p>
-    <p id="load-error" role="alert" hidden>The island could not load. Please refresh to try again.</p>
+    <section id="load-error" role="alert" hidden>
+      <h1>The browser couldn’t start 3D graphics</h1>
+      <p>In Firefox, enable hardware acceleration in Settings → General → Performance, restart Firefox, then try again.</p>
+      <button id="retry-load" type="button">Try again</button>
+    </section>
   </main>
   <script type="module" src="./src/main.js"></script>
 </body>
