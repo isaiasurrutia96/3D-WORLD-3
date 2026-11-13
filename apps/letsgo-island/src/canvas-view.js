@@ -15,15 +15,24 @@ export function createCanvasView(original,initialFaces){
    const visible=[];
    for(const face of faces){
     const n=face.normal;if(n[0]*c[8]+n[1]*c[9]+n[2]*c[10]<=.001)continue;
-    visible.push({face,depth:m[2]*(face.x+.5)+m[6]*(face.y+.5)+m[10]*(face.z+.5)+m[14]});
+    const center=face.points.reduce((sum,point)=>sum.map((value,i)=>value+point[i]/face.points.length),[0,0,0]);
+    visible.push({face,depth:m[2]*center[0]+m[6]*center[1]+m[10]*center[2]+m[14]});
    }
    visible.sort((a,b)=>a.depth-b.depth);
    ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,width,height);ctx.lineWidth=.45;ctx.lineJoin='round';
-   function polygon(points,color,seal=false){
-    const projected=points.map(project);ctx.beginPath();projected.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fillStyle=color;ctx.fill();
+   function polygon(points,color,seal=false,rounded=false){
+    const projected=points.map(project);ctx.beginPath();
+    if(rounded){
+     for(let i=0;i<projected.length;i++){
+      const current=projected[i],previous=projected[(i+projected.length-1)%projected.length],next=projected[(i+1)%projected.length];
+      const before=current.map((value,j)=>value*.82+previous[j]*.18),after=current.map((value,j)=>value*.82+next[j]*.18);
+      if(i===0)ctx.moveTo(...before);else ctx.lineTo(...before);ctx.quadraticCurveTo(...current,...after);
+     }
+    }else projected.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();ctx.fillStyle=color;ctx.fill();
     if(seal){ctx.strokeStyle=color;ctx.stroke();}
    }
-   for(const {face}of visible){polygon(face.points,face.rim,true);polygon(face.inner,face.css);}
+   for(const {face}of visible){ctx.globalAlpha=face.alpha??1;if(face.water)polygon(face.points,face.css);else{polygon(face.points,face.rim,true);polygon(face.inner,face.css,false,true);}}ctx.globalAlpha=1;
    renderer.info.render.faces=visible.length;
   }
  };

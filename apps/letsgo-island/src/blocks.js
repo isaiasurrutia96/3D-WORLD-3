@@ -19,15 +19,15 @@ export class BlockWorld{
  }
  remove(x,y,z){return this.set(x,y,z,null);}
  snap(x,y,z){return{x:Math.floor(x/CELL_SIZE),y:Math.floor(y/CELL_SIZE),z:Math.floor(z/CELL_SIZE)};}
- solidAt(x,y,z){const p=this.snap(x,y,z),cell=this.get(p.x,p.y,p.z);return!!cell&&cell.type!=='cloud';}
+ solidAt(x,y,z){const p=this.snap(x,y,z),cell=this.get(p.x,p.y,p.z);return!!cell&&!['cloud','water'].includes(cell.type);}
  *exposedFaces(){
   for(const cell of this.cells.values())for(let direction=0;direction<DIRECTIONS.length;direction++){
-   const {n}=DIRECTIONS[direction];if(!this.get(cell.x+n[0],cell.y+n[1],cell.z+n[2]))yield{...cell,direction};
+   const {n}=DIRECTIONS[direction],neighbor=this.get(cell.x+n[0],cell.y+n[1],cell.z+n[2]);if(!neighbor||(cell.type!=='water'&&neighbor.type==='water'))yield{...cell,direction};
   }
  }
  // Merge solid cell volumes; there is no separate physics body per block.
  collisionBoxes(){
-  const remaining=new Set([...this.cells.values()].filter(c=>c.type!=='cloud').map(c=>key(c.x,c.y,c.z))),boxes=[];
+  const remaining=new Set([...this.cells.values()].filter(c=>!['cloud','water'].includes(c.type)).map(c=>key(c.x,c.y,c.z))),boxes=[];
   const has=(x,y,z)=>remaining.has(key(x,y,z));
   for(const {x,y,z}of this.cells.values()){
    if(!has(x,y,z))continue;let maxX=x+1,maxY=y+1,maxZ=z+1;

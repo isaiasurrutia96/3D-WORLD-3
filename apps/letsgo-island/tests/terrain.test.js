@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BlockWorld,DIRECTIONS} from '../src/blocks.js';
-import {createLand,surfaceHeight,contains,topCell} from '../src/layout.js';
+import {createLand,surfaceHeight,contains,topCell,POOL,inPool} from '../src/layout.js';
 import {createIslandData,createTerrain} from '../src/terrain.js';
-import {facePoints} from '../src/block-mesh.js';
+import {facePoints,disposeBlockMeshes} from '../src/block-mesh.js';
+import {createWaterFaces,createWaterMeshes} from '../src/water.js';
 
 test('blocks edit independently on an exact grid, with no internal faces between neighbors',()=>{
  const world=new BlockWorld();world.set(0,0,0,'grass').set(1,0,0,'grass');
@@ -32,17 +33,32 @@ test('the enlarged main lawn and upper terrace are supported by closed sealed te
  }
  assert.ok(flat>3500,'generous main flat lawn');assert.ok(upper>=400,'large upper lawn');
  for(const face of world.exposedFaces()){
-  const n=DIRECTIONS[face.direction].n;assert.equal(world.get(face.x+n[0],face.y+n[1],face.z+n[2]),undefined);
+  if(face.type==='water')continue;
+  const n=DIRECTIONS[face.direction].n,neighbor=world.get(face.x+n[0],face.y+n[1],face.z+n[2]);assert.ok(!neighbor||neighbor.type==='water');
   const points=facePoints(face).map(point=>point.join(','));
   for(let i=0;i<4;i++){const edge=[points[i],points[(i+1)%4]].sort().join('|');edges.set(edge,(edges.get(edge)||0)+1);}
  }
  for(const count of edges.values())assert.equal(count%2,0,'no unpaired exterior boundaries');
 });
-test('the complete block island stays within its rendering budget and has no water materials',()=>{
+test('rounded island geometry stays finite in Low and High while the cell layout remains unchanged',()=>{
  const data=createIslandData(),group=createTerrain(data);
  assert.ok(data.world.cells.size>50000);assert.ok(data.faces.length<32000);
- assert.ok(group.children.length<=32);assert.ok(group.userData.triangles<320000);
- for(const cell of data.world.cells.values())assert.ok(!['water','foam','river'].includes(cell.type));
- for(const mesh of group.children){for(const n of mesh.geometry.attributes.position.array)assert.ok(Number.isFinite(n));mesh.geometry.dispose();}
- group.children[0].material.dispose();
+ assert.ok(group.children.length<=36);assert.ok(group.userData.triangles<650000);
+ const revision=data.world.revision,high=createTerrain(data,'high');assert.equal(data.world.revision,revision);
+ assert.ok(high.userData.triangles>group.userData.triangles);assert.ok(high.userData.triangles<1500000);
+ for(const collection of [group,high])for(const mesh of collection.children){for(const attribute of ['position','normal'])for(const n of mesh.geometry.attributes[attribute].array)assert.ok(Number.isFinite(n));}
+ disposeBlockMeshes(group);disposeBlockMeshes(high);
+});
+test('the restored pool has a solid bed, nonsolid water and a transparent fall at its outside lip',()=>{
+ const world=createLand();
+ for(let x=POOL.minX;x<POOL.maxX;x++)for(let z=POOL.minZ;z<POOL.maxZ;z++){
+  assert.ok(inPool(x,z));assert.ok(world.solidAt(x+.5,-1.5,z+.5));assert.equal(world.solidAt(x+.5,.5,z+.5),false);
+ }
+ const faces=createWaterFaces(world),water=createWaterMeshes(faces),material=water.children[0].material;
+ assert.ok(faces.some(face=>face.points.some(point=>point[1]<-30)));
+ assert.ok(faces.some(face=>face.points.some(point=>Math.abs(point[0]-POOL.maxX)<.15&&point[1]===POOL.level)));
+ assert.equal(material.transparent,true);assert.equal(material.depthWrite,false);
+ const alpha=water.children[0].geometry.attributes.color;assert.equal(alpha.itemSize,4);
+ for(let i=0;i<alpha.count;i++)assert.ok(alpha.getW(i)>0&&alpha.getW(i)<=1);
+ disposeBlockMeshes(water);
 });

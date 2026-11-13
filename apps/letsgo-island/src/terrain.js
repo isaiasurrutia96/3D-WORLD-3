@@ -6,4 +6,4 @@ export function createIslandData(){
  const world=addClouds(addScenery(createLand())),faces=prepareFaces(world);
  return{world,faces};
 }
-export function createTerrain(data=createIslandData()){return createBlockMeshes(data.faces);}
+export function createTerrain(data=createIslandData(),quality='low'){return createBlockMeshes(data.faces,quality);}

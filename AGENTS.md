@@ -13,7 +13,9 @@ the worlds**. The projects belong in this repository, with separate runtimes.
   The user approved the block-island reference with an expanded flat lawn and
   larger rear terraces. Current scope is modular block terrain and scenery,
   with continuous solid cell volumes, efficient exposed-face batches and a
-  Canvas 2D fallback for older laptops. Keep water and the waterfall removed.
+  Canvas 2D fallback for older laptops. The latest request restores the small
+  turquoise pool and waterfall from the reference. Low/Medium/High graphics
+  change rounding detail, lighting, shadows and resolution, never block layout.
   The open lawn replaces the earlier decorative golf and dirt loop.
   No playable minigames, avatar, movement rewrite, arena or obstacles yet.
 - Scope changes to the requested project. Do not connect scenes, share player
