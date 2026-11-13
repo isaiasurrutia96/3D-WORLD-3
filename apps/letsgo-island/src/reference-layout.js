@@ -159,10 +159,11 @@ export const FOOTPRINT=[
     -28
   ]
 ];
+// Raised rear terraces expose deeper soil walls above the main lawn.
 export const TERRACES=[
   {
     "id": "left-rear",
-    "height": 1,
+    "height": 3,
     "polygon": [
       [
         -23,
@@ -208,7 +209,7 @@ export const TERRACES=[
   },
   {
     "id": "rear-link",
-    "height": 1,
+    "height": 3,
     "polygon": [
       [
         -13,
@@ -254,7 +255,7 @@ export const TERRACES=[
   },
   {
     "id": "right-rear",
-    "height": 1,
+    "height": 3,
     "polygon": [
       [
         18,
@@ -296,7 +297,7 @@ export const TERRACES=[
   },
   {
     "id": "upper-apron",
-    "height": 1,
+    "height": 3,
     "polygon": [
       [
         -1,
@@ -358,7 +359,7 @@ export const TERRACES=[
   },
   {
     "id": "upper-lawn",
-    "height": 3,
+    "height": 7,
     "polygon": [
       [
         0,

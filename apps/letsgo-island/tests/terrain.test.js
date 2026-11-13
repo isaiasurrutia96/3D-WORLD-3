@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BlockWorld,DIRECTIONS} from '../src/blocks.js';
 import {createLand,surfaceHeight,contains,topCell,POOL,inPool,HALF_X,HALF_Z,FALL} from '../src/layout.js';
-import {TREE_PLAN,ROCK_PLAN,SHRUB_PLAN} from '../src/reference-layout.js';
+import {TREE_PLAN,ROCK_PLAN,SHRUB_PLAN,TERRACES} from '../src/reference-layout.js';
 import {createIslandData,createTerrain} from '../src/terrain.js';
 import {facePoints,disposeBlockMeshes} from '../src/block-mesh.js';
 import {createWaterFaces,createWaterMeshes} from '../src/water.js';
@@ -26,9 +26,9 @@ test('merged collision volumes cover each solid cell exactly once and rebuild af
  assert.equal(world.solidAt(1.5,.5,1.5),false);assert.equal(world.solidAt(.5,1.5,.5),true);
 });
 test('the reference footprint and terraces have supported, closed solid boundaries',()=>{
- const world=createLand(),edges=new Map();let flat=0,upper=0;
+ const world=createLand(),edges=new Map(),highest=Math.max(...TERRACES.map(terrace=>terrace.height));let flat=0,upper=0;
  for(let x=-HALF_X;x<HALF_X;x++)for(let z=-HALF_Z;z<HALF_Z;z++){
-  if(!contains(x,z))continue;const top=topCell(x,z);if(top===0)flat++;if(top===3)upper++;
+  if(!contains(x,z))continue;const top=topCell(x,z);if(top===0)flat++;if(top===highest)upper++;
   assert.equal(surfaceHeight(x+.5,z+.5),top+1);assert.equal(world.get(x,top,z)?.type,inPool(x,z)?'sand':'grass');
   assert.ok(world.get(x,top-1,z),'no unsupported lawn blocks');
  }
