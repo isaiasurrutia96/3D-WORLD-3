@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {trees,rocks,terrainHeight,contains,outline,random,TAU,riverDistance} from './layout.js';
+import {trees,rocks,terrainHeight,contains,outline,random,TAU} from './layout.js';
 
 // Shared geometry and instancing keep the small plants and tree canopies cheap.
 export class Batches{
@@ -24,7 +24,7 @@ export function createPlants(){
  for(const [x,y,z,sx,sy,sz]of [[-29,-13,17,12,9,10],[13,-18,13,11,8,10],[28,-11,-9,11,8,11],[-9,-19,-12,13,8,12],[-43,-8,-7,8,6,10]])batch.add('stone',[x,y,z],[sx,sy,sz],'#8b8290',[.2,rng()*4,.2]);
  const palette=['#78b124','#92c332','#69a429','#a3cb3a'];
  for(let i=0;i<88;i++){
-  const p=outline(rng()*TAU,.88+rng()*.08),x=p.x,z=p.z;if(!contains(x,z,.025)||riverDistance(x,z)<5)continue;
+  const p=outline(rng()*TAU,.88+rng()*.08),x=p.x,z=p.z;if(!contains(x,z,.025))continue;
   const y=terrainHeight(x,z),size=.55+rng()*.7;
   for(let leaf=0;leaf<3;leaf++)batch.add('leaf',[x+(rng()-.5)*1.5,y+size*.65,z+(rng()-.5)*1.5],[size*.8,size,size*.65],palette[Math.floor(rng()*palette.length)],[0,rng()*4,(rng()-.5)*.6]);
  }

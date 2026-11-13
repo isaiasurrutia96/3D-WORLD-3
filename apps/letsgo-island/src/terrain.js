@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {outline,terrainHeight,EDGE_SEGMENTS,TAU,pathCurve,riverDistance} from './layout.js';
+import {outline,terrainHeight,EDGE_SEGMENTS,TAU,pathCurve} from './layout.js';
 
 export function topGeometry(){
  const segments=EDGE_SEGMENTS,rings=32,positions=[0,terrainHeight(0,0),0],colors=[],indices=[];
@@ -23,12 +23,12 @@ export function cliffGeometry(){
  for(let i=0;i<n;i++)face(point(levels.length-1,i),point(levels.length-1,(i+1)%n),[0,-32.5,0],'#726b78',.92);
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;
 }
-export function pathGeometry(curve=pathCurve,width=4.5,{bridgeGap=true}={}){
+export function pathGeometry(curve=pathCurve,width=4.5){
  const count=480,positions=[],indices=[],uv=[];
  for(let i=0;i<=count;i++){
   const p=curve.getPoint(i/count),d=curve.getTangent(i/count),nx=d.z,nz=-d.x;
   for(const side of [-1,1]){const x=p.x+nx*width*.5*side,z=p.z+nz*width*.5*side;positions.push(x,terrainHeight(x,z)+.045,z);uv.push(i/6,side*.5+.5);}
-  if(i){const mid=curve.getPoint((i-.5)/count);if(!bridgeGap||riverDistance(mid.x,mid.z)>4.2){const a=(i-1)*2,b=i*2;indices.push(a,b,a+1,a+1,b,b+1);}}
+  if(i){const a=(i-1)*2,b=i*2;indices.push(a,b,a+1,a+1,b,b+1);}
  }
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
 }
@@ -38,6 +38,6 @@ export function createTerrain(){
  const cliffs=new THREE.Mesh(cliffGeometry(),new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));cliffs.name='Layered earth and rocky underside';cliffs.receiveShadow=true;cliffs.castShadow=true;group.add(cliffs);
  const material=new THREE.MeshStandardMaterial({color:'#e5bd77',roughness:1}),path=new THREE.Mesh(pathGeometry(),material);path.name='Connected dirt loop';path.receiveShadow=true;group.add(path);
  const spur=new THREE.CatmullRomCurve3([new THREE.Vector3(-35,0,-4),new THREE.Vector3(-35.5,0,-8),new THREE.Vector3(-36,0,-12)]);
- const entry=new THREE.Mesh(pathGeometry(spur,3.8,{bridgeGap:false}),material);entry.name='Golf access path';entry.receiveShadow=true;group.add(entry);
+ const entry=new THREE.Mesh(pathGeometry(spur,3.8),material);entry.name='Golf access path';entry.receiveShadow=true;group.add(entry);
  return group;
 }

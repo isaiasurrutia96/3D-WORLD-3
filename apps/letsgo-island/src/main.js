@@ -3,7 +3,6 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createIslandRenderer} from './renderer.js';
 import {createTerrain} from './terrain.js';
 import {createPlants,createSkyIslets} from './props.js';
-import {createWater} from './water.js';
 import {createGolf} from './golf.js';
 import {createSky} from './sky.js';
 import './style.css';
@@ -28,9 +27,9 @@ const shadowSize=compatible?1024:1536;sun.shadow.mapSize.set(shadowSize,shadowSi
 const stoneFill=new THREE.DirectionalLight('#d8def5',1.15);stoneFill.position.set(45,-35,70);scene.add(stoneFill);
 scene.add(createSky());scene.add(createSkyIslets());
 const island=new THREE.Group();island.name='Minigame island terrain stage';scene.add(island);
-island.add(createTerrain());island.add(createPlants());const water=createWater(),golf=createGolf();island.add(water.group,golf.group);
+island.add(createTerrain());island.add(createPlants());const golf=createGolf();island.add(golf.group);
 // Terrain, trees and lighting are static. Bake their shadows once; camera
-// orbit and flowing water do not need to redraw the whole shadow map.
+// orbit and windmill animation do not need to redraw the whole shadow map.
 renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
 const camera=new THREE.OrthographicCamera(-90,90,53,-53,.5,1100),controls=new OrbitControls(camera,canvas);
 controls.target.set(0,-7,0);controls.enableDamping=true;controls.dampingFactor=.065;controls.enablePan=false;controls.minPolarAngle=.03;controls.maxPolarAngle=Math.PI*.73;controls.minZoom=.55;controls.maxZoom=3.5;controls.rotateSpeed=.65;controls.zoomSpeed=.85;
@@ -47,6 +46,6 @@ window.addEventListener('keydown',event=>{if(event.code==='KeyR'&&!event.repeat)
 canvas.addEventListener('contextmenu',event=>event.preventDefault());
 const coarse=matchMedia('(pointer:coarse)').matches;if(coarse)document.getElementById('camera-hint').innerHTML='Drag to look around <span>·</span> Pinch to zoom';
 let previousTime,elapsed=0;
-function frame(time){if(document.hidden){previousTime=undefined;return;}const dt=previousTime===undefined?0:Math.min(.05,(time-previousTime)/1000);previousTime=time;elapsed+=dt;water.update(elapsed);golf.update(elapsed);controls.update();render();}
+function frame(time){if(document.hidden){previousTime=undefined;return;}const dt=previousTime===undefined?0:Math.min(.05,(time-previousTime)/1000);previousTime=time;elapsed+=dt;golf.update(elapsed);controls.update();render();}
 document.addEventListener('visibilitychange',()=>{previousTime=undefined;});
 overview();resize();canvas.dataset.scene='floating-island';canvas.dataset.ready='true';renderer.setAnimationLoop(frame);

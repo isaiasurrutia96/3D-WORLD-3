@@ -4,8 +4,9 @@ A separate, orbitable 3D terrain preview at `/3D-WORLD-3/island/`. It does not
 load or modify either the movement game or the kart-racing game. This stage
 contains the island's grass surface, rounded turf edge, golden earth strata,
 faceted stone underside, a connected dirt loop and golf access path, trees,
-bushes, flowers, scattered rocks, small background islands/clouds, and a spring
-feeding a stream and animated waterfall. A wooden footbridge spans the stream.
+bushes, flowers, scattered rocks, and small background islands/clouds.
+Water, the stream and waterfall have been removed. Their former channel is
+filled with grass, and the dirt loop continues across the former bridge site.
 The small putting course and turning windmill are scenery, with no golf rules
 or ball controls yet. Other areas remain grass. No avatar, new movement system,
 obstacle course, arena, racing, weapons, scoring, or additional minigames are
@@ -36,21 +37,21 @@ textures, external assets, online services or storage writes.
 
 ## Source
 
-- `src/layout.js`: deterministic island outline, terrain heights, path, river,
-  golf perimeter, trees and rocks. Ground and river use the same layout.
+- `src/layout.js`: deterministic island outline, terrain heights, path,
+  golf perimeter, trees and rocks.
 - `src/terrain.js`: continuous grass mesh, sealed faceted underside, turf/earth
-  layers and dirt ribbons. The stream crossing opens only beneath the bridge.
+  layers and continuous dirt ribbons.
 - `src/props.js`: instanced vegetation, rocks and small background islands.
-- `src/water.js`: connected stream/waterfall geometry, flowing-water shaders,
-  foam, bank rocks and the footbridge at the sampled path/stream intersection.
 - `src/golf.js`: contained putting surface, grounded foundation, brick border,
   access ramp, hole/flag and decorative windmill.
 - `src/sky.js`: sky gradient and cloud clusters.
 - `src/main.js`: standalone renderer, light, orbit camera and resize lifecycle.
 - `tests/terrain.test.js`: closed island topology, finite geometry, sampled
-  surface support, full path/course containment and stream-to-fall continuity.
+  surface support, full path/course containment and continuous dirt-path support.
 
 Restore point: `checkpoint-before-island-terrain-2026-11-13` at `141de23`.
+Water removal restore point: `checkpoint-before-island-water-removal-2026-11-13`
+at `e58f55a`.
 
 
 ## Firefox graphics startup

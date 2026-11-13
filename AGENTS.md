@@ -10,7 +10,8 @@ the worlds**. The projects belong in this repository, with separate runtimes.
 - `apps/letsgo-island/` is the separate floating minigame-island terrain preview.
   It uses the root library dependencies but has its own entry point, scene and
   orbit camera at `/island/`; do not import runtime code from the other games.
-  Current scope is terrain, scenery, waterfall and decorative mini golf only.
+  Current scope is terrain, scenery and decorative mini golf only. The user
+  removed the water, stream and waterfall; keep the grass and dirt loop continuous.
   No playable minigames, avatar, movement rewrite, arena or obstacles yet.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's

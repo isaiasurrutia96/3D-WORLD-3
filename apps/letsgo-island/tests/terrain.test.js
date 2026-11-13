@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Mesh,MeshBasicMaterial,Raycaster,Vector3} from 'three';
 import {topGeometry,cliffGeometry,pathGeometry} from '../src/terrain.js';
-import {streamGeometry,waterfallGeometry} from '../src/water.js';
-import {contains,outline,terrainHeight,pathCurve,golfOutline,riverCurve,waterHeight,FALL,random,TAU} from '../src/layout.js';
+import {contains,outline,terrainHeight,pathCurve,golfOutline,random,TAU} from '../src/layout.js';
 
 test('the grass and cliff meshes form a closed island with no unpaired edges',()=>{
  const top=topGeometry(),cliffs=cliffGeometry(),edges=new Map();
@@ -31,13 +30,11 @@ test('the full dirt-path width and putting-course perimeter stay inside the isla
  }
  assert.ok(pathCurve.getPoint(0).distanceTo(pathCurve.getPoint(1))<1e-8);
  for(const p of golfOutline.getPoints(300)){assert.ok(contains(p.x,p.z,.015));assert.ok(terrainHeight(p.x,p.z)<1.35,'the putting surface must stay above the ground');assert.ok(terrainHeight(p.x,p.z)>-.65,'foundation must meet the ground');}
- const g=pathGeometry();for(const n of g.attributes.position.array)assert.ok(Number.isFinite(n));g.dispose();
-});
-test('the stream reaches the cliff and joins the waterfall lip continuously',()=>{
- const stream=streamGeometry(),fall=waterfallGeometry(),s=stream.attributes.position,f=fall.attributes.position;
- const end=new Vector3().fromBufferAttribute(s,s.count-1).add(new Vector3().fromBufferAttribute(s,s.count-2)).multiplyScalar(.5),lip=new Vector3().fromBufferAttribute(f,9);
- assert.ok(Math.hypot(end.x-lip.x,end.z-lip.z)<.001,'stream and waterfall centers meet');
- for(const [streamIndex,fallIndex]of [[s.count-2,0],[s.count-1,18]])assert.ok(new Vector3().fromBufferAttribute(s,streamIndex).distanceTo(new Vector3().fromBufferAttribute(f,fallIndex))<.001,'both stream banks join the waterfall exactly');assert.ok(Math.abs(end.y-lip.y)<.03);assert.ok(Math.abs(lip.y-waterHeight(FALL.x,FALL.z))<.01);
- for(let i=0;i<=90;i++){const p=riverCurve.getPoint(i/90);assert.ok(waterHeight(p.x,p.z)>terrainHeight(p.x,p.z),'water stays above its channel bed');}
- for(const g of [stream,fall]){for(const n of g.attributes.position.array)assert.ok(Number.isFinite(n));g.dispose();}
+ const g=pathGeometry(),material=new MeshBasicMaterial(),mesh=new Mesh(g,material),ray=new Raycaster();mesh.updateMatrixWorld();
+ for(const n of g.attributes.position.array)assert.ok(Number.isFinite(n));
+ for(let i=0;i<600;i++){
+  const p=pathCurve.getPoint((i+.5)/600);ray.set(new Vector3(p.x,20,p.z),new Vector3(0,-1,0));
+  assert.ok(ray.intersectObject(mesh).length,'the dirt loop must remain continuous, including the former bridge crossing');
+ }
+ g.dispose();material.dispose();
 });
