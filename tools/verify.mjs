@@ -571,7 +571,9 @@ for (const fault of audit.faults) problems.push(`collision and geometry disagree
 // And the only things with any body to them that are deliberately not solid.
 // Anything else appearing here is something a player would expect to stop
 // them and would walk straight through.
-const ALLOWED_WALK_THROUGH = ['sky', 'slab-body', 'crate'];
+// The leaves of a tree are walked through on purpose: the trunk is solid,
+// the canopy overhead is not, as in the old worlds.
+const ALLOWED_WALK_THROUGH = ['sky', 'slab-body', 'crate', 'foliage'];
 for (const name of Object.keys(audit.walkThrough)) {
   if (!ALLOWED_WALK_THROUGH.includes(name)) {
     problems.push(
@@ -1101,10 +1103,28 @@ const island = await (async () => {
   if (sim.ground.holes > 0) {
     problems.push(`island: ${sim.ground.holes} of ${sim.ground.tried} points on the top are not ground`);
   }
-  if (sim.ground.uneven > 0 || sim.ground.highest - sim.ground.lowest > 0.02) {
+  if (sim.ground.wrong > 0) {
+    problems.push(`island: ${sim.ground.wrong} points where the solid ground is not where the land is drawn`);
+  }
+  if (sim.ground.highest < 20) {
+    problems.push(`island: the highest ground is only ${sim.ground.highest}m — there are no mountains`);
+  }
+  if (sim.ground.steep > 0.15) {
+    problems.push(`island: ${Math.round(sim.ground.steep * 100)}% of the top is too steep to walk`);
+  }
+  if (!sim.level.levelPlaces) {
+    problems.push(`island: a place meant to be level is not — ${JSON.stringify(sim.level.places)}`);
+  }
+  if (sim.level.roadWorst > 0.05) {
+    problems.push(`island: the road is ${sim.level.roadWorst}m off level somewhere`);
+  }
+  if (!sim.roads.allWalked) {
+    problems.push(`island: a road could not be walked end to end — ${JSON.stringify(sim.roads.walks)}`);
+  }
+  if (sim.climbs.worst < 0.6) {
     problems.push(
-      `island: the top is not level — ${sim.ground.lowest}m to ${sim.ground.highest}m, ` +
-        `${sim.ground.uneven} sloping points`,
+      `island: a hill could not be climbed from any side — ` +
+        JSON.stringify(sim.climbs.rows.filter((c) => c.share < 0.6)),
     );
   }
   if (sim.beyond.ground > 0) {
@@ -1124,8 +1144,14 @@ const island = await (async () => {
   }
   island.summary =
     ` island         start ${sim.start.state} on the pad · ${sim.ground.tried} ground points, ` +
-    `${sim.ground.holes} holes, ${sim.ground.uneven} sloping, ${sim.ground.lowest}m to ${sim.ground.highest}m · ` +
-    `${sim.beyond.ground} of ${sim.beyond.tried} points past the edge are ground\n` +
+    `${sim.ground.holes} holes, ground from ${sim.ground.lowest}m to ${sim.ground.highest}m, ` +
+    `${Math.round(sim.ground.steep * 100)}% too steep · ${sim.beyond.ground} of ${sim.beyond.tried} ` +
+    `points past the edge are ground\n` +
+    `                level places ${sim.level.levelPlaces} (worst ${Math.max(...sim.level.places.map((p) => p.worst))}m) · ` +
+    `road ${sim.level.roadPoints} points, worst ${sim.level.roadWorst}m off level · ` +
+    `${sim.roads.walks.length} roads walked end to end: ${sim.roads.allWalked}\n` +
+    `                hills climbed from the best side: ` +
+    sim.climbs.rows.map((c) => `${c.reached}/${c.top}m`).join(' ') + `\n` +
     `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
     `${sim.scale.narrowest}m across, ${sim.scale.heightsAcross} heights of him · ` +
     `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ` +

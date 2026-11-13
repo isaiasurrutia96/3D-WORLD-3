@@ -270,6 +270,8 @@ export class Player {
   private animationTime = 0;
 
   private readonly lastSafePosition = new Vector3();
+  /** The flattest floor the foot touched this frame, as a normal's height. */
+  private floorNormalY = 1;
   private safePositionTimer = 0;
 
   /** Counters from the last frame, for diagnosing movement problems. */
@@ -1872,6 +1874,7 @@ export class Player {
 
     this.diagnostics.collisions = 0;
     this.onGround = false;
+    this.floorNormalY = 1;
 
     for (let step = 0; step < steps; step += 1) {
       this.moveHorizontally(stepDelta, wasOnGround);
@@ -1883,7 +1886,21 @@ export class Player {
     // rather than launching off, because the probe reaches a little below
     // the feet.
     if (this.velocity.y <= 0.1) {
-      const reach = wasOnGround ? TUNING.groundSnapDistance : 0.04;
+      // Falling onto a slope, the reach has to cover how far a capsule comes
+      // to rest above it. A rounded foot touches a slope beside the point
+      // under it, so it stops higher than the ground at its own centre — by
+      // the radius times (1/cos of the slope - 1): 3cm on a gentle slope,
+      // 8cm on a hillside, 21cm on the steepest he can walk. The reach used
+      // to be 4cm flat, so dropping straight onto a hillside held him a few
+      // centimetres up, falling at full speed and never landing.
+      //
+      // Only when the foot really is touching a slope, and by as much as
+      // that slope needs. Widening it everywhere shortened every landing and
+      // took frames off the window for the move that follows a jump.
+      const slope = Math.max(this.floorNormalY, MAX_WALKABLE_NORMAL_Y);
+      const reach = wasOnGround
+        ? TUNING.groundSnapDistance
+        : 0.04 + CHARACTER_RADIUS * (1 / slope - 1);
       this.settleOnGround(reach);
     }
 
@@ -2018,6 +2035,7 @@ export class Player {
 
       const lift = hit.normal.y * hit.depth;
       if (Math.abs(lift) < 1e-6) break;
+      if (hit.normal.y > 0.25) this.floorNormalY = Math.min(this.floorNormalY, hit.normal.y);
 
       this.diagnostics.collisions += 1;
       this.diagnostics.lastNormalY = hit.normal.y;

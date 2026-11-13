@@ -366,6 +366,33 @@ it stands.
 
 ## K) Change log
 
+**13 November 2026, second entry. The landscape.** The island gets hills,
+small mountains, rocky outcrops, trees, boulders, flowers and a road.
+Requested by the owner; the second stage after the foundation.
+
+**1. The land.** A mountain range across the back (the tallest about 21
+metres, ten times his height), hills along the flanks and front, and four
+rocky outcrops. Anything steeper than about 40 degrees is drawn as bare rock
+and anything above 21 metres has a white top; the rest is grass.
+
+**2. The level places.** The start, a plaza in the middle, and one plot each
+for the golf area, the tower, the pond and the mini games are held flat, and
+the land cannot rise faster than a ramp away from any of them. The road runs
+from the start to the plaza and from the plaza out to each plot. Nothing is
+built on the plots yet; they are where the next stages go. The tower plot
+moved from the first plan, which put part of it off the island.
+
+**3. A fault in the controller, found by the hills.** Dropping straight onto
+a slope steeper than about 25 degrees left him resting a few centimetres
+above it, falling at full speed and never landing, because a rounded foot
+touches a slope beside the point under it and the landing check reached
+only four centimetres. It now reaches as far as the slope in contact needs,
+and no further, since widening it everywhere shortened every landing and
+broke two movement tests.
+
+**4. Trees.** Trunks and boulders are solid; the leaves are not, as in the
+old worlds.
+
 **13 November 2026. The island: foundation only.** Replaces the yard as
 what the game is. Approved by the owner from a reference picture of a
 floating island in the style of the Mario worlds and the golf game's
