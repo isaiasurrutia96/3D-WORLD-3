@@ -364,9 +364,9 @@ function roundedBlock(): { shade: CanvasTexture; bumps: CanvasTexture } {
   };
   const shade = make((u, v) => {
     const h = height(u, v);
-    // Soft: full light on the face, easing to about three quarters in the
-    // crease between two blocks.
-    const light = Math.round(255 * (0.74 + 0.26 * h));
+    // Soft: full light on the face, easing only a little in the crease
+    // between two blocks, so the lines are light but still show.
+    const light = Math.round(255 * (0.87 + 0.13 * h));
     return [light, light, light];
   });
   shade.colorSpace = SRGBColorSpace;
@@ -374,7 +374,7 @@ function roundedBlock(): { shade: CanvasTexture; bumps: CanvasTexture } {
   const bumps = make((u, v) => {
     const dx = (height(u + step, v) - height(u - step, v)) / (2 * step);
     const dy = (height(u, v + step) - height(u, v - step)) / (2 * step);
-    const strength = 0.06;
+    const strength = 0.035;
     const nx = -dx * strength;
     const ny = -dy * strength;
     const l = Math.hypot(nx, ny, 1);
