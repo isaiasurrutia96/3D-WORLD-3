@@ -1,8 +1,9 @@
 # Two-reference floating voxel island
 
-Interactive world preview at /3D-WORLD-3/island/. The two supplied images are
-treated as views of ONE island. The illustrated explorer is omitted: there
-is no avatar, racing, minigame logic, or gameplay HUD in this scene.
+Interactive island at /3D-WORLD-3/island/. The two supplied images are treated
+as views of ONE island. The approved terrain is preserved, with the existing
+clay avatar and movement controller now connected for walking and jumping.
+No racing or minigame scene is loaded here.
 
 ## Run
 
@@ -13,11 +14,16 @@ Use Node.js 24 and the root's pinned dependencies:
     npm run test:island
     npm run build:island
 
-Angled and Overhead select the reference camera presets. Drag to orbit;
-scroll/pinch to zoom; R restores Angled. Graphics offers Low / Medium / High,
+Explore follows the avatar. E/D/S/F or arrows move, Space jumps, Shift walks,
+C crouches, and Backspace/Reset returns to the lawn spawn. Phones have a left
+analogue pad and Jump/Crouch buttons. Drag to orbit; scroll/pinch to zoom.
+Angled and Overhead retain the reference presets and pause movement while
+inspecting the island. R restores Angled in those inspection views.
+Graphics offers Low / Medium / High,
 remembered under letsgo.island.graphics.v1. Low remains the default and a
 Canvas 2D compatibility view works when WebGL cannot start. Medium/High need
-working WebGL. Idle views do not render continuously.
+working WebGL. Idle views stop drawing after the avatar settles; Low and
+software mode cap their moving render rates. Environment shadows stay cached.
 
 ## Reconstruction plan
 
@@ -43,8 +49,15 @@ src/water.js follows the irregular pond and its narrow, fading waterfall.
 The main lawn stays flat and unobstructed.
 
 The existing standalone games and their saved ghost keys remain separate.
-This preview has no player controller; geometry tests do not prove movement
-behavior for an avatar that has not been connected.
+Only reusable Player, model/animation, Input and CollisionWorld modules are
+imported from root; its startup, world and HUD are never imported.
+src/avatar-world.js merges exposed solid faces into collision rectangles in
+the controller's metre space (0.45 metres per island cell). The avatar is
+drawn at the inverse scale, without rescaling or editing the approved world.
+The pond uses its actual water-cell outline; falls return to safe ground.
+Movement tests cover lawn seams, the original jump, landing on a terrace,
+fall recovery and the irregular pond. Touch controls release on cancellation,
+lost capture, blur, page hide and visibility changes.
 
 ## Graphics
 
@@ -53,12 +66,15 @@ Medium adds Lambert lighting and cached 1024-pixel shadows, ratio up to 1.5.
 High uses smoother corners, rough/bump materials, softer cached 2048-pixel
 shadows and ratio up to 2. Tier changes preserve the entire layout. The old
 geometry/materials/shadow targets are disposed on change. Software fallback
-supports the same camera projections and Low controls without WebGL.
+supports the same camera projections, animated avatar, movement and Low
+controls without WebGL. src/canvas-avatar.js projects the actual rig rather
+than a placeholder. Near-plane clipping handles scenery beside the camera.
 
 ## Inspection and comparison
 
 window.__letsgoIsland provides world, setBlock(x,y,z,type), collisionBoxes,
-setQuality(level), setView('overhead'|'angled'), stats and referenceLandmarks().
+setQuality(level), setView('walk'|'overhead'|'angled'), avatar, resetAvatar(),
+stats and referenceLandmarks().
 setBlock(...,null) removes one cell and rebuilds the view. No building UI is
 included. referenceLandmarks() projects approximate, manually interpreted
 overhead anchors; those are guides, not a full-image pixel similarity score.
@@ -73,4 +89,7 @@ the open center, feature counts, transparent water and rounded geometry.
 Browser checks cover both presets, orbit/zoom, all graphics tiers, saved
 selection, untouched ghost storage, phone layouts and Firefox without WebGL.
 
-Restore point: checkpoint-before-two-view-island-2026-11-13 at 93f7199.
+Approved terrain checkpoint before the avatar:
+checkpoint-island-approved-before-avatar-2026-11-13 at 3ca2853.
+Earlier reconstruction checkpoint: checkpoint-before-two-view-island-2026-11-13
+at 93f7199.

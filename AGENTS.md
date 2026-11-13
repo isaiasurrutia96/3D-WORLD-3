@@ -24,7 +24,13 @@ the worlds**. The projects belong in this repository, with separate runtimes.
   are camera presets for the same cells; do not rearrange objects per view.
   Do not use randomness to choose scenery placements or infer literal
   block-for-block accuracy from passing geometry tests.
-  No playable minigames, avatar, movement rewrite, arena or obstacles yet.
+  The owner has now approved adding the existing clay avatar and movement
+  to this island. Reuse only the pure Player/Input/model/animation/collision
+  modules from root, without importing its startup, world or HUD. The island
+  remains its own scene and URL. Keep the approved terrain unchanged; the
+  checkpoint is `checkpoint-island-approved-before-avatar-2026-11-13`.
+  Keep Explore, Angled and Overhead views, keyboard/touch controls, Low graphics
+  and the no-WebGL avatar projection working. No minigames or new arena yet.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's
   startup code with the other unless the user explicitly requests that work.
