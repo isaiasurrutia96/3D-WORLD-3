@@ -213,25 +213,6 @@
 .hud__fps--ok { color: #ffd34d; }
 .hud__fps--poor { color: #ff8b7a; }
 
-.hud__hints {
-  position: absolute;
-  right: 12px;
-  bottom: 32px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(6, 16, 32, 0.52);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.82);
-  text-align: right;
-  transition: opacity 400ms ease;
-}
-
-.hud__hints[hidden] {
-  display: none;
-}
-
 .hud__prompt {
   position: absolute;
   left: 50%;
@@ -703,11 +684,6 @@
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-}
-
-/* On a touch device the keyboard chart is of no use to anyone. */
-.is-touch .hud__hints {
-  display: none;
 }
 
 /*

@@ -1034,7 +1034,6 @@ await page.evaluate(() => window.__letsgo.debug.freeze());
 await page.waitForTimeout(200);
 await page.evaluate(() => {
   document.querySelector('.hud__stats')?.setAttribute('hidden', '');
-  document.querySelector('.hud__hints')?.setAttribute('hidden', '');
 });
 
 for (const [name, dx, dy, dz, lookHeight] of [

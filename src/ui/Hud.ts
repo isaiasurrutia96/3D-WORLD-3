@@ -44,34 +44,7 @@ export class Hud {
     this.stats.className = 'hud__stats';
     hud.appendChild(this.stats);
 
-    const hints = document.createElement('div');
-    hints.className = 'hud__hints';
-    hints.innerHTML = `
-      Forward <b>E</b> · Back <b>D</b> · Left <b>S</b> · Right <b>F</b> ·
-      Walk <b>hold Shift</b> · Jump <b>Space</b><br />
-      Jump again on landing for a higher second and third jump · at a run,
-      <b>Space</b> then <b>A</b> for a <b>side flip</b><br />
-      <b>C</b> crouches on land — crouch running then jump for a <b>long
-      jump</b>, crouch still then jump for a <b>backflip</b><br />
-      <b>Space</b> again in the air for a boost, and <b>again</b> to <b>ground
-      pound</b> · kick off walls as long as you keep reaching them<br />
-      Ladder: <b>E</b>/<b>D</b> up and down · <b>Space</b> jumps off ·
-      <b>G</b> climbs down from the top<br />
-      Hanging: <b>S</b>/<b>F</b> along the edge · <b>Space</b> pulls up, and
-      <b>again</b> straight away to push up higher · <b>D</b> pushes off ·
-      <b>C</b> lets go<br />
-      Water: <b>C</b> or <b>Q</b> dives, and you stay at that depth ·
-      under it <b>E S D F</b> swim where you look, <b>Space</b> goes up and
-      <b>C</b>/<b>Q</b> down · on top <b>Space</b> strokes and climbs out<br />
-      <b>R</b> pick up and throw · let go at a run to <b>skid</b> ·
-      Mouse lock <b>L</b> · Reset <b>Backspace</b> · Panel <b>F3</b> ·
-      Quality <b>1</b>/<b>2</b>/<b>3</b>
-    `;
-    hud.appendChild(hints);
-
-    // On its own rather than inside the chart, because the chart goes away on
-    // a phone and this is the one thing that must not: it is how you tell a
-    // reloaded page from a cached one.
+    // The build stamp: it is how you tell a reloaded page from a cached one.
     const build = document.createElement('div');
     build.className = 'hud__build-line';
     build.innerHTML = `<span class="hud__build">build ${__BUILD_STAMP__}</span>`;
