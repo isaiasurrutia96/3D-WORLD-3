@@ -700,10 +700,10 @@ function buildSea(): { mesh: Mesh; update(time: number): void } {
   texture.colorSpace = SRGBColorSpace;
   texture.wrapS = RepeatWrapping;
   texture.wrapT = RepeatWrapping;
-  texture.repeat.set(60, 60);
+  texture.repeat.set(225, 225);
   texture.anisotropy = 4;
   const mesh = new Mesh(
-    new PlaneGeometry(2400, 2400).rotateX(-Math.PI / 2),
+    new PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2),
     new MeshStandardMaterial({ map: texture, roughness: 0.55, metalness: 0 }),
   );
   mesh.name = 'sea';

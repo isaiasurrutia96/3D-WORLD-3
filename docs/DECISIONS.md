@@ -379,9 +379,62 @@ should. The upper body has not yet been reduced in size as requested. Neither
 was changed before the checkpoint was taken, because the gait was approved as
 it stands.
 
+**3. Branch `checkpoint-8-island-landscape` — 13 November 2026, commit
+`141de23`.** Taken before racing is brought into the island. It is the island
+as it stood: the floating island, its sea and sky, the mountains, hills,
+trees and road, the key chart removed, and the movement and touch controls as
+they were. The old yard is behind `?arena` for the tests. Taken at the owner's
+request, not after a play-test, so it is a restore point rather than an
+approved state.
+
 ---
 
 ## K) Change log
+
+**13 November 2026, third entry. Racing joins the island: stage one, the
+layout and the roads.** Requested by the owner, who also asked for a
+checkpoint first (`checkpoint-8-island-landscape`, section J). This is the
+first of several stages, and it is only the ground.
+
+**1. Where things are.** The four circuits are the racing game's own, drawn
+by its own code, standing exactly where that game stood them round its floor
+slab: the Original to the north-east, Skyline to the west, Suzuka to the
+north and Winding to the south. They are one to two kilometres across, so
+the island is small beside them, and the sea was made big enough to hold
+them. Each is reached by a bridge from a gate on the island's rim.
+
+**2. The roads.** The island's dirt road network now runs to four gates, and
+a road of the racing game's own asphalt, kerbs and rails runs from each gate
+to the foot of each circuit's own bridge: 141, 57, 140 and 162 metres. The
+north road passes through the gap between the two big mountains. Each gate
+has two stone pillars and a beam, clear of the kerbs.
+
+**3. One physics world.** A kart asks the ground two things: how high it is
+and what is in the way. The racing code answers them for its circuits. A new
+module answers them for the island and the bridges as well and falls back on
+the racing code for the rest, so the kart behaves on a bridge as it does on
+a circuit. Land steeper than a kart can climb is a wall to it.
+
+**4. What it shares.** Nothing was copied. The island imports the racing
+code, and the racing world's file now exports the helpers it needed, with no
+change to how it behaves. One copy of three serves both.
+
+**5. Checked.** Driven by the racing game's own vehicle physics from the
+start pad, over the island roads, across the bridge and once round each
+circuit: all four are completed, with every gate passed, no fall and no rail
+touched.
+
+**6. Not done.** A kart is not yet on the island, and there is no way to get
+in or out of one; no race, lap, checkpoint or item logic runs; none of the
+racing controls, screens or touch buttons are in the game. Those are the
+next stages. On foot you can walk the bridges and the short bridge at the
+foot of each circuit but not the circuits themselves, which are driven on.
+
+**7. A cost.** The circuits are heavy: about 130,000 triangles each, mostly
+rails. Only those within 700 metres are drawn, and their rails only within
+150, which brings the view from the island's start from over 400,000 to
+about 115,000 triangles, against about 41,000 before. That has not been
+tried on the 2015 laptop and may need more cutting.
 
 **13 November 2026, second entry. The landscape.** The island gets hills,
 small mountains, rocky outcrops, trees, boulders, flowers and a road.
