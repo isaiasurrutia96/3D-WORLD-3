@@ -97,7 +97,7 @@ export const ROADS: Array<Array<[number, number]>> = [
   [[0, 0], [-14, 6], [-28, 13], [-40, 14]],
   // The four roads off the island, each to the foot of a bridge. The north
   // one runs through the pass between the two big mountains.
-  [[0, 0], [0, -30], [0, -60], [GATES.north.x, GATES.north.z]],
+  [[0, 0], [0, -30], [2, -60], [GATES.north.x, GATES.north.z]],
   [[0, 53], [0, 60], [GATES.south.x, GATES.south.z]],
   [[0, 0], [-30, 1], [-60, 1], [GATES.west.x, GATES.west.z]],
   [[0, 0], [14, -12], [30, -30], [44, -48], [GATES.east.x, GATES.east.z]],
@@ -133,19 +133,62 @@ export function smoothRoad(points: Array<[number, number]>, spacing = 1.5): Vect
 /** Every road, already smoothed. */
 export const ROAD_PATHS: Vector2[][] = ROADS.map((road) => smoothRoad(road));
 
-/** How far a point is from the nearest part of any road. */
-export function roadDistance(x: number, z: number): number {
-  let best = Infinity;
-  for (const path of ROAD_PATHS) {
-    for (let i = 0; i < path.length - 1; i += 1) {
-      const a = path[i];
-      const b = path[i + 1];
-      const dx = b.x - a.x;
-      const dz = b.y - a.y;
-      const len2 = dx * dx + dz * dz;
-      const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.y) * dz) / len2)) : 0;
-      best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.y + dz * t)));
+/**
+ * How far past which the distance to a road no longer matters to the land:
+ * the height cap grows with distance and is above the tallest mountain well
+ * before this.
+ */
+const ROAD_FAR = 36;
+const ROAD_CELL = 12;
+
+interface RoadSegment {
+  ax: number;
+  az: number;
+  dx: number;
+  dz: number;
+  len2: number;
+}
+
+/**
+ * Every road segment, filed under each cell of a grid it is within
+ * ROAD_FAR of, so asking how far a point is from a road looks at a handful
+ * of segments and not at all of them. The land asks this several million
+ * times when the island is built, and on an older machine that was most of
+ * the wait.
+ */
+const roadCells = new Map<string, RoadSegment[]>();
+for (const path of ROAD_PATHS) {
+  for (let i = 0; i < path.length - 1; i += 1) {
+    const a = path[i];
+    const b = path[i + 1];
+    const segment = { ax: a.x, az: a.y, dx: b.x - a.x, dz: b.y - a.y, len2: (b.x - a.x) ** 2 + (b.y - a.y) ** 2 };
+    const x0 = Math.floor((Math.min(a.x, b.x) - ROAD_FAR) / ROAD_CELL);
+    const x1 = Math.floor((Math.max(a.x, b.x) + ROAD_FAR) / ROAD_CELL);
+    const z0 = Math.floor((Math.min(a.y, b.y) - ROAD_FAR) / ROAD_CELL);
+    const z1 = Math.floor((Math.max(a.y, b.y) + ROAD_FAR) / ROAD_CELL);
+    for (let cx = x0; cx <= x1; cx += 1) {
+      for (let cz = z0; cz <= z1; cz += 1) {
+        const key = `${cx},${cz}`;
+        const list = roadCells.get(key);
+        if (list) list.push(segment);
+        else roadCells.set(key, [segment]);
+      }
     }
+  }
+}
+
+/**
+ * How far a point is from the nearest part of any road, or ROAD_FAR if no
+ * road is that close.
+ */
+export function roadDistance(x: number, z: number): number {
+  const list = roadCells.get(`${Math.floor(x / ROAD_CELL)},${Math.floor(z / ROAD_CELL)}`);
+  let best = ROAD_FAR;
+  if (!list) return best;
+  for (const s of list) {
+    const t = s.len2 > 0 ? Math.max(0, Math.min(1, ((x - s.ax) * s.dx + (z - s.az) * s.dz) / s.len2)) : 0;
+    const d = Math.hypot(x - (s.ax + s.dx * t), z - (s.az + s.dz * t));
+    if (d < best) best = d;
   }
   return best;
 }
@@ -212,16 +255,20 @@ function rise(x: number, z: number, r: Rise): number {
  * behind it is — at worst the mountain's flank is cut into a ramp.
  */
 function heightAllowed(x: number, z: number): number {
-  let near = roadDistance(x, z) - (ROAD_HALF + 1);
-  for (const plot of Object.values(PLOTS)) {
-    near = Math.min(near, Math.hypot(x - plot.x, z - plot.z) - plot.r);
+  const road = Math.max(0, roadDistance(x, z) - (ROAD_HALF + 1));
+  let plot = Infinity;
+  for (const p of Object.values(PLOTS)) {
+    plot = Math.min(plot, Math.hypot(x - p.x, z - p.z) - p.r);
   }
-  const d = Math.max(0, near);
-  const fromPlots = 1.7 * d;
+  // A road may cut a steep-sided pass through the mountains, which is what a
+  // road through mountains is; a plot has to be reachable on foot from every
+  // side, so the land rises from it as a ramp.
+  const fromRoad = 2.7 * road;
+  const fromPlots = 1.7 * Math.max(0, plot);
   // And off the rim: a clean lip all round, then the land free to climb. A
   // mountain rising steeply from the edge is rock and is meant to look it.
   const e = Math.max(0, islandEdge(Math.atan2(z, x)) - Math.hypot(x, z) - 4);
-  return Math.min(fromPlots, 2.1 * e);
+  return Math.min(fromRoad, fromPlots, 2.1 * e);
 }
 
 /** The lower of two heights, rounded off where they cross. */

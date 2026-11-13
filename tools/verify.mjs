@@ -1099,7 +1099,15 @@ const island = await (async () => {
       const k = d.kart.state;
       d.player.teleport(d.player.position.clone().set(k.x - 2.4, 0, k.z + 1.5), Math.PI / 2);
     });
-    await islandPage.waitForTimeout(700);
+    // Until the game itself is offering the kart, however busy this machine
+    // is: the offer is drawn from the same frame that decides it.
+    await islandPage
+      .waitForFunction(
+        () => /Drive/.test(document.querySelector('.hud__prompt')?.textContent ?? ''),
+        null,
+        { timeout: 40000 },
+      )
+      .catch(() => {});
     kart.near = await look();
     kart.promptWhenNear = kart.near.prompt;
     await islandPage.keyboard.press('KeyR');
@@ -1109,7 +1117,14 @@ const island = await (async () => {
     // Until it is really moving, not for a fixed time: how much of that is
     // simulated depends on how busy this machine is.
     await islandPage
-      .waitForFunction(() => window.__letsgo.debug.kart.state.speed > 12, null, { timeout: 30000 })
+      .waitForFunction(
+        ([x, z]) => {
+          const k = window.__letsgo.debug.kart.state;
+          return k.speed > 8 && Math.hypot(k.x - x, k.z - z) > 8;
+        },
+        [kart.entered.x, kart.entered.z],
+        { timeout: 40000 },
+      )
       .catch(() => {});
     await islandPage.waitForTimeout(600);
     kart.driving = await look();
@@ -1118,10 +1133,11 @@ const island = await (async () => {
     kart.refused = await look();
     await islandPage.keyboard.up('KeyE');
     await islandPage.keyboard.down('KeyD');
-    await islandPage.waitForFunction(() => Math.abs(window.__letsgo.debug.kart.state.speed) < 0.3, null, { timeout: 15000 }).catch(() => {});
+    await islandPage.waitForFunction(() => Math.abs(window.__letsgo.debug.kart.state.speed) < 0.3, null, { timeout: 40000 }).catch(() => {});
     await islandPage.keyboard.up('KeyD');
     await islandPage.keyboard.press('KeyR');
-    await islandPage.waitForTimeout(500);
+    await islandPage.waitForFunction(() => !window.__letsgo.debug.kart.driving, null, { timeout: 20000 }).catch(() => {});
+    await islandPage.waitForTimeout(300);
     kart.exited = await look();
   }
 
@@ -1226,6 +1242,27 @@ const island = await (async () => {
     `${sim.scale.narrowest}m across, ${sim.scale.heightsAcross} heights of him · ` +
     `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ` +
     `${islandAudit.faults.length} faults`;
+}
+
+// ---- A browser that will not give the best graphics ---------------------------
+// Some Firefox and driver pairings refuse a context that asks for
+// multisampling or the high-performance adapter. The game has to ask again for
+// less, not stay dark; and if nothing at all is available it has to say so.
+{
+  const refused = await browser.newPage({ viewport: { width: 800, height: 500 } });
+  await refused.addInitScript(`
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+      if ((type === 'webgl2' || type === 'webgl') && attrs && (attrs.antialias || attrs.powerPreference === 'high-performance')) return null;
+      return original.call(this, type, attrs);
+    };`);
+  await refused.goto(BASE, { waitUntil: 'load', timeout: 60000 });
+  const started = await refused
+    .waitForFunction(() => !!window.__letsgo?.debug, null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!started) problems.push('the game did not start when the browser refused multisampling and the high-performance adapter');
+  await refused.close();
 }
 
 // ---- The four circuits, driven from the island ------------------------------

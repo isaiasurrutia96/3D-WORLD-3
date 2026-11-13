@@ -407,6 +407,35 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, fifth entry. A page that showed nothing.** Reported by the
+owner: the game showed a dark empty page in Firefox and nothing else.
+
+**1. The likely cause, not yet confirmed.** Some Firefox and graphics-driver
+pairings refuse a context that asks for multisampling or the high-performance
+adapter, and say so by throwing; the page then stays dark. The island preview
+hit exactly this and its author fixed it by asking again for less. The main
+game made the same request with no fallback, so it now does the same: three
+tries, each on a fresh canvas, from the best the browser will give to
+anything at all. Tested by simulating a browser that refuses the first
+request, and one that refuses everything.
+
+**2. Never silent again.** The page now says "Building the island…" until
+the first frame is drawn, since a dark page that says nothing for the several
+seconds an older machine needs is indistinguishable from a broken one; and if
+anything does throw while starting, what it was is written on the page
+instead of nothing.
+
+**3. Faster to build.** Asking how far a point is from a road was done
+against every road segment, several million times while the land was built; it
+now looks only at the few segments near. The island builds in a fraction of
+what it did.
+
+**4. A side effect worth knowing.** Adding the road north through the
+mountains had cut the tall mountain down from 29 to 16 metres without anyone
+noticing, because the land is not allowed to rise faster than a ramp away from
+a road. A road may now cut a steep-sided pass, as a road through mountains
+does, and the summit is back at 28.8 metres.
+
 **13 November 2026, fourth entry. Racing joins the island: stage two, the
 kart.** A go-kart stands beside the start pad, and he can climb into it, drive
 it and step out of it, at a keyboard and on a phone.

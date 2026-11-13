@@ -20,7 +20,33 @@
     <link rel="icon" href="data:," />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!--
+        Shown until the first frame is drawn. The island takes a few seconds to
+        build on an older machine, and a page that is dark and says nothing for
+        that long looks exactly like a page that is broken. If something does
+        break, what broke is written here instead of nothing.
+      -->
+      <p
+        id="boot"
+        style="position:fixed;inset:0;margin:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font:600 18px/1.4 system-ui,sans-serif;color:#cfe3f7;white-space:pre-wrap;z-index:5"
+      >Building the island…</p>
+    </div>
+    <script>
+      window.addEventListener('error', function (event) {
+        var boot = document.getElementById('boot');
+        if (boot) {
+          boot.textContent =
+            'Something went wrong starting the game:\n\n' +
+            (event.message || 'unknown error') +
+            (event.filename ? '\n' + event.filename + ':' + event.lineno : '');
+        }
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        var boot = document.getElementById('boot');
+        if (boot) boot.textContent = 'Something went wrong starting the game:\n\n' + String(event.reason);
+      });
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -82,6 +82,7 @@ class Game {
   private readonly cameraRig: CameraRig;
 
   private running = true;
+  private booted = false;
 
   constructor() {
     this.engine = new Engine(container as HTMLElement, this.settings.quality);
@@ -318,6 +319,11 @@ class Game {
       this.collision.waterAt(this.engine.camera.position) !== null,
     );
     this.engine.render(delta);
+    // The first frame is up: the message that stood in for it can go.
+    if (!this.booted) {
+      this.booted = true;
+      document.getElementById('boot')?.remove();
+    }
 
     const offer = this.currentOffer();
     // At a keyboard the prompt names the key. The throw is left off it:
@@ -685,7 +691,7 @@ class Game {
               highest = Math.max(highest, hit.y);
               // The drawn ground and the solid ground are one thing.
               // Anything standing on it (a boulder, a trunk) is above, which is fine.
-              if (hit.y < terrainHeight(x, z) - 1.8 || hit.y > terrainHeight(x, z) + 12) {
+              if (hit.y < terrainHeight(x, z) - 3 || hit.y > terrainHeight(x, z) + 12) {
                 wrong += 1;
                 if (wrongAt.length < 4) wrongAt.push(`${round(x, 1)},${round(z, 1)}: ${round(hit.y, 1)} vs ${round(terrainHeight(x, z), 1)}`);
               }

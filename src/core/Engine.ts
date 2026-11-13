@@ -64,6 +64,42 @@ const UNDERWATER_FOG = new Color(0x135a76);
 const UNDERWATER_HEMISPHERE = new Color(0x2f90b0);
 const UNDERWATER_FOG_DENSITY = 0.05;
 
+/**
+ * A renderer, asking for the best the browser will give and settling for
+ * less rather than for nothing.
+ *
+ * Some Firefox and graphics-driver pairings refuse a context that asks for
+ * multisampling or for the high-performance adapter, and say so by throwing:
+ * the page then stays as dark and empty as it was before anything started.
+ * The same machine will happily give an ordinary context, so on a refusal
+ * this asks again for less. Each try is on a fresh canvas, because a refused
+ * attempt can leave a context on its canvas that keeps its old settings.
+ */
+function createRenderer(antialias: boolean): WebGLRenderer {
+  const attempts: Array<{ antialias: boolean; powerPreference: WebGLPowerPreference }> = [
+    { antialias, powerPreference: 'high-performance' },
+    { antialias: false, powerPreference: 'default' },
+    { antialias: false, powerPreference: 'low-power' },
+  ];
+  const failures: unknown[] = [];
+  for (const attempt of attempts) {
+    try {
+      return new WebGLRenderer({
+        canvas: document.createElement('canvas'),
+        antialias: attempt.antialias,
+        powerPreference: attempt.powerPreference,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  throw new Error(
+    `This browser could not start WebGL graphics (${failures.map((f) => String(f)).join(' / ')}).`,
+  );
+}
+
 export class Engine {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
@@ -97,11 +133,7 @@ export class Engine {
     this.quality = quality;
     this.preset = QUALITY_PRESETS[quality];
 
-    this.renderer = new WebGLRenderer({
-      antialias: this.preset.antialias,
-      powerPreference: 'high-performance',
-      stencil: false,
-    });
+    this.renderer = createRenderer(this.preset.antialias);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
