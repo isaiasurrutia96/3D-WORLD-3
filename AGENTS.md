@@ -10,8 +10,11 @@ the worlds**. The projects belong in this repository, with separate runtimes.
 - `apps/letsgo-island/` is the separate floating minigame-island terrain preview.
   It uses the root library dependencies but has its own entry point, scene and
   orbit camera at `/island/`; do not import runtime code from the other games.
-  Current scope is terrain, scenery and decorative mini golf only. The user
-  removed the water, stream and waterfall; keep the grass and dirt loop continuous.
+  The user approved the block-island reference with an expanded flat lawn and
+  larger rear terraces. Current scope is modular block terrain and scenery,
+  with continuous solid cell volumes, efficient exposed-face batches and a
+  Canvas 2D fallback for older laptops. Keep water and the waterfall removed.
+  The open lawn replaces the earlier decorative golf and dirt loop.
   No playable minigames, avatar, movement rewrite, arena or obstacles yet.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's

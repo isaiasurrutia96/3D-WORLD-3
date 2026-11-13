@@ -1,40 +1,48 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Mesh,MeshBasicMaterial,Raycaster,Vector3} from 'three';
-import {topGeometry,cliffGeometry,pathGeometry} from '../src/terrain.js';
-import {contains,outline,terrainHeight,pathCurve,golfOutline,random,TAU} from '../src/layout.js';
+import {BlockWorld,DIRECTIONS} from '../src/blocks.js';
+import {createLand,surfaceHeight,contains,topCell} from '../src/layout.js';
+import {createIslandData,createTerrain} from '../src/terrain.js';
+import {facePoints} from '../src/block-mesh.js';
 
-test('the grass and cliff meshes form a closed island with no unpaired edges',()=>{
- const top=topGeometry(),cliffs=cliffGeometry(),edges=new Map();
- const key=(p,i)=>[p.getX(i),p.getY(i),p.getZ(i)].map(n=>Math.round(n*10000)).join(',');
- for(const geometry of [top,cliffs]){
-  const p=geometry.getAttribute('position'),normal=geometry.getAttribute('normal'),ids=geometry.index?.array??Array.from({length:p.count},(_,i)=>i);
-  for(const n of p.array)assert.ok(Number.isFinite(n));for(const n of normal.array)assert.ok(Number.isFinite(n));
-  for(let t=0;t<ids.length;t+=3){const face=[key(p,ids[t]),key(p,ids[t+1]),key(p,ids[t+2])];assert.equal(new Set(face).size,3,'no zero-area duplicate-vertex faces');for(let i=0;i<3;i++){const edge=[face[i],face[(i+1)%3]].sort().join('|');edges.set(edge,(edges.get(edge)??0)+1);}}
- }
- for(const [edge,count]of edges)assert.equal(count,2,`unpaired or non-manifold edge ${edge}`);
- top.dispose();cliffs.dispose();
+test('blocks edit independently on an exact grid, with no internal faces between neighbors',()=>{
+ const world=new BlockWorld();world.set(0,0,0,'grass').set(1,0,0,'grass');
+ assert.equal([...world.exposedFaces()].length,10);
+ assert.deepEqual(world.snap(-.01,.5,1),{x:-1,y:0,z:1});
+ assert.equal(world.solidAt(.999999,.5,.5),true);assert.equal(world.solidAt(1.000001,.5,.5),true);
+ assert.throws(()=>world.set(.5,0,0,'stone'),TypeError);
+ world.remove(1,0,0);assert.equal(world.get(0,0,0).type,'grass');assert.equal([...world.exposedFaces()].length,6);
 });
-test('grass is present across the entire interior and its collision heights agree with the rendered surface',()=>{
- const geometry=topGeometry(),mesh=new Mesh(geometry,new MeshBasicMaterial()),ray=new Raycaster(),rng=random(200);mesh.updateMatrixWorld();
- for(let i=0;i<200;i++){
-  const p=outline(rng()*TAU,Math.sqrt(rng())*.98);assert.ok(contains(p.x,p.z));
-  ray.set(new Vector3(p.x,20,p.z),new Vector3(0,-1,0));const hit=ray.intersectObject(mesh)[0];assert.ok(hit,'no holes in the grass surface');assert.ok(Math.abs(hit.point.y-terrainHeight(p.x,p.z))<.45);
- }
- geometry.dispose();mesh.material.dispose();
+test('merged collision volumes cover each solid cell exactly once and rebuild after editing',()=>{
+ const world=new BlockWorld();
+ for(let x=-3;x<9;x++)for(let z=-4;z<8;z++)world.set(x,0,z,'grass');
+ let boxes=world.collisionBoxes();assert.deepEqual(boxes,[{min:[-3,0,-4],max:[9,1,8]}]);
+ world.set(0,1,0,'rock');world.remove(1,0,1);world.set(0,10,0,'cloud');boxes=world.collisionBoxes();
+ const counts=new Map();for(const {min,max}of boxes)for(let x=min[0];x<max[0];x++)for(let y=min[1];y<max[1];y++)for(let z=min[2];z<max[2];z++){const key=[x,y,z].join();counts.set(key,(counts.get(key)||0)+1);}
+ for(const [key,count]of counts){assert.equal(count,1);assert.notEqual(world.cells.get(key)?.type,'cloud');assert.ok(world.cells.has(key));}
+ for(const [key,cell]of world.cells)if(cell.type!=='cloud')assert.equal(counts.get(key),1);
+ assert.equal(world.solidAt(1.5,.5,1.5),false);assert.equal(world.solidAt(.5,1.5,.5),true);
 });
-test('the full dirt-path width and putting-course perimeter stay inside the island',()=>{
- for(let i=0;i<=600;i++){
-  const p=pathCurve.getPoint(i/600),d=pathCurve.getTangent(i/600);
-  for(const side of [-1,0,1])assert.ok(contains(p.x+d.z*2.25*side,p.z-d.x*2.25*side,.015),'path cannot end off the cliff');
+test('the enlarged main lawn and upper terrace are supported by closed sealed terrain',()=>{
+ const world=createLand(),edges=new Map();let flat=0,upper=0;
+ for(let x=-39;x<39;x++)for(let z=-31;z<31;z++){
+  if(!contains(x,z))continue;const top=topCell(x,z);if(top===0)flat++;if(top===4)upper++;
+  assert.equal(surfaceHeight(x+.5,z+.5),top+1);assert.equal(world.get(x,top,z)?.type,'grass');
+  assert.ok(world.get(x,top-1,z),'no unsupported lawn blocks');
  }
- assert.ok(pathCurve.getPoint(0).distanceTo(pathCurve.getPoint(1))<1e-8);
- for(const p of golfOutline.getPoints(300)){assert.ok(contains(p.x,p.z,.015));assert.ok(terrainHeight(p.x,p.z)<1.35,'the putting surface must stay above the ground');assert.ok(terrainHeight(p.x,p.z)>-.65,'foundation must meet the ground');}
- const g=pathGeometry(),material=new MeshBasicMaterial(),mesh=new Mesh(g,material),ray=new Raycaster();mesh.updateMatrixWorld();
- for(const n of g.attributes.position.array)assert.ok(Number.isFinite(n));
- for(let i=0;i<600;i++){
-  const p=pathCurve.getPoint((i+.5)/600);ray.set(new Vector3(p.x,20,p.z),new Vector3(0,-1,0));
-  assert.ok(ray.intersectObject(mesh).length,'the dirt loop must remain continuous, including the former bridge crossing');
+ assert.ok(flat>3500,'generous main flat lawn');assert.ok(upper>=400,'large upper lawn');
+ for(const face of world.exposedFaces()){
+  const n=DIRECTIONS[face.direction].n;assert.equal(world.get(face.x+n[0],face.y+n[1],face.z+n[2]),undefined);
+  const points=facePoints(face).map(point=>point.join(','));
+  for(let i=0;i<4;i++){const edge=[points[i],points[(i+1)%4]].sort().join('|');edges.set(edge,(edges.get(edge)||0)+1);}
  }
- g.dispose();material.dispose();
+ for(const count of edges.values())assert.equal(count%2,0,'no unpaired exterior boundaries');
+});
+test('the complete block island stays within its rendering budget and has no water materials',()=>{
+ const data=createIslandData(),group=createTerrain(data);
+ assert.ok(data.world.cells.size>50000);assert.ok(data.faces.length<32000);
+ assert.ok(group.children.length<=32);assert.ok(group.userData.triangles<320000);
+ for(const cell of data.world.cells.values())assert.ok(!['water','foam','river'].includes(cell.type));
+ for(const mesh of group.children){for(const n of mesh.geometry.attributes.position.array)assert.ok(Number.isFinite(n));mesh.geometry.dispose();}
+ group.children[0].material.dispose();
 });

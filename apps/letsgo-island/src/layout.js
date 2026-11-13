@@ -1,12 +1,32 @@
-import {CatmullRomCurve3,Vector3} from 'three';
-export const TAU=Math.PI*2,ISLAND_X=61,ISLAND_Z=43,EDGE_SEGMENTS=128;
-export function random(seed=9427){let n=seed;return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};}
-export function outlineRadius(a){return 1+.075*Math.cos(4*a-.65)+.035*Math.sin(3*a+.3)+.018*Math.sin(7*a-.8);}
-export function outline(a,scale=1){const r=outlineRadius(a)*scale;return{x:Math.cos(a)*ISLAND_X*r,z:Math.sin(a)*ISLAND_Z*r};}
-export function contains(x,z,margin=0){const a=Math.atan2(z/ISLAND_Z,x/ISLAND_X);return Math.hypot(x/ISLAND_X,z/ISLAND_Z)<outlineRadius(a)-margin;}
-export function terrainHeight(x,z){return .65+.38*Math.sin(x*.045+z*.04)+.28*Math.cos(z*.065-x*.015)+1.1*Math.exp(-((x-34)**2+(z+19)**2)/390)+.65*Math.exp(-((x+41)**2+(z-12)**2)/190);}
-const v=(x,z)=>new Vector3(x,0,z);
-export const pathCurve=new CatmullRomCurve3([v(-36,-4),v(-17,-8),v(8,-20),v(33,-19),v(43,-5),v(38,14),v(29,27),v(8,30),v(-16,29),v(-36,18),v(-41,8)],true,'centripetal');
-export const golfOutline=new CatmullRomCurve3([v(-44,-17),v(-43,-22),v(-38,-24),v(-31,-24),v(-28,-29),v(-21,-29),v(-17,-25),v(-17,-21),v(-20,-18),v(-29,-18),v(-32,-12),v(-39,-12),v(-43,-13)],true,'centripetal');
-export const trees=[[-49,-8,1],[-45,15,1.06],[-37,28,.83],[-11,-37,1.02],[-5,-38,.91],[36,-28,.95],[49,-8,1.03],[46,15,1.10],[15,36,.76],[-48,-17,.77],[-24,-34,.72]];
-export const rocks=[[-46,23,2.3],[-43,27,1.1],[-51,6,1.2],[-39,-29,1.6],[-4,-34,2.1],[44,-17,1.7],[49,20,2],[38,28,1.5],[20.826,33.769,2.1],[30.826,34.769,1.7],[-23,34,1.5]];
+import {BlockWorld} from './blocks.js';
+export const HALF_X=39,HALF_Z=31;
+export function noise(x,y,z){const n=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return n-Math.floor(n);}
+export function contains(x,z){
+ const ax=Math.abs(x+.5),az=Math.abs(z+.5);
+ return ax<HALF_X&&az<HALF_Z&&Math.max(0,ax-(HALF_X-6))+Math.max(0,az-(HALF_Z-6))<8;
+}
+// The larger upper lawn sits behind the broad open main lawn.
+export function topCell(x,z){
+ if(!contains(x,z))return null;
+ if(x>=2&&x<=32&&z>=-28&&z<=-16)return 4;
+ if(x>=-7&&x<=35&&z>=-29&&z<=-11)return 2;
+ if(x>=-12&&x<=-8&&z>=-25&&z<=-15)return 1;
+ if(x>=-2&&x<=1&&z>=-25&&z<=-18)return 3;
+ return 0;
+}
+export function surfaceHeight(x,z){const y=topCell(Math.floor(x),Math.floor(z));return y===null?null:y+1;}
+export function bottomCell(x,z){
+ const r=Math.max(Math.abs((x+.5)/HALF_X),Math.abs((z+.5)/HALF_Z));
+ const taper=Math.max(0,1-r),fold=.7*Math.sin(x*.32)+.8*Math.cos(z*.27);
+ return-Math.round(7+29*Math.pow(taper,.85)+fold+noise(x,0,z)*1.5);
+}
+export function createLand(){
+ const world=new BlockWorld();
+ for(let x=-HALF_X;x<HALF_X;x++)for(let z=-HALF_Z;z<HALF_Z;z++){
+  const top=topCell(x,z);if(top===null)continue;
+  for(let y=bottomCell(x,z);y<=top;y++)world.set(x,y,z,y===top?'grass':y>=Math.min(top-2,-3)?'earth':'stone');
+ }
+ return world;
+}
+export const TREE_SITES=[[-29,13,1.2],[-26,-20,.85],[22,-23,1.02],[31,-7,.87],[32,18,1.08]];
+export const ROCK_SITES=[[-26,23],[-21,24],[11,-23],[15,-24],[28,-15],[33,25],[-32,-8]];
