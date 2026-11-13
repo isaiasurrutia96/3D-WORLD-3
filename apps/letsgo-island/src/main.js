@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {createIslandRenderer} from './renderer.js';
 import {createTerrain} from './terrain.js';
 import {createPlants,createSkyIslets} from './props.js';
 import {createWater} from './water.js';
@@ -7,15 +8,23 @@ import {createGolf} from './golf.js';
 import {createSky} from './sky.js';
 import './style.css';
 
-const canvas=document.querySelector('canvas'),scene=new THREE.Scene();
+let canvas=document.querySelector('canvas');
+const scene=new THREE.Scene();
 scene.background=new THREE.Color('#9fddf2');scene.fog=new THREE.Fog('#bde9f3',200,460);
-let renderer;
-try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});}catch(error){document.getElementById('load-error').hidden=false;throw error;}
+let renderer,compatible=false;
+try{const startup=createIslandRenderer(canvas);renderer=startup.renderer;canvas=startup.canvas;compatible=startup.compatible;}
+catch(error){
+ document.getElementById('load-error').hidden=false;
+ document.getElementById('camera-hint').hidden=true;
+ document.getElementById('overview').disabled=true;document.getElementById('top-view').disabled=true;
+ document.getElementById('retry-load').addEventListener('click',()=>location.reload());
+ throw error;
+}
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.98;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 scene.add(new THREE.HemisphereLight('#effbff','#b3b68a',1.5));
 const sun=new THREE.DirectionalLight('#fff4d6',2.5);sun.position.set(-65,110,65);sun.castShadow=true;
-sun.shadow.mapSize.set(1536,1536);Object.assign(sun.shadow.camera,{left:-85,right:85,top:75,bottom:-75,near:5,far:235});sun.shadow.normalBias=.06;sun.shadow.bias=-.00008;scene.add(sun);scene.add(sun.target);
+const shadowSize=compatible?1024:1536;sun.shadow.mapSize.set(shadowSize,shadowSize);Object.assign(sun.shadow.camera,{left:-85,right:85,top:75,bottom:-75,near:5,far:235});sun.shadow.normalBias=.06;sun.shadow.bias=-.00008;scene.add(sun);scene.add(sun.target);
 const stoneFill=new THREE.DirectionalLight('#d8def5',1.15);stoneFill.position.set(45,-35,70);scene.add(stoneFill);
 scene.add(createSky());scene.add(createSkyIslets());
 const island=new THREE.Group();island.name='Minigame island terrain stage';scene.add(island);
@@ -30,7 +39,7 @@ function overview(){camera.position.set(80,94,160);camera.zoom=1;controls.target
 function topView(){camera.position.set(0,190,.1);camera.zoom=1;controls.target.set(0,-7,0);camera.updateProjectionMatrix();controls.update();render();}
 function resize(){
  const width=canvas.clientWidth,height=canvas.clientHeight,aspect=width/height,halfHeight=Math.max(49,76/aspect);
- renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,width<700?1.5:1.6));renderer.setSize(width,height,false);
+ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,compatible?1:width<700?1.5:1.6));renderer.setSize(width,height,false);
  camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();render();
 }
 window.addEventListener('resize',resize);document.getElementById('overview').addEventListener('click',overview);document.getElementById('top-view').addEventListener('click',topView);
