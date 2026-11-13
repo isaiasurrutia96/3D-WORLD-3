@@ -575,7 +575,7 @@ for (const fault of audit.faults) problems.push(`collision and geometry disagree
 // the canopy overhead is not, as in the old worlds.
 // The racing circuits are driven on, not walked on: a kart is held up by the
 // racing code's own physics, not by the collision the character uses.
-const ALLOWED_WALK_THROUGH = ['sky', 'slab-body', 'crate', 'foliage', 'circuit'];
+const ALLOWED_WALK_THROUGH = ['sky', 'slab-body', 'crate', 'foliage', 'circuit', 'clouds'];
 for (const name of Object.keys(audit.walkThrough)) {
   if (!ALLOWED_WALK_THROUGH.includes(name)) {
     problems.push(
@@ -1073,78 +1073,6 @@ const island = await (async () => {
     timeout: 60000,
   });
   await islandPage.waitForTimeout(1500);
-  // The kart, with real key presses: walk up to it, climb in, drive, find
-  // that he cannot get out while it is moving, stop, and get out.
-  const kart = {};
-  {
-    const look = () =>
-      islandPage.evaluate(() => {
-        const d = window.__letsgo.debug;
-        const k = d.kart;
-        return {
-          driving: k.driving,
-          x: k.state.x,
-          z: k.state.z,
-          speed: k.state.speed,
-          visible: d.player.object.visible,
-          px: d.player.position.x,
-          pz: d.player.position.z,
-          prompt: document.querySelector('.hud__prompt')?.textContent ?? '',
-          speedo: document.querySelector('.hud__kart')?.hidden === false,
-        };
-      });
-    // Next to the kart, as if he had walked there.
-    await islandPage.evaluate(() => {
-      const d = window.__letsgo.debug;
-      const k = d.kart.state;
-      d.player.teleport(d.player.position.clone().set(k.x - 2.4, 0, k.z + 1.5), Math.PI / 2);
-    });
-    // Until the game itself is offering the kart, however busy this machine
-    // is: the offer is drawn from the same frame that decides it.
-    await islandPage
-      .waitForFunction(
-        () =>
-          /Drive/.test(document.querySelector('.hud__prompt')?.textContent ?? '') &&
-          // The offer shows as soon as he is close; getting in also needs him
-          // to have landed, and a press before then is rightly refused.
-          window.__letsgo.debug.kart.canEnter(window.__letsgo.debug.player),
-        null,
-        { timeout: 40000 },
-      )
-      .catch(() => {});
-    kart.near = await look();
-    kart.promptWhenNear = kart.near.prompt;
-    await islandPage.keyboard.press('KeyR');
-    await islandPage.waitForTimeout(400);
-    kart.entered = await look();
-    await islandPage.keyboard.down('KeyE');
-    // Until it is really moving, not for a fixed time: how much of that is
-    // simulated depends on how busy this machine is.
-    await islandPage
-      .waitForFunction(
-        ([x, z]) => {
-          const k = window.__letsgo.debug.kart.state;
-          return k.speed > 8 && Math.hypot(k.x - x, k.z - z) > 8;
-        },
-        [kart.entered.x, kart.entered.z],
-        { timeout: 40000 },
-      )
-      .catch(() => {});
-    await islandPage.waitForTimeout(600);
-    kart.driving = await look();
-    await islandPage.keyboard.press('KeyR');
-    await islandPage.waitForTimeout(300);
-    kart.refused = await look();
-    await islandPage.keyboard.up('KeyE');
-    await islandPage.keyboard.down('KeyD');
-    await islandPage.waitForFunction(() => Math.abs(window.__letsgo.debug.kart.state.speed) < 0.3, null, { timeout: 40000 }).catch(() => {});
-    await islandPage.keyboard.up('KeyD');
-    await islandPage.keyboard.press('KeyR');
-    await islandPage.waitForFunction(() => !window.__letsgo.debug.kart.driving, null, { timeout: 20000 }).catch(() => {});
-    await islandPage.waitForTimeout(300);
-    kart.exited = await look();
-  }
-
   const result = await islandPage.evaluate(() => {
     const d = window.__letsgo.debug;
     d.freeze();
@@ -1153,17 +1081,16 @@ const island = await (async () => {
       audit: d.collisionAudit(),
     };
   });
-  result.kart = kart;
   // Looked at the way he sees it: from the start, and from well above.
   await islandPage.evaluate(() => {
     const d = window.__letsgo.debug;
-    d.player.teleport(d.player.position.clone().set(0, 0, 49.6), Math.PI);
+    d.player.teleport(d.spawn.clone(), Math.PI);
     d.cameraRig.reset(d.player);
     d.drive(0.05);
     d.renderFrom(0, 1.6, 6.5, 1);
   });
   await islandPage.screenshot({ path: `${SHOTS}island-start.png` });
-  await islandPage.evaluate(() => window.__letsgo.debug.renderFrom(0, 120, 175, -22));
+  await islandPage.evaluate(() => window.__letsgo.debug.renderFrom(14, 14, 22, -4));
   await islandPage.screenshot({ path: `${SHOTS}island-aerial.png` });
   await islandPage.close();
   return result;
@@ -1171,59 +1098,22 @@ const island = await (async () => {
 
 {
   const { sim, audit: islandAudit } = island;
-  if (sim.start.state !== 'idle' || !sim.start.onPad || Math.abs(sim.start.y) > 0.05) {
-    problems.push(`island: he did not stand on the start pad — ${JSON.stringify(sim.start)}`);
+  if (sim.start.state !== 'idle' || !sim.start.onSpot || !sim.start.onGround) {
+    problems.push(`island: he did not stand where the game starts — ${JSON.stringify(sim.start)}`);
   }
-  if (sim.ground.holes > 0) {
-    problems.push(`island: ${sim.ground.holes} of ${sim.ground.tried} points on the top are not ground`);
+  if (sim.ground.holes > 0 || sim.ground.low > 0) {
+    problems.push(`island: ${sim.ground.holes} columns with no ground and ${sim.ground.low} below their top — ${sim.ground.lowAt.join('; ')}`);
   }
-  if (sim.ground.wrong > 0) {
-    problems.push(`island: ${sim.ground.wrong} points where the solid ground is not where the land is drawn`);
+  if (sim.ground.beyond > 0) {
+    problems.push(`island: ${sim.ground.beyond} points past the edge are ground, so the edge is not where it looks`);
   }
-  if (sim.ground.highest < 20) {
-    problems.push(`island: the highest ground is only ${sim.ground.highest}m — there are no mountains`);
-  }
-  if (sim.ground.steep > 0.25) {
-    problems.push(`island: ${Math.round(sim.ground.steep * 100)}% of the top is too steep to walk`);
-  }
-  if (!sim.level.levelPlaces) {
-    problems.push(`island: a place meant to be level is not — ${JSON.stringify(sim.level.places)}`);
-  }
-  // The roads end on the lip of the island, which has begun to roll over.
-  if (sim.level.roadWorst > 0.15) {
-    problems.push(`island: the road is ${sim.level.roadWorst}m off level somewhere`);
-  }
-  if (!sim.roads.allWalked) {
-    problems.push(`island: a road could not be walked end to end — ${JSON.stringify(sim.roads.walks)}`);
-  }
-  if (sim.climbs.worst < 0.6) {
-    problems.push(
-      `island: a hill could not be climbed from any side — ` +
-        JSON.stringify(sim.climbs.rows.filter((c) => c.share < 0.6)),
-    );
-  }
-  if (sim.beyond.ground > 0) {
-    problems.push(`island: ${sim.beyond.ground} points past the edge are ground, so the edge is not where it looks`);
-  }
+  if (!sim.terrace.walked && !sim.terrace.jumped) problems.push(`island: he could not get up onto the terrace — ${JSON.stringify(sim.terrace)}`);
+  if (!sim.highStep.walked && !sim.highStep.jumped) problems.push(`island: he could not get up onto the high step — ${JSON.stringify(sim.highStep)}`);
+  if (!sim.backDown.arrived || sim.backDown.y > 0.12) problems.push(`island: he could not walk back down off the terrace — ${JSON.stringify(sim.backDown)}`);
+  if (!sim.trunks.allSolid) problems.push(`island: a tree trunk did not stop him — ${JSON.stringify(sim.trunks.rows)}`);
+  if (!sim.pool.into || !sim.pool.out) problems.push(`island: he could not step into the pool and back out — ${JSON.stringify(sim.pool)}`);
   if (!sim.falling.allBack) {
     problems.push(`island: going over the edge did not put him back on his feet — ${JSON.stringify(sim.falling.rows)}`);
-  }
-  if (sim.scale.narrowest / 1.82 < 60) {
-    problems.push(`island: only ${sim.scale.heightsAcross} character heights across — it is not big enough`);
-  }
-  {
-    const k = island.kart;
-    if (!/Drive/.test(k.promptWhenNear)) problems.push(`kart: walking up to it offered "${k.promptWhenNear}", not a way to drive it`);
-    if (!k.entered.driving || k.entered.visible) problems.push('kart: pressing R beside it did not put him in it');
-    if (!k.entered.speedo) problems.push('kart: no speedometer while driving');
-    if (!(k.driving.speed > 8) || Math.hypot(k.driving.x - k.entered.x, k.driving.z - k.entered.z) < 4) {
-      problems.push(`kart: holding E only reached ${k.driving.speed} m/s`);
-    }
-    if (!k.refused.driving) problems.push('kart: he got out while it was moving');
-    if (k.exited.driving || !k.exited.visible) problems.push('kart: he did not get out once it had stopped');
-    if (Math.hypot(k.exited.px - k.exited.x, k.exited.pz - k.exited.z) > 4) {
-      problems.push('kart: he got out nowhere near it');
-    }
   }
   for (const fault of islandAudit.faults) problems.push(`island collision and geometry disagree: ${fault}`);
   for (const name of Object.keys(islandAudit.walkThrough)) {
@@ -1231,21 +1121,14 @@ const island = await (async () => {
       problems.push(`island: "${name}" has body but is not solid`);
     }
   }
-  island.kartSummary = ` kart           ${island.kart.promptWhenNear} > in at ${island.kart.entered.speedo} > ${Math.round(island.kart.driving.speed)} m/s with E held > R while moving: ${island.kart.refused.driving ? 'refused' : 'LET HIM OUT'} > out beside it: ${!island.kart.exited.driving}`;
   island.summary =
-    ` island         start ${sim.start.state} on the pad · ${sim.ground.tried} ground points, ` +
-    `${sim.ground.holes} holes, ground from ${sim.ground.lowest}m to ${sim.ground.highest}m, ` +
-    `${Math.round(sim.ground.steep * 100)}% too steep · ${sim.beyond.ground} of ${sim.beyond.tried} ` +
-    `points past the edge are ground\n` +
-    `                level places ${sim.level.levelPlaces} (worst ${Math.max(...sim.level.places.map((p) => p.worst))}m) · ` +
-    `road ${sim.level.roadPoints} points, worst ${sim.level.roadWorst}m off level · ` +
-    `${sim.roads.walks.length} roads walked end to end: ${sim.roads.allWalked}\n` +
-    `                hills climbed from the best side (mountains are scenery): ` +
-    sim.climbs.rows.map((c) => `${c.reached}/${c.top}m`).join(' ') + `\n` +
+    ` block island   start ${sim.start.state} · ${sim.ground.columns} columns, ${sim.ground.holes} holes, ` +
+    `${sim.ground.low} low · ${sim.ground.beyond} of ${sim.ground.beyondTried} points past the edge are ground\n` +
+    `                terrace: ${sim.terrace.walked ? 'walked up' : sim.terrace.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
+    `high step: ${sim.highStep.walked ? 'walked up' : sim.highStep.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
+    `trunks stop him: ${sim.trunks.allSolid} · pool in and out: ${sim.pool.into && sim.pool.out}\n` +
     `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
-    `${sim.scale.narrowest}m across, ${sim.scale.heightsAcross} heights of him · ` +
-    `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ` +
-    `${islandAudit.faults.length} faults`;
+    `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ${islandAudit.faults.length} faults`;
 }
 
 // ---- A browser that will not give the best graphics ---------------------------
@@ -1269,23 +1152,10 @@ const island = await (async () => {
   await refused.close();
 }
 
-// ---- The four circuits, driven from the island ------------------------------
-// A kart is driven by the racing code's own physics from the start pad, over
-// the island's roads and the bridge, and once round the circuit. It needs no
-// browser, so it runs on its own.
-let routes = '';
-try {
-  const { execFileSync } = await import('node:child_process');
-  routes = execFileSync('node', ['--experimental-strip-types', 'tools/racing-routes.ts'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    maxBuffer: 1 << 24,
-  });
-} catch (error) {
-  routes = String(error.stdout ?? '') + String(error.stderr ?? '');
-  problems.push(`a circuit could not be driven from the island:\n${routes.split('\n').filter((l) => l.startsWith('{') || l.startsWith('FAILED')).join('\n')}`);
-}
+// ---- The four circuits ------------------------------------------------------
+// Not in the world for now, so tools/racing-routes.ts (which drives them from
+// the old island's roads) is not run. Bring it back with them.
+const routes = '';
 
 await browser.close();
 shutdown();
@@ -1561,7 +1431,6 @@ console.log(
 }
 
 console.log(island.summary);
-console.log(island.kartSummary);
 for (const line of routes.split('\n').filter((l) => l.startsWith('{'))) {
   const r = JSON.parse(line);
   if (r.mountainWall) {
