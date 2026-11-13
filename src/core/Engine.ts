@@ -88,6 +88,11 @@ function createRenderer(antialias: boolean): WebGLRenderer {
         canvas: document.createElement('canvas'),
         antialias: attempt.antialias,
         powerPreference: attempt.powerPreference,
+        // Spelled out, as the island preview spells them out: an opaque
+        // canvas with a depth buffer and no stencil is what this game uses,
+        // and asking for exactly that is the least a browser can refuse.
+        alpha: false,
+        depth: true,
         stencil: false,
         failIfMajorPerformanceCaveat: false,
       });
@@ -95,8 +100,19 @@ function createRenderer(antialias: boolean): WebGLRenderer {
       failures.push(error);
     }
   }
+  // Nothing worked. Say what the browser does offer, so that the page says
+  // whether it is this game's request that is refused or WebGL altogether.
+  const offers = (type: string) => {
+    try {
+      return document.createElement('canvas').getContext(type) ? 'available' : 'refused';
+    } catch (error) {
+      return `error: ${String(error)}`;
+    }
+  };
   throw new Error(
-    `This browser could not start WebGL graphics (${failures.map((f) => String(f)).join(' / ')}).`,
+    `This browser could not start WebGL graphics. WebGL 2: ${offers('webgl2')}; ` +
+      `WebGL 1: ${offers('webgl')}. ` +
+      `(${failures.map((f) => String(f)).join(' / ')})`,
   );
 }
 
