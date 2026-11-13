@@ -407,6 +407,13 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, ninth entry. No outlines between blocks.** Asked for by
+the owner: the voxel shapes stay, but the painted rim on every block face and
+the cube-by-cube colour variation are gone. Faces in one plane are one even,
+matte colour; only which way a face is turned changes its shade, together
+with the sun's shadows, so edges, steps and terraces still read. Geometry,
+layout and scale are unchanged.
+
 **13 November 2026, eighth entry. Isometric view, graphics on a phone, no
 stats panel.** Asked for by the owner. A corner menu (top right, on phones
 and computers) has two buttons: View, which switches between the chase

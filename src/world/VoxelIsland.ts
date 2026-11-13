@@ -45,11 +45,9 @@ import {
   DirectionalLight,
   DoubleSide,
   Group,
-  LinearMipmapLinearFilter,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  NearestFilter,
   RepeatWrapping,
   Scene,
   SRGBColorSpace,
@@ -224,8 +222,6 @@ const COLOURS: Record<Kind, string> = {
   rock: '#d8ccd4',
   cloud: '#ffffff',
 };
-/** Kinds drawn as two-block cubes: their outline runs every second block. */
-const CHUNKY: Partial<Record<Kind, true>> = { stone: true, rock: true };
 
 // ---- Cubes -----------------------------------------------------------------
 
@@ -257,49 +253,40 @@ class Cells {
   }
 }
 
-/** A fixed lighter-or-darker amount for a cell, the same every time. */
-function shadeOf(x: number, y: number, z: number): number {
-  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-
 /**
  * The faces of a set of cubes that can be seen, as one geometry: a face is
  * left out where another cube of the set is against it. Each face is
- * exactly on its cell, has a flat normal, a texture square for the painted
- * bevel, and its cube's colour, a touch lighter or darker cube by cube.
+ * exactly on its cell and has a flat normal and its kind's colour, the same
+ * on every cube: neighbouring faces that lie in one plane are one even,
+ * matte colour, with no line between them. Only which way a face is turned
+ * changes its shade, which is what shows the island's edges and steps.
  */
 function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
-  const uvs: number[] = [];
   const colours: number[] = [];
   const s = cells.size;
   const o = cells.origin;
-  // Each side: its normal, its four corners in the cube's 0–1 space wound
-  // to face outward, and which two axes run across it.
-  const SIDES: Array<{ n: [number, number, number]; c: Array<[number, number, number]>; u: number; v: number }> = [
-    { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], u: 2, v: 1 },
-    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], u: 2, v: 1 },
-    { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], u: 0, v: 2 },
-    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], u: 0, v: 2 },
-    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], u: 0, v: 1 },
-    { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], u: 0, v: 1 },
+  // Each side: its normal, and its four corners in the cube's 0–1 space
+  // wound to face outward.
+  const SIDES: Array<{ n: [number, number, number]; c: Array<[number, number, number]> }> = [
+    { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]] },
+    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]] },
+    { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] },
+    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] },
+    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]] },
+    { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]] },
   ];
   const colour = new Color();
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
-    const chunk = kind === 'rock' ? 3 : CHUNKY[kind] ? 2 : 1;
-    colour.set(COLOURS[kind]);
-    // One shade per cube — per two-block cube for the chunky kinds.
-    colour.multiplyScalar(
-      0.93 + shadeOf(Math.floor(x / chunk), Math.floor(y / chunk), Math.floor(z / chunk)) * 0.12,
-    );
+    // The painted face this replaced was a shade under white; the same
+    // brightness is kept without it.
+    colour.set(COLOURS[kind]).multiplyScalar(0.93);
     for (const side of SIDES) {
       const [nx, ny, nz] = side.n;
       const neighbour = cells.get(x + nx, y + ny, z + nz);
       if (neighbour && (!only || only(neighbour))) continue;
-      const cell = [x, y, z];
       // How the picture shades a cube: brightest on top, the side toward
       // the sun (the left) next, the front, then the sides turned away.
       const lit = ny > 0 ? 1 : ny < 0 ? 0.55 : nx < 0 ? 0.9 : nz > 0 ? 0.8 : nx > 0 ? 0.68 : 0.72;
@@ -310,7 +297,6 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
         const corner = side.c[i];
         positions.push(o.x + (x + corner[0]) * s, o.y + (y + corner[1]) * s, o.z + (z + corner[2]) * s);
         normals.push(nx, ny, nz);
-        uvs.push((cell[side.u] + corner[side.u]) / chunk, (cell[side.v] + corner[side.v]) / chunk);
         colours.push(colour.r * lit * grassSide, colour.g * lit * grassSide, colour.b * lit * grassSide);
       }
     }
@@ -318,46 +304,8 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
-  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
   geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
   return geometry;
-}
-
-/**
- * The face of one block: its colour, a soft light edge along the top and
- * left and a soft dark one round the rest, so each block reads as a rounded
- * cube the way the picture's do. Painted on; the faces themselves meet.
- */
-function blockTexture(): CanvasTexture {
-  const size = 32;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext('2d');
-  if (context) {
-    context.fillStyle = '#f4f4f4';
-    context.fillRect(0, 0, size, size);
-    const rim = (inset: number, alpha: number) => {
-      context.strokeStyle = `rgba(0,0,0,${alpha})`;
-      context.lineWidth = 1;
-      context.strokeRect(inset + 0.5, inset + 0.5, size - 1 - inset * 2, size - 1 - inset * 2);
-    };
-    rim(0, 0.3);
-    rim(1, 0.16);
-    rim(2, 0.07);
-    // The lit shoulder just inside the rim.
-    context.fillStyle = 'rgba(255,255,255,0.75)';
-    context.fillRect(3, 3, size - 6, 2);
-    context.fillRect(3, 3, 2, size - 6);
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  texture.wrapS = RepeatWrapping;
-  texture.wrapT = RepeatWrapping;
-  texture.magFilter = NearestFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.anisotropy = 4;
-  return texture;
 }
 
 /** Water: bright cyan with pale lines like light on its surface. */
@@ -622,11 +570,12 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   }
 
   // ---- Meshes ----
-  const texture = blockTexture();
   // Drawn with the colours as they are, not passed through the film curve
   // the rest of the game uses: the pictures are bright and saturated, and
   // that curve greys them.
-  const material = new MeshStandardMaterial({ map: texture, vertexColors: true, roughness: 1 });
+  // Matte and untextured: each surface is its colour and its light, nothing
+  // painted on.
+  const material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
   material.toneMapped = false;
   const mesh = (name: string, geometry: BufferGeometry, parent: Group, shadows = true) => {
     const m = new Mesh(geometry, material);
@@ -649,7 +598,6 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   clouds.userData.thickest = 0;
   // The clouds are a long way off and should not grey out with distance.
   const cloudMaterial = material.clone();
-  cloudMaterial.map = null;
   cloudMaterial.fog = false;
   cloudMaterial.toneMapped = false;
   cloudMaterial.emissive = new Color('#c9d2f6');
