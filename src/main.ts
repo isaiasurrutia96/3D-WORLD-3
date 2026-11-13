@@ -152,6 +152,17 @@ class Game {
 
     window.addEventListener('keydown', this.onGlobalKey);
 
+    // The corner buttons: the camera view and the graphics quality.
+    if (this.settings.cameraView === 'isometric') this.cameraRig.setIsometric(true, this.player);
+    this.hud.onMenu({
+      view: () => this.toggleView(),
+      quality: () => {
+        const order = ['low', 'medium', 'high'] as const;
+        this.setQuality(order[(order.indexOf(this.settings.quality) + 1) % order.length]);
+      },
+    });
+    this.refreshMenu();
+
     // Take keyboard focus straight away. A page that has never been clicked
     // receives no key presses at all, which looks exactly like broken
     // controls.
@@ -236,15 +247,32 @@ class Game {
       this.cameraRig.reset(this.player);
     }
     if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3') {
-      const quality = (
-        { Digit1: 'low', Digit2: 'medium', Digit3: 'high' } as const
-      )[event.code as 'Digit1' | 'Digit2' | 'Digit3'];
-      this.settings = { ...this.settings, quality };
-      this.engine.applyQuality(quality);
-      this.engine.setStudioMode(this.arena);
-      saveSettings(this.settings);
+      this.setQuality(({ Digit1: 'low', Digit2: 'medium', Digit3: 'high' } as const)[event.code as 'Digit1' | 'Digit2' | 'Digit3']);
     }
+    if (event.code === 'KeyV' && !event.repeat) this.toggleView();
   };
+
+  /** Changes the graphics quality, keeps it for next time, and says so. */
+  private setQuality(quality: 'low' | 'medium' | 'high'): void {
+    this.settings = { ...this.settings, quality };
+    this.engine.applyQuality(quality);
+    this.engine.setStudioMode(this.arena);
+    saveSettings(this.settings);
+    this.refreshMenu();
+  }
+
+  /** Swaps between the chase camera and the isometric view, and keeps it. */
+  private toggleView(): void {
+    const cameraView = this.cameraRig.isometric ? 'follow' : 'isometric';
+    this.cameraRig.setIsometric(cameraView === 'isometric', this.player);
+    this.settings = { ...this.settings, cameraView };
+    saveSettings(this.settings);
+    this.refreshMenu();
+  }
+
+  private refreshMenu(): void {
+    this.hud.setMenu(this.cameraRig.isometric ? 'isometric' : 'follow', this.settings.quality, !this.touch);
+  }
 
   /**
    * Moves whoever is being played this frame: the character on foot, or the

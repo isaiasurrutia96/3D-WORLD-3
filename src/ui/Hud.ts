@@ -32,7 +32,10 @@ export class Hud {
   /** The speed readout shown while driving a kart. */
   private readonly kart: HTMLDivElement;
   private kartText = '';
-  private visible = true;
+  /** The stats panel is for working on the game; it starts hidden (F3). */
+  private visible = false;
+  private readonly viewButton: HTMLButtonElement;
+  private readonly qualityButton: HTMLButtonElement;
 
   constructor(container: HTMLElement) {
     const root = document.createElement('div');
@@ -45,7 +48,29 @@ export class Hud {
 
     this.stats = document.createElement('div');
     this.stats.className = 'hud__stats';
+    this.stats.hidden = true;
     hud.appendChild(this.stats);
+
+    // Two buttons in the top corner, for a phone as much as a keyboard: the
+    // camera view and the graphics quality. Pressing one does not reach the
+    // view behind it, so it never also turns the camera.
+    const menu = document.createElement('div');
+    menu.className = 'hud__menu';
+    const button = (name: string) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `hud__menu-button hud__menu-button--${name}`;
+      for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown']) {
+        b.addEventListener(type, (event) => event.stopPropagation());
+      }
+      menu.appendChild(b);
+      return b;
+    };
+    this.viewButton = button('view');
+    this.qualityButton = button('quality');
+    // On the page itself, not inside the HUD: the touch layer sits over the
+    // HUD and would take the taps meant for these buttons.
+    container.appendChild(menu);
 
     // The build stamp: it is how you tell a reloaded page from a cached one.
     const build = document.createElement('div');
@@ -88,6 +113,27 @@ export class Hud {
     this.kart.innerHTML = mph === null ? '' : `<b>${mph}</b><span>MPH</span>`;
   }
 
+  /** What happens when each corner button is pressed. */
+  onMenu(handlers: { view: () => void; quality: () => void }): void {
+    this.viewButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      handlers.view();
+      this.viewButton.blur();
+    });
+    this.qualityButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      handlers.quality();
+      this.qualityButton.blur();
+    });
+  }
+
+  /** What the corner buttons say: the view and the graphics quality in use. */
+  setMenu(view: 'follow' | 'isometric', quality: string, keys: boolean): void {
+    const q = quality.charAt(0).toUpperCase() + quality.slice(1);
+    this.viewButton.textContent = `View: ${view === 'isometric' ? 'Isometric' : 'Follow'}${keys ? '  (V)' : ''}`;
+    this.qualityButton.textContent = `Graphics: ${q}${keys ? '  (1–3)' : ''}`;
+  }
+
   toggleStats(): void {
     this.visible = !this.visible;
     this.stats.hidden = !this.visible;
@@ -122,6 +168,7 @@ export class Hud {
 
     this.focusNotice.hidden = document.hasFocus();
 
+    if (!this.visible) return;
     this.stats.innerHTML = '';
     for (const [label, value, className] of rows) {
       const row = document.createElement('div');

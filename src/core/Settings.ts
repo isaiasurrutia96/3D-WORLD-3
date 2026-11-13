@@ -79,6 +79,8 @@ export interface UserSettings {
   effectsVolume: number;
   cameraSensitivity: number;
   invertCameraY: boolean;
+  /** The chase camera behind him, or the isometric view from high on a diagonal. */
+  cameraView: 'follow' | 'isometric';
 }
 
 const DEFAULTS: UserSettings = {
@@ -87,6 +89,7 @@ const DEFAULTS: UserSettings = {
   effectsVolume: 0.8,
   cameraSensitivity: 1,
   invertCameraY: false,
+  cameraView: 'follow',
 };
 
 const STORAGE_KEY = 'letsgo.settings.v1';
@@ -114,6 +117,7 @@ export function loadSettings(): UserSettings {
           ? Math.min(3, Math.max(0.2, parsed.cameraSensitivity))
           : DEFAULTS.cameraSensitivity,
       invertCameraY: parsed.invertCameraY === true,
+      cameraView: parsed.cameraView === 'isometric' ? 'isometric' : 'follow',
     };
   } catch {
     // Private windows and blocked site data both throw here; defaults are fine.
