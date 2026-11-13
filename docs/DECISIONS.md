@@ -407,6 +407,15 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, tenth entry. Rounded blocks (approved).** The owner
+approved, from screenshots: every block's exposed edges and corners really
+curve (rounded cube geometry where two seen faces meet, with fills at inner
+corners so nothing shows through); flat neighbouring blocks keep a light,
+soft line between them, a little deeper than the grass; tree crowns are one
+solid green with no lines. This replaces the ninth entry's seamless surfaces.
+The island is about 175,000 triangles; Graphics: Low is there for older
+machines.
+
 **13 November 2026, ninth entry. No outlines between blocks.** Asked for by
 the owner: the voxel shapes stay, but the painted rim on every block face and
 the cube-by-cube colour variation are gone. Faces in one plane are one even,
