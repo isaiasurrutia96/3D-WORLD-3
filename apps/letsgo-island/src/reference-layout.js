@@ -163,7 +163,7 @@ export const FOOTPRINT=[
 export const TERRACES=[
   {
     "id": "left-rear",
-    "height": 3,
+    "height": 2,
     "polygon": [
       [
         -23,
@@ -209,7 +209,7 @@ export const TERRACES=[
   },
   {
     "id": "rear-link",
-    "height": 3,
+    "height": 2,
     "polygon": [
       [
         -13,
@@ -255,7 +255,7 @@ export const TERRACES=[
   },
   {
     "id": "right-rear",
-    "height": 3,
+    "height": 2,
     "polygon": [
       [
         18,
@@ -297,7 +297,7 @@ export const TERRACES=[
   },
   {
     "id": "upper-apron",
-    "height": 3,
+    "height": 2,
     "polygon": [
       [
         -1,
@@ -359,7 +359,7 @@ export const TERRACES=[
   },
   {
     "id": "upper-lawn",
-    "height": 7,
+    "height": 6,
     "polygon": [
       [
         0,
