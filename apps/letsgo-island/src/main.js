@@ -147,6 +147,8 @@ window.addEventListener('resize',resize);
 for(const [id,name]of [['explore','walk'],['overview','angled'],['top-view','overhead']])document.getElementById(id).addEventListener('click',()=>{setView(name);canvas.focus({preventScroll:true});});
 document.getElementById('reset-avatar').addEventListener('click',resetAvatar);
 select.addEventListener('change',()=>{setQuality(select.value);canvas.focus({preventScroll:true});});
+select.addEventListener('focus',()=>{input.releaseTouch();input.clear();});
+for(const name of ['keydown','keyup'])select.addEventListener(name,event=>event.stopPropagation());
 window.addEventListener('keydown',event=>{
  if(event.target instanceof HTMLSelectElement)return;
  if(event.code==='Backspace'&&view==='walk'){event.preventDefault();if(!event.repeat)resetAvatar();}
