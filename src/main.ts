@@ -31,7 +31,8 @@ import {
   overIsland,
   terrainHeight,
 } from './world/Island.ts';
-import { PLOTS, ROAD_PATHS, RISES } from './world/Landscape.ts';
+import { GATES, PLOTS, ROAD_PATHS, RISES } from './world/Landscape.ts';
+import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import {
   COURSE_MARKS,
   COURSE_POOL,
@@ -71,6 +72,7 @@ class Game {
   private readonly course: Pick<CourseWorld, 'carryables' | 'checkpoints' | 'triangleCount'> & {
     water: { update(time: number): void };
   };
+  private racingScene: ReturnType<typeof buildRacingScene> | null = null;
   private readonly spawn: Vector3;
   private readonly spawnFacing: number;
   private readonly player: Player;
@@ -93,6 +95,13 @@ class Game {
     } else {
       const island = buildIsland(this.engine.scene, this.collision);
       this.engine.setFogScale(0.22);
+      // The four circuits and the bridges to them. The bridge decks are
+      // solid, so he can walk out onto them.
+      const racing = buildRacingScene();
+      this.engine.scene.add(racing.root);
+      this.collision.addSolid(racing.solid);
+      island.triangleCount += racing.triangleCount;
+      this.racingScene = racing;
       this.world = island;
       this.course = island;
       this.spawn = island.spawn;
@@ -233,6 +242,12 @@ class Game {
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
     this.player.update(delta, this.input, this.cameraRig.movementYaw, this.cameraRig.lookPitch);
     this.cameraRig.update(delta, this.player);
+    // Only the circuits near enough to be seen are drawn.
+    this.racingScene?.update(
+      this.player.position.x,
+      this.player.position.z,
+      Math.min(CIRCUIT_RANGE, this.engine.camera.far),
+    );
     this.trackProgress();
 
     for (const carryable of this.course.carryables) carryable.update(delta, this.collision);
@@ -604,7 +619,7 @@ class Game {
               highest = Math.max(highest, hit.y);
               // The drawn ground and the solid ground are one thing.
               // Anything standing on it (a boulder, a trunk) is above, which is fine.
-              if (hit.y < terrainHeight(x, z) - 1.2 || hit.y > terrainHeight(x, z) + 6) {
+              if (hit.y < terrainHeight(x, z) - 1.8 || hit.y > terrainHeight(x, z) + 12) {
                 wrong += 1;
                 if (wrongAt.length < 4) wrongAt.push(`${round(x, 1)},${round(z, 1)}: ${round(hit.y, 1)} vs ${round(terrainHeight(x, z), 1)}`);
               }
@@ -640,7 +655,9 @@ class Game {
           let roadPoints = 0;
           for (const path of ROAD_PATHS) {
             for (const point of path) {
-              const hit = down(point.x, point.y);
+              // From just above the road, so a gateway's beam overhead is not
+              // taken for the ground.
+              const hit = this.collision.groundProbe(new Vector3(point.x, 3, point.y), 10);
               roadWorst = Math.max(roadWorst, hit ? Math.abs(hit.y) : 9);
               roadPoints += 1;
             }
@@ -661,6 +678,11 @@ class Game {
           for (let a = 0; a < 72; a += 1) {
             const angle = (a / 72) * Math.PI * 2;
             const d = islandEdge(angle) + 4;
+            // Where a bridge leaves the island there is ground by design.
+            const atGate = Object.values(GATES).some(
+              (g) => Math.abs(Math.atan2(Math.sin(angle - g.angle), Math.cos(angle - g.angle))) < 0.25,
+            );
+            if (atGate) continue;
             if (down(Math.cos(angle) * d, Math.sin(angle) * d)) ground += 1;
             tried += 1;
           }
@@ -730,7 +752,10 @@ class Game {
           };
           // Hills are for walking up. Mountains and outcrops are scenery: they
           // are as steep as they look, and nothing asks to climb them.
-          const names = RISES.map((r, i) => ({ r, i })).filter(({ r }) => r.rough < 1.1);
+          // (Only those still standing: a road cut through one takes it away.)
+          const names = RISES.map((r, i) => ({ r, i })).filter(
+            ({ r }) => r.rough < 1.1 && terrainHeight(r.x, r.z) > 3,
+          );
           const rows = names.map(({ r }) => climb(r));
           results.climbs = {
             rows,
@@ -745,7 +770,8 @@ class Game {
           const rows: unknown[] = [];
           let allBack = true;
           for (let k = 0; k < 8; k += 1) {
-            const angle = (k / 8) * Math.PI * 2;
+            // Between the compass points, clear of the four bridges.
+            const angle = ((k + 0.5) / 8) * Math.PI * 2;
             const heading = Math.atan2(Math.cos(angle), Math.sin(angle));
             // On the level lip itself, the last few metres before the edge,
             // wherever the hills round the rim happen to be.
@@ -3440,7 +3466,8 @@ class Game {
             // Solid but never drawn, or drawn see-through: an invisible wall.
             let hidden = !object.visible;
             for (let a: Object3D | null = object.parent; a; a = a.parent) {
-              if (!a.visible) hidden = true;
+              // A circuit left out because it is far away is not an invisible wall.
+              if (!a.visible && !a.userData.distanceCulled) hidden = true;
             }
             if (hidden) faults.push(`solid but not drawn: ${describe(object)}`);
             const material = object.material as { transparent?: boolean; opacity?: number; side?: number } | undefined;

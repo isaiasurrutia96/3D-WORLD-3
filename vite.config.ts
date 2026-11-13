@@ -23,6 +23,10 @@ export default defineConfig({
     __BUILD_STAMP__: JSON.stringify(buildStamp()),
   },
   base: './',
+  // The racing code is shared, not copied: it is imported from its own folder,
+  // which has its own copy of three. One copy has to serve both, or a mesh
+  // made by one is handed to a renderer built by the other.
+  resolve: { dedupe: ['three'] },
   server: {
     host: '127.0.0.1',
     port: 5173,

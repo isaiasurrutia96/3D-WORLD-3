@@ -44,3 +44,15 @@ the worlds**. Both projects belong in this repository, with separate runtimes.
 The import commit retains both Git histories. LetsGo's old provenance and
 project notes inside its folder describe its original development history;
 new work should use this repository as the shared source.
+
+- **13 November 2026 — racing is being brought into the island world.** The
+  user has explicitly asked for the four circuits and the kart to be part of
+  the root island world, so the rule above against connecting the two games
+  is lifted for that work only. It is being done by reuse: `src/racing/`
+  imports the racing app's own track, vehicle and course code rather than
+  copying it, and the root build deduplicates `three` so one copy serves
+  both. The racing app still builds and tests on its own. The only change to
+  it so far is that `apps/letsgo-racing/src/world.js` now exports the
+  helpers (`createRoadSurface`, `createRailResolver`, `trackRoadSurface`,
+  `resolveTrackRails`, `accessBridges`) that the island uses; its behaviour
+  is unchanged and its tests pass. Review `src/racing/` before changing those.

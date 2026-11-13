@@ -68,6 +68,26 @@ export const PLOTS = {
 
 // ---- The road --------------------------------------------------------------
 
+/**
+ * Where the four roads off the island leave it: a point just inside the
+ * rim on each side, and the bearing it is at. Each is where a bridge to one
+ * of the race circuits begins.
+ */
+function gateAt(angle: number) {
+  const d = islandEdge(angle) * 0.975;
+  return { x: Math.cos(angle) * d, z: Math.sin(angle) * d, angle };
+}
+export const GATES = {
+  /** To the Suzuka circuit, due north. */
+  north: gateAt(-Math.PI / 2),
+  /** To the Winding circuit, due south. */
+  south: gateAt(Math.PI / 2),
+  /** To the Skyline circuit, due west. */
+  west: gateAt(Math.PI),
+  /** To the Original circuit, north-east. */
+  east: gateAt(Math.atan2(-150, 128)),
+};
+
 /** Each road is a run of points from the plaza out, or from the start in. */
 export const ROADS: Array<Array<[number, number]>> = [
   [[0, 53], [7, 40], [-5, 24], [-1, 10], [0, 0]],
@@ -75,6 +95,12 @@ export const ROADS: Array<Array<[number, number]>> = [
   [[0, 0], [10, -9], [21, -19], [30, -28]],
   [[0, 0], [15, 3], [30, 9], [42, 12]],
   [[0, 0], [-14, 6], [-28, 13], [-40, 14]],
+  // The four roads off the island, each to the foot of a bridge. The north
+  // one runs through the pass between the two big mountains.
+  [[0, 0], [0, -30], [0, -60], [GATES.north.x, GATES.north.z]],
+  [[0, 53], [0, 60], [GATES.south.x, GATES.south.z]],
+  [[0, 0], [-30, 1], [-60, 1], [GATES.west.x, GATES.west.z]],
+  [[0, 0], [14, -12], [30, -30], [44, -48], [GATES.east.x, GATES.east.z]],
 ];
 /** Half the width of the road, in metres. */
 export const ROAD_HALF = 3.4;
