@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#8bd7ef" />
+  <meta name="description" content="Explore the first terrain preview of the LetsGo floating minigame island." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%2380ba29' d='m3 16 17-8 17 8-17 8z'/%3E%3Cpath fill='%23b47e51' d='m3 16 17 8 17-8-8 15-9 7-10-8z'/%3E%3C/svg%3E" />
+  <title>LetsGo · Island</title>
+</head>
+<body>
+  <main id="island" aria-label="Floating island terrain preview">
+    <canvas aria-label="3D floating island. Drag to rotate, scroll or pinch to zoom. Press R to reset the overview."></canvas>
+    <header><span class="brand">LetsGo<sup>®</sup></span><span class="place">ISLAND</span></header>
+    <nav aria-label="Island camera"><button id="overview" type="button">Overview</button><button id="top-view" type="button">Top view</button></nav>
+    <p id="camera-hint">Drag to look around <span>·</span> Scroll to zoom</p>
+    <p id="load-error" role="alert" hidden>The island could not load. Please refresh to try again.</p>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

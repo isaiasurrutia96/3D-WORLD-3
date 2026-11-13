@@ -1,4 +1,4 @@
-# Builds the two independent games and publishes them at separate URLs.
+# Builds the independent movement, racing and island pages at separate URLs.
 #
 # Once this has run, the game is a web page that can simply be reloaded —
 # no checkout, no install, no local server.
@@ -60,7 +60,10 @@ jobs:
       - name: Check racing behavior
         run: npm run test:racing
 
-      - name: Check types and build both independent sites
+      - name: Check island terrain
+        run: npm run test:island
+
+      - name: Check types and build all independent sites
         run: npm run build:all
 
       - name: Configure Pages

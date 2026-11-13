@@ -8,7 +8,7 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 11 November 2026 — three-lap races and empty world/race starts.
+Last updated: 13 November 2026 — separate floating-island terrain preview.
 
 ## Repository consolidation — 9 November 2026
 
@@ -132,6 +132,23 @@ pickups, controls, handling, saved ghosts and the independent movement world.
 Keep the established starter Nitro for scored Time Trials and active test
 shield inside the optional controlled shield area.
 Restore point: `checkpoint-before-three-lap-clean-start-2026-11-11`.
+
+## Floating minigame island, terrain first — 13 November 2026
+
+**Confirmed by the project owner.** Build the approved floating-island concept,
+starting with the terrain: lush grass, layered earth, prominent rocky underside,
+waterfall, trees, plants, a connected dirt path and a few rocks. Keep the small
+golf course as scenery; leave the other areas grassy. Do not build the pictured
+platform course or paved arena, or add playable minigames in this stage.
+
+Provide a separate orbitable preview at `/island/`, preserving the movement and
+racing runtimes and all existing records. It is the foundation for later testing
+minigames before any deliberate integration into the main world. The preview
+has no player-controller changes or new game mechanics. Geometry and background
+are procedural and local, with desktop/touch orbit, zoom and camera reset.
+The island reads the root's pinned library dependencies, but imports no other
+world runtime. Existing package versions and racing package isolation remain.
+Restore point: `checkpoint-before-island-terrain-2026-11-13` at `141de23`.
 
 ---
 
