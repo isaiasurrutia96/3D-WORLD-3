@@ -1,71 +1,69 @@
-# LetsGo floating island — terrain stage
+# LetsGo block island — terrain stage
 
-A separate, orbitable 3D terrain preview at `/3D-WORLD-3/island/`. It does not
-load or modify either the movement game or the kart-racing game. This stage
-contains the island's grass surface, rounded turf edge, golden earth strata,
-faceted stone underside, a connected dirt loop and golf access path, trees,
-bushes, flowers, scattered rocks, small background islands/clouds, and a spring
-feeding a stream and animated waterfall. A wooden footbridge spans the stream.
-The small putting course and turning windmill are scenery, with no golf rules
-or ball controls yet. Other areas remain grass. No avatar, new movement system,
-obstacle course, arena, racing, weapons, scoring, or additional minigames are
-part of this terrain-only delivery.
+A separate island scene at /3D-WORLD-3/island/, rebuilt around the approved
+block reference. It has a larger open main lawn, two broad rear terraces,
+block trees and shrubs, rock piles, a short stone path, layered earth and
+a tapered stone underside. Block clouds complete the background. There is
+no water or waterfall. The previous decorative golf and loop path give way
+to the open lawn in the new reference. No avatar or playable minigames are
+connected to this terrain viewer yet.
 
-## Run and review
+## Run
 
-Use Node.js 24 and the repository root's pinned Three.js/Vite dependencies:
+Use Node.js 24 and the root's existing pinned dependencies:
 
-```sh
-npm ci
-npm run dev:island
-npm run test:island
-npm run build:island
-```
+    npm ci
+    npm run dev:island
+    npm run test:island
+    npm run build:island
 
-The preview defaults to `http://127.0.0.1:5275/`. Drag to orbit, scroll/pinch to
-zoom, select **Overview** or **Top view**, or press R to reset the overview.
-Orbiting below the horizon exposes the rocky underside. Desktop and mobile
-use the same camera controls; the complete island fits the starting viewport.
+Drag to orbit, scroll/pinch to zoom, Overview / Top view to reset, or press R.
+npm run build:all preserves the independent movement and racing sites and
+adds this scene at dist/island/.
 
-`npm run build:all` builds the existing movement and racing pages first, then
-adds the island at `dist/island/`. The island uses root library dependencies
-but has its own HTML, scene, geometry, camera and lifecycle; it imports no
-runtime code from the other games. No extra package installation or versions
-are introduced. All scenery is local procedural geometry; there are no remote
-textures, external assets, online services or storage writes.
+## Blocks and solidity
 
-## Source
+src/blocks.js owns integer cell positions and block types. Blocks remain
+individually editable; touching cells have no internal exposed faces.
+collisionBoxes() merges full cell volumes into non-overlapping solid boxes;
+visual bevels do not create gaps in those volumes. The data is ready for
+future integration, but the viewer has no player controller yet, so this
+delivery does not claim to verify avatar movement or physics recovery.
 
-- `src/layout.js`: deterministic island outline, terrain heights, path, river,
-  golf perimeter, trees and rocks. Ground and river use the same layout.
-- `src/terrain.js`: continuous grass mesh, sealed faceted underside, turf/earth
-  layers and dirt ribbons. The stream crossing opens only beneath the bridge.
-- `src/props.js`: instanced vegetation, rocks and small background islands.
-- `src/water.js`: connected stream/waterfall geometry, flowing-water shaders,
-  foam, bank rocks and the footbridge at the sampled path/stream intersection.
-- `src/golf.js`: contained putting surface, grounded foundation, brick border,
-  access ramp, hole/flag and decorative windmill.
-- `src/sky.js`: sky gradient and cloud clusters.
-- `src/main.js`: standalone renderer, light, orbit camera and resize lifecycle.
-- `tests/terrain.test.js`: closed island topology, finite geometry, sampled
-  surface support, full path/course containment and stream-to-fall continuity.
+src/layout.js sets the expanded footprint, two terraces and solid underside.
+src/props.js adds trees, shrubs, rock piles and the short stone path.
+src/sky.js adds clouds. src/terrain.js assembles the block data.
 
-Restore point: `checkpoint-before-island-terrain-2026-11-13` at `141de23`.
+src/block-mesh.js emits only exterior faces, with small sealed face bevels,
+deterministic color variation and precomputed directional / occlusion shading.
+There is one mesh per horizontal chunk, no mesh or physics body per block,
+no live shadow maps, no textures, no postprocessing and no animation loop.
+An idle scene does not continually render. The initial full scene has about
+100,000 source blocks, 22,000 exposed faces and 27 drawing batches.
 
+The development inspection API is window.__letsgoIsland:
+- world.get(x,y,z), world.snap(x,y,z), world.cells
+- setBlock(x,y,z,type), with null removing a cell and refreshing the visible view
+- collisionBoxes (fresh merged volumes), stats
 
-## Firefox graphics startup
+Direct world edits are data-only; use setBlock() to refresh the displayed scene.
+The building UI and partial-chunk editing optimization are future work.
 
-The standard path retains the original antialiasing and high-performance
-request, including on mobile. If a browser/driver rejects that context,
-`src/renderer.js` retries without antialiasing using the default adapter, then
-the low-power adapter. Each retry uses a fresh canvas because a rejected
-constructor can leave a diagnostic context attached to its first canvas.
-Compatibility mode uses a 1x pixel ratio and a 1024-pixel shadow map to reduce
-GPU memory pressure; terrain, materials, cameras and animation stay the same.
+## Older laptops and Firefox
 
-If WebGL 2 is unavailable in every mode, show an actionable Firefox graphics
-message with a Retry button. Do not present that condition as a missing world
-file. The site cannot override a browser's disabled/blocked graphics support.
-`tests/renderer.test.js` verifies supported startup, both fallback paths,
-fresh-canvas handling and fully unavailable graphics.
-Restore point: `checkpoint-before-island-startup-fix-2026-11-13` at `17b25e5`.
+The default WebGL request uses the ordinary adapter. Compatibility retries
+disable antialiasing and then request the low-power adapter. Pixel ratio is
+capped at 1.25 (1 in compatibility mode). Materials use precomputed colors.
+
+If Firefox cannot create WebGL at all, src/canvas-view.js projects the same
+block faces into Canvas 2D. Overview, Top view, drag and zoom remain available.
+It needs no WebGL or GPU driver override. It draws on demand and keeps the
+same source blocks and collision data; it is a software scene viewer, not a
+replacement game renderer. CPU speed still affects interaction performance.
+
+Tests cover exact snapping/editing, hidden-face removal, merged collision
+volume coverage, supported lawn area, sealed terrain boundaries, scene budget,
+and renderer retries. Browser checks also force WebGL unavailable to exercise
+the actual Canvas fallback. Exact performance on the user's Mac is not measured.
+
+Restore point: checkpoint-before-block-island-2026-11-13 at ade23f4.
