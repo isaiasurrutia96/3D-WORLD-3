@@ -3,20 +3,14 @@
  *
  * This is kept apart from the meshes that draw it because several things
  * need to ask the same question — how high is the ground here — and need
- * the same answer: the terrain itself, the trees that stand on it, the
- * water that laps at it, and the tests that walk it. A height function is
- * the one place they all agree.
+ * the same answer: the terrain itself, the trees that stand on it, the road
+ * laid across it, and the tests that walk it. A height function is the one
+ * place they all agree.
  *
- * The island stands in the sea. Sea level is y = 0. From the water it rises
- * over a beach of sand, through low dunes, onto rolling meadow; small
- * mountains stand at the back (north), hills along the flanks, and a few
- * rocky outcrops. Under the water the land keeps going: a shallow shelf to
- * wade and swim over, then down to a sea floor ten metres deep. A few
- * meadows are left open on purpose, for things to be built on later.
- *
- * Nothing constructed is part of it. The roads and bridge gates the race
- * circuits were laid out against are kept further down, untouched, for
- * when racing comes back; the land no longer bends to them.
+ * The land is mostly gentle, because he has to walk it. Hills and small
+ * mountains rise toward the back of the island and at its flanks; the road
+ * and the plots that things will be built on are held level, with the hills
+ * easing down to meet them rather than stopping at a wall.
  */
 
 import { Vector2 } from 'three';
@@ -25,26 +19,18 @@ import { Vector2 } from 'three';
 export const ISLAND_RADIUS = 80;
 
 /**
- * The island's outline — the coastline, where the land meets the sea —
- * as a distance from the middle at a bearing.
+ * The island's outline: how far from the middle the edge is at a bearing.
  *
- * Three slow waves of different lengths so it is a lumpy blob rather than
- * a circle, with a cove cut into the south-west and a headland pushed out
- * to the east, so no two stretches of shore are alike.
+ * Three slow waves of different lengths, so it is a lumpy blob rather than
+ * a circle and no two sides are alike.
  */
 export function islandEdge(angle: number): number {
-  const near = (centre: number, width: number) => {
-    const d = Math.atan2(Math.sin(angle - centre), Math.cos(angle - centre));
-    return Math.exp(-(d * d) / (2 * width * width));
-  };
   return (
     ISLAND_RADIUS *
     (1 +
       0.1 * Math.sin(angle * 3 + 0.6) +
       0.06 * Math.sin(angle * 5 + 2.1) +
-      0.035 * Math.sin(angle * 9 + 4) -
-      0.13 * near(2.35, 0.16) +
-      0.1 * near(-0.25, 0.14))
+      0.035 * Math.sin(angle * 9 + 4))
   );
 }
 
@@ -64,11 +50,21 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-// ---- The road (dormant) ------------------------------------------------------
-//
-// The roads and bridge gates the race circuits were connected by. Nothing on
-// the island uses them now: they are kept so the racing layout in
-// src/racing/ still builds, and so the routes can be laid again later.
+// ---- The level places ------------------------------------------------------
+
+/**
+ * Ground held flat at sea-level-of-the-island: where he starts, the plaza
+ * the roads meet at, and one plot for each thing that will be built. They
+ * are here so that building on them later never means flattening anything.
+ */
+export const PLOTS = {
+  start: { x: 0, z: 53, r: 14 },
+  plaza: { x: 0, z: 0, r: 16 },
+  golf: { x: -38, z: -22, r: 22 },
+  tower: { x: 30, z: -28, r: 18 },
+  pond: { x: 42, z: 12, r: 20 },
+  games: { x: -40, z: 14, r: 20 },
+} as const;
 
 // ---- The road --------------------------------------------------------------
 
@@ -197,27 +193,6 @@ export function roadDistance(x: number, z: number): number {
   return best;
 }
 
-// ---- The open meadows ----------------------------------------------------------
-
-/**
- * Ground left open on purpose: wide, gentle meadows with no trees or rocks
- * on them and no hill rising out of them, for activities and buildings to
- * go on later. They are not flattened — the meadow keeps its gentle roll —
- * so building on one later means levelling only what is built on.
- */
-export const MEADOWS = {
-  /** Where he starts, just up from the south beach. */
-  start: { x: 0, z: 50, r: 13 },
-  /** The middle of the island. */
-  middle: { x: 0, z: 2, r: 17 },
-  west: { x: -38, z: -20, r: 18 },
-  east: { x: 32, z: -26, r: 15 },
-  southWest: { x: -36, z: 18, r: 15 },
-} as const;
-
-/** The pond: still fresh water in a hollow on the east side. */
-export const POND = { x: 44, z: 14, r: 11, surface: 2.2 };
-
 // ---- The hills -------------------------------------------------------------
 
 interface Rise {
@@ -230,33 +205,30 @@ interface Rise {
 }
 
 /**
- * The land that stands up out of the meadow. Radii and heights are chosen
- * together: a rise of height h over radius r is steepest at 1.5 h / r, and
- * the hills stay under about 40 degrees, short of what he can walk (52).
- * The mountains and outcrops are steeper and are rock where they are; they
- * are scenery to look at, and nothing asks him to climb them.
+ * The land. Radii and heights are chosen together: a rise of height h over
+ * radius r is steepest at 1.5 h / r, and every one of these stays under
+ * about 45 degrees, short of what he can walk (52). The rocky ones are the
+ * steep end and are coloured as rock where they are.
  */
 export const RISES: Rise[] = [
-  // The back of the island: small mountains, whose feet run into the sea
-  // as rocky shore.
-  { x: -14, z: -60, r: 42, h: 30, rough: 1.4 },
-  { x: 24, z: -60, r: 34, h: 24, rough: 1.2 },
-  { x: -48, z: -48, r: 26, h: 16, rough: 1.1 },
-  // Hills along the flanks and front, clear of the start.
-  { x: -60, z: 36, r: 18, h: 8, rough: 0.6 },
-  { x: 50, z: 42, r: 22, h: 8, rough: 0.6 },
-  { x: 64, z: -8, r: 24, h: 11, rough: 0.7 },
-  { x: -64, z: -2, r: 22, h: 10, rough: 0.7 },
-  { x: -6, z: -32, r: 18, h: 5, rough: 0.5 },
-  { x: 20, z: 30, r: 14, h: 4, rough: 0.4 },
-  { x: -22, z: 38, r: 14, h: 3.5, rough: 0.4 },
+  // The back of the island: small mountains.
+  { x: -14, z: -62, r: 42, h: 30, rough: 1.4 },
+  { x: 24, z: -62, r: 34, h: 24, rough: 1.2 },
+  { x: -46, z: -52, r: 26, h: 16, rough: 1.1 },
+  // Hills along the flanks and front, well clear of the start.
+  { x: -48, z: 44, r: 28, h: 12, rough: 0.6 },
+  { x: 48, z: 44, r: 26, h: 11, rough: 0.6 },
+  { x: 66, z: -6, r: 26, h: 14, rough: 0.7 },
+  { x: -64, z: -4, r: 22, h: 13, rough: 0.7 },
+  { x: -8, z: -34, r: 20, h: 6, rough: 0.5 },
+  { x: 18, z: 32, r: 15, h: 5, rough: 0.4 },
+  { x: -24, z: 38, r: 16, h: 4, rough: 0.4 },
+  { x: 34, z: 40, r: 14, h: 3.5, rough: 0.4 },
   // Rocky outcrops, small and steeper.
-  { x: -32, z: -56, r: 14, h: 11, rough: 2.2 },
-  { x: 56, z: -18, r: 12, h: 8, rough: 2.2 },
-  { x: -62, z: 26, r: 11, h: 7, rough: 2 },
-  { x: 8, z: -44, r: 13, h: 10, rough: 2.2 },
-  // Out in the water: a sandy islet to swim to, off the south-east shore.
-  { x: 76, z: 76, r: 15, h: 8, rough: 0.5 },
+  { x: -34, z: -58, r: 15, h: 12, rough: 2.2 },
+  { x: 58, z: -14, r: 13, h: 9, rough: 2.2 },
+  { x: -64, z: 32, r: 12, h: 8, rough: 2 },
+  { x: 8, z: -46, r: 14, h: 11, rough: 2.2 },
 ];
 
 function rise(x: number, z: number, r: Rise): number {
@@ -272,51 +244,31 @@ function rise(x: number, z: number, r: Rise): number {
   return r.h * t + grain * r.rough * 0.7 * t;
 }
 
-// ---- The ground between them ------------------------------------------------
-
-/** How high the top of the beach is: the sand gives way to grass here. */
-export const BEACH_TOP = 1.35;
-
-/** How far inland the sand runs at a bearing, in metres. */
-export function beachWidth(angle: number): number {
-  return 11 + 4 * Math.sin(angle * 2 + 1) + 2 * Math.sin(angle * 5 + 0.3);
-}
-
-/** How far a point is inside the coastline (negative out to sea). */
-export function inland(x: number, z: number): number {
-  return islandEdge(Math.atan2(z, x)) - Math.hypot(x, z);
-}
-
 /**
- * The ground with no hills on it: the sea floor, the shelf, the beach, the
- * dunes and the meadow, by how far inland a point is. It crosses sea level
- * on a slope rather than flat, so the waterline is a clean line.
+ * How high the ground is allowed to stand at a point, given how close it is
+ * to a place that has to be level.
+ *
+ * This replaced a blend that eased the hills down over a fixed distance,
+ * which is fine for a small hill and a cliff for a mountain: thirty metres
+ * of height brought down over eleven is a wall. A cap that grows with the
+ * distance from the level ground cannot make a wall however high the land
+ * behind it is — at worst the mountain's flank is cut into a ramp.
  */
-function baseHeight(x: number, z: number): number {
-  const d = inland(x, z);
-  if (d < 0) {
-    // A shallow shelf to wade and swim over, then down to the sea floor.
-    return -3 * (1 - Math.exp(d / 14)) - 7 * smoothstep(-15, -55, d);
+function heightAllowed(x: number, z: number): number {
+  const road = Math.max(0, roadDistance(x, z) - (ROAD_HALF + 1));
+  let plot = Infinity;
+  for (const p of Object.values(PLOTS)) {
+    plot = Math.min(plot, Math.hypot(x - p.x, z - p.z) - p.r);
   }
-  const bw = beachWidth(Math.atan2(z, x));
-  const beach = BEACH_TOP * (1 - Math.exp((-d * 0.14) / BEACH_TOP));
-  const dunes = 1.9 * smoothstep(bw * 0.8, bw + 22, d);
-  // The meadow rolls a little, more so further from the shore.
-  const roll =
-    (Math.sin(x * 0.07 + 0.5) * Math.sin(z * 0.06 - 1.1) + 0.5 * Math.sin((x - z) * 0.09 + 2)) *
-    0.9 *
-    smoothstep(bw, bw + 25, d);
-  return beach + dunes + roll;
-}
-
-/**
- * How high hills may stand at a point, given how close it is to an open
- * meadow: they ease down to meet it as a ramp rather than rising out of it.
- */
-function riseAllowed(x: number, z: number): number {
-  let near = Infinity;
-  for (const m of Object.values(MEADOWS)) near = Math.min(near, Math.hypot(x - m.x, z - m.z) - m.r);
-  return 1.6 * Math.max(0, near);
+  // A road may cut a steep-sided pass through the mountains, which is what a
+  // road through mountains is; a plot has to be reachable on foot from every
+  // side, so the land rises from it as a ramp.
+  const fromRoad = 2.7 * road;
+  const fromPlots = 1.7 * Math.max(0, plot);
+  // And off the rim: a clean lip all round, then the land free to climb. A
+  // mountain rising steeply from the edge is rock and is meant to look it.
+  const e = Math.max(0, islandEdge(Math.atan2(z, x)) - Math.hypot(x, z) - 4);
+  return Math.min(fromRoad, fromPlots, 2.1 * e);
 }
 
 /** The lower of two heights, rounded off where they cross. */
@@ -325,34 +277,10 @@ function softMin(a: number, b: number, k: number): number {
   return Math.min(a, b) - (h * h * k) / 4;
 }
 
-/** The pond's hollow: a bowl under its surface, a gentle bank round it. */
-function pondHollow(x: number, z: number): number {
-  const d = Math.hypot(x - POND.x, z - POND.z);
-  if (d < POND.r) return POND.surface - 2.4 * (1 - (d / POND.r) ** 2) - 0.15;
-  return POND.surface - 0.15 + 0.28 * (d - POND.r);
-}
-
-/** How high the ground is at a point, anywhere: on the island or under the sea. */
+/** How high the ground is at a point on the island. Zero at the level places. */
 export function terrainHeight(x: number, z: number): number {
-  let hills = 0;
-  for (const r of RISES) hills += rise(x, z, r);
-  const h = baseHeight(x, z) + Math.max(0, softMin(hills, riseAllowed(x, z), 4));
-  return softMin(h, pondHollow(x, z), 1.2);
+  let h = 0;
+  for (const r of RISES) h += rise(x, z, r);
+  const capped = Math.max(0, softMin(Math.max(0, h), heightAllowed(x, z), 5));
+  return capped;
 }
-
-/** How steep the ground is at a point, as rise over run. */
-export function slopeAt(x: number, z: number): number {
-  const e = 1.2;
-  const dx = terrainHeight(x + e, z) - terrainHeight(x - e, z);
-  const dz = terrainHeight(x, z + e) - terrainHeight(x, z - e);
-  return Math.hypot(dx, dz) / (2 * e);
-}
-
-/** Whether a point is inside an open meadow or the pond, with a margin. */
-export function keptOpen(x: number, z: number, margin = 0): boolean {
-  if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 3 + margin) return true;
-  return Object.values(MEADOWS).some((m) => Math.hypot(x - m.x, z - m.z) < m.r + margin);
-}
-
-/** How far out the sea can be swum before the current turns him back. */
-export const SEA_LIMIT = 150;

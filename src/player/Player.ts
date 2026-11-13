@@ -2560,29 +2560,6 @@ export class Player {
     this.syncCapsuleFromPosition();
   }
 
-  /**
-   * Keeps him within a distance of the middle of the world, without
-   * stopping him dead: past it he is put back on it, and only the part of
-   * his speed carrying him outward is taken away, so he slides round
-   * rather than sticking. Used for the open sea, where a current turns a
-   * swimmer back rather than an invisible wall.
-   */
-  holdWithin(radius: number): void {
-    const p = this.object.position;
-    const r = Math.hypot(p.x, p.z);
-    if (r <= radius) return;
-    const nx = p.x / r;
-    const nz = p.z / r;
-    p.x = nx * radius;
-    p.z = nz * radius;
-    const outward = this.velocity.x * nx + this.velocity.z * nz;
-    if (outward > 0) {
-      this.velocity.x -= outward * nx;
-      this.velocity.z -= outward * nz;
-    }
-    this.syncCapsuleFromPosition();
-  }
-
   teleport(position: Vector3, facing = this.facing): void {
     this.dropCarried();
     this.object.position.copy(position);
