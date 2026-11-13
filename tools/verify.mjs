@@ -65,7 +65,9 @@ page.on('console', (message) => {
 });
 page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
-await page.goto(BASE, { waitUntil: 'load', timeout: 60000 });
+// The movement tests are written against the arena: the bare slab with the
+// walls, ladders, edges and gaps they need. The island is checked below.
+await page.goto(`${BASE}?arena=1`, { waitUntil: 'load', timeout: 60000 });
 await page.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
   timeout: 60000,
 });
@@ -1056,6 +1058,80 @@ const report = await page.evaluate(() => {
   };
 });
 
+// ---- The island: what the game is when nobody asks for the arena ----------
+const island = await (async () => {
+  const islandPage = await browser.newPage({ viewport: { width: 1280, height: 760 } });
+  islandPage.on('console', (message) => {
+    if (message.type() === 'error') problems.push(`island console.error: ${message.text()}`);
+  });
+  islandPage.on('pageerror', (error) => problems.push(`island pageerror: ${error.message}`));
+  await islandPage.goto(BASE, { waitUntil: 'load', timeout: 60000 });
+  await islandPage.waitForFunction(() => window.__letsgo?.debug?.player !== undefined, null, {
+    timeout: 60000,
+  });
+  await islandPage.waitForTimeout(1500);
+  const result = await islandPage.evaluate(() => {
+    const d = window.__letsgo.debug;
+    d.freeze();
+    return {
+      sim: d.simulateIsland(1 / 60),
+      audit: d.collisionAudit(),
+    };
+  });
+  // Looked at the way he sees it: from the start, and from well above.
+  await islandPage.evaluate(() => {
+    const d = window.__letsgo.debug;
+    d.player.teleport(d.player.position.clone().set(0, 0, 49.6), Math.PI);
+    d.cameraRig.reset(d.player);
+    d.drive(0.05);
+    d.renderFrom(0, 1.6, 6.5, 1);
+  });
+  await islandPage.screenshot({ path: `${SHOTS}island-start.png` });
+  await islandPage.evaluate(() => window.__letsgo.debug.renderFrom(0, 120, 175, -22));
+  await islandPage.screenshot({ path: `${SHOTS}island-aerial.png` });
+  await islandPage.close();
+  return result;
+})();
+
+{
+  const { sim, audit: islandAudit } = island;
+  if (sim.start.state !== 'idle' || !sim.start.onPad || Math.abs(sim.start.y) > 0.05) {
+    problems.push(`island: he did not stand on the start pad — ${JSON.stringify(sim.start)}`);
+  }
+  if (sim.ground.holes > 0) {
+    problems.push(`island: ${sim.ground.holes} of ${sim.ground.tried} points on the top are not ground`);
+  }
+  if (sim.ground.uneven > 0 || sim.ground.highest - sim.ground.lowest > 0.02) {
+    problems.push(
+      `island: the top is not level — ${sim.ground.lowest}m to ${sim.ground.highest}m, ` +
+        `${sim.ground.uneven} sloping points`,
+    );
+  }
+  if (sim.beyond.ground > 0) {
+    problems.push(`island: ${sim.beyond.ground} points past the edge are ground, so the edge is not where it looks`);
+  }
+  if (!sim.falling.allBack) {
+    problems.push(`island: going over the edge did not put him back on his feet — ${JSON.stringify(sim.falling.rows)}`);
+  }
+  if (sim.scale.narrowest / 1.82 < 60) {
+    problems.push(`island: only ${sim.scale.heightsAcross} character heights across — it is not big enough`);
+  }
+  for (const fault of islandAudit.faults) problems.push(`island collision and geometry disagree: ${fault}`);
+  for (const name of Object.keys(islandAudit.walkThrough)) {
+    if (!ALLOWED_WALK_THROUGH.includes(name)) {
+      problems.push(`island: "${name}" has body but is not solid`);
+    }
+  }
+  island.summary =
+    ` island         start ${sim.start.state} on the pad · ${sim.ground.tried} ground points, ` +
+    `${sim.ground.holes} holes, ${sim.ground.uneven} sloping, ${sim.ground.lowest}m to ${sim.ground.highest}m · ` +
+    `${sim.beyond.ground} of ${sim.beyond.tried} points past the edge are ground\n` +
+    `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
+    `${sim.scale.narrowest}m across, ${sim.scale.heightsAcross} heights of him · ` +
+    `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ` +
+    `${islandAudit.faults.length} faults`;
+}
+
 await browser.close();
 shutdown();
 
@@ -1328,6 +1404,8 @@ console.log(
       `${r.ladders.highDive.y}m, roof to core ${r.ladders.core.y}m`,
   );
 }
+
+console.log(island.summary);
 
 console.log('\n--- report ---');
 console.log(JSON.stringify(report, null, 2));

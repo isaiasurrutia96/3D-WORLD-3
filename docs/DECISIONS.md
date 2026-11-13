@@ -366,6 +366,33 @@ it stands.
 
 ## K) Change log
 
+**13 November 2026. The island: foundation only.** Replaces the yard as
+what the game is. Approved by the owner from a reference picture of a
+floating island in the style of the Mario worlds and the golf game's
+backdrop; built in stages, and this is the first.
+
+**1. What is built.** The land itself, the sea, the sky and the place he
+starts, and nothing else. A floating island, 160 metres across, with a flat
+grass top (a two-tone check that stays square close up), a rolled grass lip,
+a cliff of faceted rock tapering to a point far below, a bright blue sea 64
+metres under it, and the sky and clouds the engine already had.
+
+**2. Scale.** 88 character heights across. The owner asked for the avatar to
+look smaller against the world; the world was made bigger rather than the
+avatar smaller, so none of the movement tuning moves. One number
+(`ISLAND_RADIUS`) sets it.
+
+**3. Where the old yard went.** It is not part of the game. It is kept
+behind `?arena` as the place the movement tests run, because those tests
+need its walls, ladders, edges and gaps, and the verification pass opens it
+that way. The island has its own checks.
+
+**4. To come, in this order.** The start gate and path; the golf area; the
+climbing tower; the pond with a diving board; the first mini-game plot; the
+timer, finish and best-time loop; the bridges and floating platforms. Each
+is its own plot, so a mini game can be added, moved or removed without
+touching the others.
+
 **11 November 2026, second entry. What a phone could not do.** Reported by
 the owner: nothing could be picked up without a keyboard. Three things were
 keys and nothing else — picking up and throwing, climbing down a ladder from

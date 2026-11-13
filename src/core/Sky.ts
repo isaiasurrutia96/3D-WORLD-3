@@ -64,7 +64,7 @@ export class Sky extends Group {
       uniforms: {
         topColor: { value: new Color('#2f7fe0') },
         horizonColor: { value: new Color('#bfe4f7') },
-        bottomColor: { value: new Color('#8fb39a') },
+        bottomColor: { value: new Color('#a9d8f4') },
         sunDirection: { value: sunDirection },
         sunColor: { value: new Color('#fff6d8') },
       },

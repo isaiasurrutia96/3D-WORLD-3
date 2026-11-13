@@ -150,6 +150,18 @@ export class Engine {
    * no fog, and a cool rim light behind the subject so the silhouette reads
    * against the dark. Used while the character itself is what is being judged.
    */
+  /**
+   * How much of the quality preset's fog to keep. The presets were set for
+   * a castle courtyard; the island is a hundred and sixty metres across and
+   * is looked at from further away than that, so the same fog turned it to
+   * a pale smudge.
+   */
+  private fogScale = 1;
+  setFogScale(scale: number): void {
+    this.fogScale = scale;
+    if (!this.underwater && !this.studio) this.fog.density = this.preset.fogDensity * scale;
+  }
+
   setStudioMode(enabled: boolean): void {
     this.studio = enabled;
     this.sky.visible = !enabled;
@@ -205,7 +217,7 @@ export class Engine {
 
     this.configureShadowCamera();
 
-    if (!this.underwater && !this.studio) this.fog.density = preset.fogDensity;
+    if (!this.underwater && !this.studio) this.fog.density = preset.fogDensity * this.fogScale;
     this.camera.far = preset.viewDistance;
     this.camera.updateProjectionMatrix();
 
@@ -356,7 +368,7 @@ export class Engine {
     const airSun = this.studio ? 1.9 : 2.15;
     const airHemisphere = this.studio ? 0.95 : 1.0;
     const airHemisphereColor = this.studio ? STUDIO_HEMISPHERE : SKY_HEMISPHERE;
-    const airDensity = this.studio ? 0 : this.preset.fogDensity;
+    const airDensity = this.studio ? 0 : this.preset.fogDensity * this.fogScale;
 
     (this.scene.background as Color).copy(airColor).lerp(UNDERWATER_BACKGROUND, mix);
     this.fog.color.copy(airColor).lerp(UNDERWATER_FOG, mix);

@@ -23,7 +23,8 @@ import {
 } from './ui/TouchControls.ts';
 import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
-import { TEST_FACING, TEST_GROUND, buildSlab, type SlabWorld } from './world/Slab.ts';
+import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
+import { ISLAND_RADIUS, buildIsland, islandEdge, overIsland } from './world/Island.ts';
 import {
   COURSE_MARKS,
   COURSE_POOL,
@@ -52,8 +53,19 @@ class Game {
   private readonly collision = new CollisionWorld();
   private readonly effects: ParticleEffects;
 
-  private readonly world: SlabWorld;
-  private readonly course: CourseWorld;
+  /**
+   * The island is the game. The yard on a bare slab is kept, behind
+   * `?arena`, as the place the movement tests run: it has the walls, edges,
+   * ladders and gaps those tests are written against, and the verification
+   * pass opens it that way. Nobody playing sees it.
+   */
+  private readonly arena = new URLSearchParams(window.location.search).has('arena');
+  private readonly world: { triangleCount: number; hasObstacles?: boolean };
+  private readonly course: Pick<CourseWorld, 'carryables' | 'checkpoints' | 'triangleCount'> & {
+    water: { update(time: number): void };
+  };
+  private readonly spawn: Vector3;
+  private readonly spawnFacing: number;
   private readonly player: Player;
   private readonly cameraRig: CameraRig;
 
@@ -61,17 +73,28 @@ class Game {
 
   constructor() {
     this.engine = new Engine(container as HTMLElement, this.settings.quality);
-    this.engine.setStudioMode(true);
+    this.engine.setStudioMode(this.arena);
     this.effects = new ParticleEffects(this.engine.scene);
 
-    this.world = buildSlab(this.engine.scene, this.collision, {
-      holes: [{ x: COURSE_POOL.x, z: COURSE_POOL.z, half: COURSE_POOL.half }],
-    });
-    this.course = buildCourse(this.engine.scene, this.collision);
+    if (this.arena) {
+      this.world = buildSlab(this.engine.scene, this.collision, {
+        holes: [{ x: COURSE_POOL.x, z: COURSE_POOL.z, half: COURSE_POOL.half }],
+      });
+      this.course = buildCourse(this.engine.scene, this.collision);
+      this.spawn = COURSE_SPAWN;
+      this.spawnFacing = COURSE_FACING;
+    } else {
+      const island = buildIsland(this.engine.scene, this.collision);
+      this.engine.setFogScale(0.22);
+      this.world = island;
+      this.course = island;
+      this.spawn = island.spawn;
+      this.spawnFacing = island.spawnFacing;
+    }
 
     this.player = new Player(
       this.collision,
-      COURSE_SPAWN,
+      this.spawn,
       {
         onLand: (position, strength) => {
           if (strength > 0.25) this.effects.dust(position, strength);
@@ -80,7 +103,7 @@ class Game {
       // Still the plain clay figure: the form is settled, the movement is not.
       { plain: true },
     );
-    this.player.facing = COURSE_FACING;
+    this.player.facing = this.spawnFacing;
     this.player.carryables = this.course.carryables;
     this.engine.scene.add(this.player.object);
 
@@ -150,7 +173,7 @@ class Game {
   }
 
   private lastPad(): Vector3 {
-    return this.course.checkpoints[this.reachedPad] ?? COURSE_SPAWN;
+    return this.course.checkpoints[this.reachedPad] ?? this.spawn;
   }
 
   private trackProgress(): void {
@@ -177,8 +200,8 @@ class Game {
     // Holding shift goes back to the very start instead.
     if (event.code === 'Backspace') {
       event.preventDefault();
-      const target = event.shiftKey ? COURSE_SPAWN : this.lastPad();
-      this.player.teleport(target, event.shiftKey ? COURSE_FACING : this.player.facing);
+      const target = event.shiftKey ? this.spawn : this.lastPad();
+      this.player.teleport(target, event.shiftKey ? this.spawnFacing : this.player.facing);
       this.cameraRig.reset(this.player);
     }
     if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3') {
@@ -187,7 +210,7 @@ class Game {
       )[event.code as 'Digit1' | 'Digit2' | 'Digit3'];
       this.settings = { ...this.settings, quality };
       this.engine.applyQuality(quality);
-      this.engine.setStudioMode(true);
+      this.engine.setStudioMode(this.arena);
       saveSettings(this.settings);
     }
   };
@@ -480,6 +503,165 @@ class Game {
           airtime: Math.round(airborneFrames * dt * 1000) / 1000,
           progressAtLanding: Math.round(progressAtLanding * 100) / 100,
         };
+      },
+
+      /**
+       * The island's foundation: that he can stand on it, that all of it is
+       * ground, that its edge is an edge, and that going over it puts him
+       * back on his feet. Read from the island's own outline rather than
+       * from coordinates, so reshaping it does not break this.
+       */
+      simulateIsland: (dt = 1 / 60) => {
+        const stick = { x: 0, y: 0 };
+        const stub = {
+          move: stick,
+          look: { x: 0, y: 0 },
+          isDown: () => false,
+          wasPressed: () => false,
+          wasReleased: () => false,
+          chargeOf: () => null,
+          chargingAction: () => null,
+          chargeNow: () => 0,
+        } as unknown as Input;
+        const player = this.player;
+        const frames = (seconds: number) => Math.max(1, Math.round(seconds / dt));
+        const step = (yaw = 0) => player.update(dt, stub, yaw);
+        const round = (v: number, places = 2) => Math.round(v * 10 ** places) / 10 ** places;
+        const results: Record<string, unknown> = {};
+
+        // Standing where the game starts.
+        player.teleport(this.spawn.clone(), this.spawnFacing);
+        for (let i = 0; i < frames(1.2); i += 1) step();
+        results.start = {
+          state: player.stateName,
+          y: round(player.position.y),
+          onPad: Math.hypot(player.position.x - this.spawn.x, player.position.z - this.spawn.z) < 0.5,
+        };
+
+        // Every part of the top is ground, and level. Looked at straight
+        // down from above at a few thousand points inside the outline.
+        {
+          let holes = 0;
+          let uneven = 0;
+          let tried = 0;
+          let lowest = Infinity;
+          let highest = -Infinity;
+          for (let a = 0; a < 72; a += 1) {
+            const angle = (a / 72) * Math.PI * 2;
+            for (let r = 0.02; r <= 0.93; r += 0.03) {
+              const d = islandEdge(angle) * r;
+              const hit = this.collision.groundProbe(
+                new Vector3(Math.cos(angle) * d, 5, Math.sin(angle) * d),
+                10,
+              );
+              tried += 1;
+              if (!hit) {
+                holes += 1;
+                continue;
+              }
+              lowest = Math.min(lowest, hit.y);
+              highest = Math.max(highest, hit.y);
+              if (hit.normal.y < 0.98) uneven += 1;
+            }
+          }
+          results.ground = {
+            tried,
+            holes,
+            uneven,
+            lowest: round(lowest),
+            highest: round(highest),
+          };
+        }
+
+        // Past the edge there is nothing: probes just outside find no
+        // ground, so what looks like the edge is the edge.
+        {
+          let ground = 0;
+          let tried = 0;
+          for (let a = 0; a < 72; a += 1) {
+            const angle = (a / 72) * Math.PI * 2;
+            const d = islandEdge(angle) + 4;
+            const hit = this.collision.groundProbe(
+              new Vector3(Math.cos(angle) * d, 5, Math.sin(angle) * d),
+              20,
+            );
+            tried += 1;
+            if (hit) ground += 1;
+          }
+          results.beyond = { tried, ground };
+        }
+
+        // Running off the edge in eight directions: he goes over it, falls,
+        // and is put back on the island on his feet.
+        {
+          const rows: unknown[] = [];
+          let allBack = true;
+          for (let k = 0; k < 8; k += 1) {
+            const angle = (k / 8) * Math.PI * 2;
+            const start = new Vector3(
+              Math.cos(angle) * islandEdge(angle) * 0.7,
+              0,
+              Math.sin(angle) * islandEdge(angle) * 0.7,
+            );
+            // Face and run outward. With the camera at yaw zero, stick up
+            // is toward -z, so point the stick the way the heading goes.
+            const heading = Math.atan2(Math.cos(angle), Math.sin(angle));
+            player.teleport(start, heading);
+            // Settle, and learn that this spot is safe to come back to.
+            for (let i = 0; i < frames(0.5); i += 1) step();
+            stick.x = Math.cos(angle);
+            stick.y = Math.sin(angle);
+            let wentOver = false;
+            let lowest = 0;
+            // Eleven seconds is time to run out, fall the forty-five metres
+            // to the floor of the world, be put back and land. The stick is
+            // let go of once he is over, or he would run straight off again.
+            for (let i = 0; i < frames(11); i += 1) {
+              step();
+              lowest = Math.min(lowest, player.position.y);
+              if (!wentOver && !overIsland(player.position.x, player.position.z) && player.position.y < -2) {
+                wentOver = true;
+                stick.x = 0;
+                stick.y = 0;
+              }
+            }
+            stick.x = 0;
+            stick.y = 0;
+            const respawned = lowest < TUNING.killPlaneY * 0.9;
+            const back = overIsland(player.position.x, player.position.z) && player.onGround;
+            if (!(wentOver && respawned && back)) allBack = false;
+            rows.push({
+              angle: Math.round((angle * 180) / Math.PI),
+              wentOver,
+              fellTo: round(lowest, 1),
+              respawned,
+              backOnIsland: back,
+              endedAt: `${round(player.position.x, 1)},${round(player.position.y, 1)},${round(player.position.z, 1)} ${player.stateName}`,
+            });
+          }
+          results.falling = { rows, allBack };
+        }
+
+        // The size of the world against the size of him.
+        {
+          let narrowest = Infinity;
+          let widest = 0;
+          for (let a = 0; a < 90; a += 1) {
+            const angle = (a / 90) * Math.PI;
+            const across = islandEdge(angle) + islandEdge(angle + Math.PI);
+            narrowest = Math.min(narrowest, across);
+            widest = Math.max(widest, across);
+          }
+          results.scale = {
+            radius: ISLAND_RADIUS,
+            narrowest: round(narrowest, 1),
+            widest: round(widest, 1),
+            heightsAcross: round(narrowest / 1.82, 0),
+          };
+        }
+
+        player.teleport(this.spawn.clone(), this.spawnFacing);
+        return results;
       },
 
       /**
