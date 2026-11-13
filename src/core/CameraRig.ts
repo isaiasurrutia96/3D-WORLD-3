@@ -20,6 +20,18 @@ const LEVEL_SECONDS = 0.9;
 /** Seconds of no manual input before the camera starts drifting back. */
 const AUTO_FOLLOW_DELAY = 1.1;
 
+/**
+ * The isometric view: looking down at the true isometric angle (35.26
+ * degrees), from far off through a long lens so that lines stay nearly
+ * parallel, as an isometric drawing's do. It still follows him.
+ */
+const ISO_PITCH = Math.atan(1 / Math.SQRT2);
+const ISO_FOV = 18;
+/** Far enough that about eighteen metres of ground fit top to bottom. */
+const ISO_DISTANCE = 58;
+/** The diagonal it starts on: from the front left. */
+const ISO_YAW = -Math.PI / 4;
+
 export class CameraRig {
   yaw = Math.PI;
   pitch = 0.33;
@@ -43,10 +55,41 @@ export class CameraRig {
    */
   ceilingY: number | null = null;
 
+  /** Whether the isometric view is on. Switched with setIsometric. */
+  private iso = false;
+  /** The lens the chase camera uses, to go back to after the isometric one. */
+  private readonly followFov: number;
+
   constructor(
     private readonly camera: PerspectiveCamera,
     private readonly world: CollisionWorld,
-  ) {}
+  ) {
+    this.followFov = camera.fov;
+  }
+
+  get isometric(): boolean {
+    return this.iso;
+  }
+
+  /**
+   * Turns the isometric view on or off. On, the camera swings to the
+   * diagonal and its tilt is fixed; dragging the view still turns it round
+   * him. Off, it is the chase camera again, behind him.
+   */
+  setIsometric(on: boolean, player?: Player): void {
+    if (on === this.iso) return;
+    this.iso = on;
+    if (on) {
+      this.yaw = ISO_YAW;
+      this.pitch = ISO_PITCH;
+    } else {
+      this.pitch = 0.33;
+      if (player) this.yaw = player.facing + Math.PI;
+    }
+    this.camera.fov = on ? ISO_FOV : this.followFov;
+    this.camera.updateProjectionMatrix();
+    this.levelTimer = 0;
+  }
 
   /** Yaw the character's movement input is measured against. */
   get movementYaw(): number {
@@ -70,7 +113,8 @@ export class CameraRig {
   applyLook(deltaYaw: number, deltaPitch: number): void {
     if (deltaYaw === 0 && deltaPitch === 0) return;
     this.yaw -= deltaYaw;
-    this.pitch = MathUtils.clamp(this.pitch + deltaPitch, MIN_PITCH, MAX_PITCH);
+    // In the isometric view the tilt is the view; only turning is allowed.
+    if (!this.iso) this.pitch = MathUtils.clamp(this.pitch + deltaPitch, MIN_PITCH, MAX_PITCH);
     this.manualTimer = AUTO_FOLLOW_DELAY;
     // A hand on the view has it. Whatever the camera was doing to its own
     // tilt, it stops.
@@ -90,7 +134,7 @@ export class CameraRig {
 
     if (!this.initialised) {
       this.smoothedFocus.copy(this.focus);
-      this.yaw = player.facing + Math.PI;
+      if (!this.iso) this.yaw = player.facing + Math.PI;
       this.initialised = true;
     } else {
       // Vertical movement is smoothed harder than horizontal, so a jump does
@@ -100,6 +144,11 @@ export class CameraRig {
       this.smoothedFocus.x = MathUtils.lerp(this.smoothedFocus.x, this.focus.x, horizontalRate);
       this.smoothedFocus.z = MathUtils.lerp(this.smoothedFocus.z, this.focus.z, horizontalRate);
       this.smoothedFocus.y = MathUtils.lerp(this.smoothedFocus.y, this.focus.y, verticalRate);
+    }
+
+    if (this.iso) {
+      this.updateIsometric();
+      return;
     }
 
     this.autoFollow(delta, player);
@@ -155,6 +204,24 @@ export class CameraRig {
   }
 
   /**
+   * The isometric view: no drifting round behind him, no levelling under
+   * water and no pulling in past scenery — it looks over the world, not
+   * through it.
+   */
+  private updateIsometric(): void {
+    this.pitch = ISO_PITCH;
+    if (this.camera.fov !== ISO_FOV) {
+      this.camera.fov = ISO_FOV;
+      this.camera.updateProjectionMatrix();
+    }
+    const cosPitch = Math.cos(this.pitch);
+    this.toCamera.set(Math.sin(this.yaw) * cosPitch, Math.sin(this.pitch), Math.cos(this.yaw) * cosPitch);
+    this.currentDistance = ISO_DISTANCE;
+    this.camera.position.copy(this.smoothedFocus).addScaledVector(this.toCamera, ISO_DISTANCE);
+    this.camera.lookAt(this.smoothedFocus);
+  }
+
+  /**
    * Eases the camera back behind the character once the player stops steering
    * it, but only while they are actually moving — standing still should not
    * make the view swing around on its own.
@@ -201,7 +268,7 @@ export class CameraRig {
     this.manualTimer = 0;
     this.levelTimer = 0;
     this.wasSubmerged = false;
-    this.pitch = 0.33;
+    this.pitch = this.iso ? ISO_PITCH : 0.33;
     this.update(1 / 60, player);
   }
 }

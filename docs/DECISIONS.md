@@ -407,6 +407,15 @@ approved state.
 
 ## K) Change log
 
+**13 November 2026, eighth entry. Isometric view, graphics on a phone, no
+stats panel.** Asked for by the owner. A corner menu (top right, on phones
+and computers) has two buttons: View, which switches between the chase
+camera and an isometric view (looking down at 35.3 degrees on a diagonal
+through a long lens, still following him and turnable by dragging; V on a
+keyboard), and Graphics, which steps Low, Medium, High (1–3 on a keyboard).
+Both choices are remembered. The stats panel (FPS and the rest) no longer
+shows; F3 still brings it up for working on the game.
+
 **13 November 2026, seventh entry. The block island rebuilt from two views.**
 Asked for by the owner: a faithful reconstruction of the island from an
 overhead and an angled reference picture of it, not an interpretation.

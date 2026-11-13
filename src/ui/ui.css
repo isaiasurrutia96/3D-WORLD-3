@@ -781,3 +781,53 @@
     font-size: 11px;
   }
 }
+
+/* The corner menu: the camera view and the graphics quality, pressable with
+   a finger as easily as with a mouse. */
+.hud__menu {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  /* Above the touch controls' camera-drag layer (40). */
+  z-index: 60;
+  color: #fff;
+}
+
+.hud__menu-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(6, 16, 32, 0.55);
+  color: #ffffff;
+  font: 600 13px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  white-space: pre;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.hud__menu-button:active {
+  background: rgba(6, 16, 32, 0.8);
+}
+
+.is-touch .hud__menu {
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  gap: 6px;
+}
+
+.is-touch .hud__menu-button {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+/* On a phone the build number sits under the menu instead of behind it. */
+.is-touch .hud__build-line {
+  top: calc(60px + env(safe-area-inset-top, 0px));
+}
