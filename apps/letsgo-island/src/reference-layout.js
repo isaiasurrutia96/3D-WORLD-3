@@ -359,7 +359,7 @@ export const TERRACES=[
   },
   {
     "id": "upper-lawn",
-    "height": 6,
+    "height": 5,
     "polygon": [
       [
         0,
