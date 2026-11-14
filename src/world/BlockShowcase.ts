@@ -335,10 +335,10 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // A tiny, very thin cross in the little spot at the very centre of
         // the top, where the four rounded corners meet and the core shows: so
         // that spot reads as four corners meeting, not one solid dot. It lies
-        // flat on the core and spans only that spot.
+        // on the core, black, and spans only that spot.
         const LINE = 0.006;
         const ARM = 0.18; // the whole cross, end to end, as a part of a block
-        const lineMaterial = new MeshBasicMaterial({ color: '#e0600a' });
+        const lineMaterial = new MeshBasicMaterial({ color: '#000000' });
         lineMaterial.toneMapped = false;
         const y = reach - 0.5 + 0.0015; // just on the core's top
         const strips: Array<[number, number, number, number, number, number]> = [
