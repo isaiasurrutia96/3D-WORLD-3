@@ -407,6 +407,18 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, second entry. Eight blocks for size comparison.** Asked
+for by the owner: the world erased; eight blocks, four grass and four earth,
+stacked as a 2×2×2 cube (grass on top), with the character floating beside
+them, still, for size comparison only. A block's edge is his height divided
+by the golden ratio, 1.82 / φ ≈ 1.125 m, so the cube is 2.25 m. The blocks
+are drawn the way the island preview's are, which the owner prefers (a
+shallow cushion on each face, rounded open edges, slight colour variation,
+a darker backing under the creases), redone in `src/world/BlockShowcase.ts`.
+No touch controls, menu or keyboard message are shown; dragging the view
+turns the camera round the pair. The block island, its bridge and the
+circuit are kept in the code but not built.
+
 **14 November 2026. A circuit beside the island.** Asked for by the owner:
 one of the race tracks in the air next to the island, joined by a bridge.
 The Original Circuit (the racing game's floating winding circuit, from

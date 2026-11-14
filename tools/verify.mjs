@@ -1073,65 +1073,65 @@ const island = await (async () => {
     timeout: 60000,
   });
   await islandPage.waitForTimeout(1500);
-  const result = await islandPage.evaluate(() => {
+  // The block showcase: eight blocks, the character floating beside them.
+  const result = await islandPage.evaluate(async () => {
     const d = window.__letsgo.debug;
-    d.freeze();
+    const show = d.showcase;
+    const Box = d.player.object.position.constructor;
+    const before = d.player.position.toArray();
+    await new Promise((r) => setTimeout(r, 1500));
+    const after = d.player.position.toArray();
+    // His height and where he is, from his drawn body; the cube's box.
+    const box3 = (object) => {
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      object.updateWorldMatrix(true, true);
+      object.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry.computeBoundingBox();
+        const b = o.geometry.boundingBox;
+        for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) {
+          const p = new Box(x, y, z).applyMatrix4(o.matrixWorld);
+          min[0] = Math.min(min[0], p.x); min[1] = Math.min(min[1], p.y); min[2] = Math.min(min[2], p.z);
+          max[0] = Math.max(max[0], p.x); max[1] = Math.max(max[1], p.y); max[2] = Math.max(max[2], p.z);
+        }
+      });
+      return { min, max };
+    };
+    const body = box3(d.player.object);
+    const blocks = show.root.children.find((c) => c.name === 'showcase-blocks');
+    const cube = box3(blocks);
+    const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).display !== 'none' && !el.hidden; });
+    const round = (v) => Math.round(v * 1000) / 1000;
     return {
-      sim: d.simulateIsland(1 / 60),
-      audit: d.collisionAudit(),
+      cubeSize: cube.max.map((v, i) => round(v - cube.min[i])),
+      bodyHeight: round(body.max[1] - body.min[1]),
+      gap: round(body.min[0] - cube.max[0]),
+      stayedPut: before.every((v, i) => Math.abs(v - after[i]) < 1e-6),
+      state: d.player.stateName,
+      onScreen: { touch: shown('.touch'), menu: shown('.hud__menu'), focus: shown('.hud__focus'), stats: shown('.hud__stats') },
     };
   });
-  // Looked at the way he sees it: from the start, and from well above.
-  await islandPage.evaluate(() => {
-    const d = window.__letsgo.debug;
-    d.player.teleport(d.spawn.clone(), Math.PI);
-    d.cameraRig.reset(d.player);
-    d.drive(0.05);
-    d.renderFrom(0, 1.6, 6.5, 1);
-  });
-  await islandPage.screenshot({ path: `${SHOTS}island-start.png` });
-  await islandPage.evaluate(() => window.__letsgo.debug.renderFrom(14, 14, 22, -4));
-  await islandPage.screenshot({ path: `${SHOTS}island-aerial.png` });
+  await islandPage.screenshot({ path: `${SHOTS}showcase.png` });
   await islandPage.close();
   return result;
 })();
 
 {
-  const { sim, audit: islandAudit } = island;
-  if (sim.start.state !== 'idle' || !sim.start.onSpot || !sim.start.onGround) {
-    problems.push(`island: he did not stand where the game starts — ${JSON.stringify(sim.start)}`);
-  }
-  if (sim.ground.holes > 0 || sim.ground.low > 0) {
-    problems.push(`island: ${sim.ground.holes} columns with no ground and ${sim.ground.low} below their top — ${sim.ground.lowAt.join('; ')}`);
-  }
-  if (sim.ground.beyond > 0) {
-    problems.push(`island: ${sim.ground.beyond} points past the edge are ground, so the edge is not where it looks`);
-  }
-  if (!sim.terrace.walked && !sim.terrace.jumped) problems.push(`island: he could not get up onto the terrace — ${JSON.stringify(sim.terrace)}`);
-  if (!sim.highStep.walked && !sim.highStep.jumped) problems.push(`island: he could not get up onto the high step — ${JSON.stringify(sim.highStep)}`);
-  if (!sim.backDown.arrived || sim.backDown.y > 0.12) problems.push(`island: he could not walk back down off the terrace — ${JSON.stringify(sim.backDown)}`);
-  if (!sim.trunks.allSolid) problems.push(`island: a tree trunk did not stop him — ${JSON.stringify(sim.trunks.rows)}`);
-  if (!sim.pool.into || !sim.pool.out) problems.push(`island: he could not step into the pool and back out — ${JSON.stringify(sim.pool)}`);
-  if (!sim.bridge || !sim.bridge.arrived || !sim.bridge.onGround || Math.abs(sim.bridge.y) > 0.2 || sim.bridge.lowest < -0.3) {
-    problems.push(`island: he could not walk across the bridge onto the circuit — ${JSON.stringify(sim.bridge)}`);
-  }
-  if (!sim.falling.allBack) {
-    problems.push(`island: going over the edge did not put him back on his feet — ${JSON.stringify(sim.falling.rows)}`);
-  }
-  for (const fault of islandAudit.faults) problems.push(`island collision and geometry disagree: ${fault}`);
-  for (const name of Object.keys(islandAudit.walkThrough)) {
-    if (!ALLOWED_WALK_THROUGH.includes(name)) {
-      problems.push(`island: "${name}" has body but is not solid`);
-    }
-  }
+  const r = island;
+  const phi = (1 + Math.sqrt(5)) / 2;
+  // The cube's outer box includes each face's cushion, 0.05 of a block
+  // either side; the block's own edge is the grid it is built on.
+  const block = Math.round((r.cubeSize[1] / 2.1) * 1000) / 1000;
+  if (Math.abs(1.82 / phi - block) > 0.03) problems.push(`showcase: a block is ${block}m, not 1.82/φ`);
+  if (Math.abs(r.cubeSize[0] - r.cubeSize[1]) > 0.05 || Math.abs(r.cubeSize[2] - r.cubeSize[1]) > 0.05) problems.push(`showcase: the blocks are not a cube — ${r.cubeSize}`);
+  if (!(r.gap > 0.1)) problems.push(`showcase: he is not beside the blocks, he overlaps them (gap ${r.gap}m)`);
+  if (!r.stayedPut) problems.push('showcase: he moved; he should float still');
+  if (Object.values(r.onScreen).some(Boolean)) problems.push(`showcase: controls or messages on screen — ${JSON.stringify(r.onScreen)}`);
   island.summary =
-    ` block island   start ${sim.start.state} · ${sim.ground.columns} columns, ${sim.ground.holes} holes, ` +
-    `${sim.ground.low} low · ${sim.ground.beyond} of ${sim.ground.beyondTried} points past the edge are ground\n` +
-    `                terrace: ${sim.terrace.walked ? 'walked up' : sim.terrace.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
-    `high step: ${sim.highStep.walked ? 'walked up' : sim.highStep.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
-    `trunks stop him: ${sim.trunks.allSolid} · pool in and out: ${sim.pool.into && sim.pool.out} · across the bridge onto the circuit: ${!!sim.bridge?.arrived}\n` +
-    `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
-    `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ${islandAudit.faults.length} faults`;
+    ` showcase       cube ${r.cubeSize.join(' × ')}m (block ${block}m, his height ÷ block = ${(1.82 / block).toFixed(3)}) · ` +
+    `his body ${r.bodyHeight}m tall, ${r.gap}m clear of the cube · still: ${r.stayedPut} (${r.state}) · ` +
+    `on screen: ${Object.entries(r.onScreen).filter(([, v]) => v).map(([k]) => k).join(', ') || 'nothing but the build stamp'}`;
 }
 
 // ---- A browser that will not give the best graphics ---------------------------

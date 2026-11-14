@@ -2574,6 +2574,19 @@ export class Player {
     this.syncCapsuleFromPosition();
   }
 
+  /**
+   * Holds him standing still where he is, posed as if on the ground, with
+   * no gravity and no movement: for showing him beside something, not for
+   * playing. The pose is the same idle the controller gives him.
+   */
+  poseStanding(delta: number): void {
+    this.state = 'ground';
+    this.velocity.set(0, 0, 0);
+    this.landingTimer = 0;
+    this.animationTime += delta;
+    this.syncModel(delta, 0);
+  }
+
   teleport(position: Vector3, facing = this.facing): void {
     this.dropCarried();
     this.object.position.copy(position);

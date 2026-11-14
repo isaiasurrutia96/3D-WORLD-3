@@ -831,3 +831,10 @@
 .is-touch .hud__build-line {
   top: calc(60px + env(safe-area-inset-top, 0px));
 }
+
+/* The block showcase has nothing to steer: no menu, no keyboard message. */
+.is-showcase .hud__menu,
+.is-showcase .hud__focus,
+.is-showcase .hud__prompt {
+  display: none !important;
+}

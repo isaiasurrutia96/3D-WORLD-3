@@ -24,8 +24,9 @@ import {
 import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
-import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
-import { buildSkyCircuit, type SkyCircuit } from './racing/SkyCircuit.ts';
+import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
+import type { SkyCircuit } from './racing/SkyCircuit.ts';
+import { buildBlockShowcase, type BlockShowcase } from './world/BlockShowcase.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -74,6 +75,11 @@ class Game {
   private voxel: VoxelIslandWorld | null = null;
   /** The race circuit beside the island, reached by its bridge. */
   private circuit: SkyCircuit | null = null;
+  /** The eight blocks and the character beside them, when that is the world. */
+  private showcase: BlockShowcase | null = null;
+  /** Which way the showcase camera looks from, round the blocks. */
+  private showcaseYaw = 0.12;
+  private showcasePitch = 0.22;
   /**
    * `?view=overhead` or `?view=angled` holds the camera where one of the
    * two reference pictures was taken from, to compare the island with it.
@@ -100,28 +106,27 @@ class Game {
       this.spawn = COURSE_SPAWN;
       this.spawnFacing = COURSE_FACING;
     } else {
-      // The block island, built to the reference picture. The old island
-      // (world/Island.ts), the four circuits and the kart are kept in the
-      // code and not put in the scene; to bring the racing back, build it
-      // here as before: this.racingScene = buildRacingScene(), add its root
-      // and solid, and this.kartMode = new KartMode(scene, { x, y, z, yaw }).
-      const island = buildVoxelIsland(this.engine.scene, this.collision);
-      // Clear air: the island floats in open sky, with nothing to haze.
+      // Eight blocks and the character beside them, for comparing sizes.
+      // Nothing else: the block island (world/VoxelIsland.ts), its bridge
+      // and the circuit (racing/SkyCircuit.ts) are kept in the code and not
+      // put in the scene; to bring them back, build them here as before with
+      // buildVoxelIsland and buildSkyCircuit.
+      const showcase = buildBlockShowcase(this.engine.scene);
+      this.showcase = showcase;
       this.engine.setFogScale(0);
-      this.voxel = island;
-      // The Original Circuit, floating beside the island at the end of its
-      // bridge.
-      this.circuit = buildSkyCircuit(this.engine.scene, this.collision, island.circuitAnchor);
-      island.triangleCount += this.circuit.triangleCount;
-      // Lit and coloured the way the reference pictures are.
-      this.engine.setSunDirection(island.sunDirection);
       this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
-      // Its clouds are blocks; the sky's drawn ones would not match.
       this.engine.sky.setCloudsVisible(false);
-      this.world = island;
-      this.course = island;
-      this.spawn = island.spawn;
-      this.spawnFacing = island.spawnFacing;
+      this.engine.setSunDirection(new Vector3(-0.5, 0.75, 0.42));
+      this.world = { triangleCount: showcase.triangleCount };
+      this.course = {
+        carryables: [],
+        checkpoints: [showcase.characterAt.clone()],
+        triangleCount: showcase.triangleCount,
+        water: { update() {} },
+      };
+      this.spawn = showcase.characterAt.clone();
+      // Facing the camera, so he is seen from the front beside the blocks.
+      this.spawnFacing = 0.35;
     }
 
     this.player = new Player(
@@ -147,13 +152,16 @@ class Game {
 
     // On a phone the controls are on the glass, the keyboard chart is of no
     // use to anyone, and there is no pointer to lock.
-    this.touch = wantsTouchControls();
+    // The showcase has nothing to steer: no touch controls, no corner menu,
+    // no keyboard message.
+    if (this.showcase) document.body.classList.add('is-showcase');
+    this.touch = wantsTouchControls() && !this.showcase;
     if (this.touch) {
       document.documentElement.classList.add('is-touch');
       document.body.classList.add('is-touch');
       this.touchControls = new TouchControls(this.input, container as HTMLElement);
       this.releaseGestures = suppressPageGestures();
-    } else {
+    } else if (!this.showcase) {
       this.input.setPointerLockWanted(true);
     }
 
@@ -317,6 +325,31 @@ class Game {
     this.touchControls?.setDriving(kart.driving);
   }
 
+  /**
+   * Points the camera at the showcase from its current angle, far enough
+   * off that the blocks and the character both fit on any screen shape.
+   */
+  private frameShowcase(zoom = 1): void {
+    const show = this.showcase;
+    if (!show) return;
+    const camera = this.engine.camera;
+    // Fit a ball round everything inside the narrower of the two angles of
+    // view, so it fits from any direction on any screen shape.
+    const e = show.extent;
+    const radius = Math.hypot(e.width, e.height, e.depth) / 2;
+    const vertical = (camera.fov * Math.PI) / 360;
+    const horizontal = Math.atan(Math.tan(vertical) * Math.max(0.2, camera.aspect));
+    const distance = (radius / Math.sin(Math.min(vertical, horizontal))) * 1.08 * zoom;
+    const cp = Math.cos(this.showcasePitch);
+    camera.position.set(
+      show.centre.x + Math.sin(this.showcaseYaw) * cp * distance,
+      show.centre.y + Math.sin(this.showcasePitch) * distance,
+      show.centre.z + Math.cos(this.showcaseYaw) * cp * distance,
+    );
+    camera.lookAt(show.centre);
+    camera.updateMatrixWorld();
+  }
+
   /** Holds the camera at one of the reference views, if one was asked for. */
   private applyFixedView(name: string | null = this.fixedView): boolean {
     const view = name === 'overhead' || name === 'angled' ? this.voxel?.views[name] : undefined;
@@ -339,8 +372,17 @@ class Game {
     this.input.update(this.settings.cameraSensitivity, this.settings.invertCameraY);
     if (this.input.wasPressed('togglePointerLock')) this.input.togglePointerLock();
     this.cameraRig.applyLook(this.input.look.x, this.input.look.y);
-    this.updateMovement(delta);
-    this.cameraRig.update(delta, this.player);
+    if (this.showcase) {
+      // He stands still where he floats; the camera frames him and the
+      // blocks, and dragging the view turns it round them.
+      this.player.poseStanding(delta);
+      this.showcaseYaw -= this.input.look.x;
+      this.showcasePitch = Math.max(-0.4, Math.min(1.35, this.showcasePitch + this.input.look.y));
+      this.frameShowcase();
+    } else {
+      this.updateMovement(delta);
+      this.cameraRig.update(delta, this.player);
+    }
     const held = this.applyFixedView();
     // Only the circuits near enough to be seen are drawn.
     this.racingScene?.update(
@@ -429,6 +471,7 @@ class Game {
       input: this.input,
       cameraRig: this.cameraRig,
       kart: this.kartMode,
+      showcase: this.showcase,
       spawn: this.spawn,
       touch: this.touch,
       touchControls: this.touchControls,
@@ -3697,6 +3740,17 @@ class Game {
         return hit ? { y: Math.round(hit.y * 1000) / 1000, normalY: Math.round(hit.normal.y * 100) / 100 } : null;
       },
 
+      /**
+       * The showcase from an angle round it (yaw and pitch in radians) and
+       * how far out (1 is just fitting everything), for screenshots.
+       */
+      viewShowcase: (yaw: number, pitch: number, zoom = 1): void => {
+        this.showcaseYaw = yaw;
+        this.showcasePitch = pitch;
+        this.frameShowcase(zoom);
+        this.engine.focusShadowsOn(this.showcase?.centre ?? this.player.position);
+        this.engine.render(1 / 60);
+      },
       /** Draws one frame from a reference view, with or without the figure. */
       renderView: (name: string, showPlayer = false): boolean => {
         const view = name === 'overhead' || name === 'angled' ? this.voxel?.views[name] : undefined;

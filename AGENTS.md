@@ -105,3 +105,9 @@ new work should use this repository as the shared source.
   by `src/racing/SkyCircuit.ts`, which imports the racing app's own
   `createTrack()` and only moves it; the racing app is unchanged. The kart
   is not yet in the root scene.
+
+- **14 November 2026 — the root game shows eight blocks only.** At the
+  owner's request the root scene is now a size-comparison showcase
+  (`src/world/BlockShowcase.ts`): a 2×2×2 cube of grass and earth blocks
+  (edge 1.82 / φ m) with the clay avatar floating still beside it. The block
+  island, bridge and circuit modules remain in `src/` but are not built.
