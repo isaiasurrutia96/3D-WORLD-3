@@ -27,6 +27,7 @@ import {
   Color,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Scene,
   Sprite,
@@ -331,6 +332,40 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         core.castShadow = true;
         core.receiveShadow = true;
         root.add(core);
+        // A very thin dark line along the bottom of each groove — a cross on
+        // top, the same down each side and underneath — so the middle reads
+        // as four blocks meeting, not one solid patch.
+        const LINE = 0.014;
+        const lineMaterial = new MeshBasicMaterial({ color: '#4a2206' });
+        lineMaterial.toneMapped = false;
+        // The groove between two rounded blocks is a V, LINE wide this far
+        // below the surface (the edges are rounded over 0.1 of a block); the
+        // line sits there, so only its top shows, in the bottom of the groove.
+        const below = 0.1 - Math.sqrt(0.1 ** 2 - (0.1 - LINE / 2) ** 2);
+        const top = 0.5 - below - 0.001; // the line's outer face, from the middle of a block
+        const depth = 0.04;
+        const mid = top - depth / 2;
+        const side = 1 - below - 0.001; // the same on the outer sides (two blocks wide)
+        const sideMid = side - depth / 2;
+        const strips: Array<[number, number, number, number, number, number]> = [
+          // Top and bottom: a cross each way.
+          [0, mid, 0, LINE, depth, 2],
+          [0, mid, 0, 2, depth, LINE],
+          [0, -mid, 0, LINE, depth, 2],
+          [0, -mid, 0, 2, depth, LINE],
+          // Down the middle of each side.
+          [0, 0, sideMid, LINE, 1, depth],
+          [0, 0, -sideMid, LINE, 1, depth],
+          [sideMid, 0, 0, depth, 1, LINE],
+          [-sideMid, 0, 0, depth, 1, LINE],
+        ];
+        for (const [x, y, z, w, hh, d] of strips) {
+          const strip = new Mesh(new BoxGeometry(w, hh, d), lineMaterial);
+          strip.name = 'seam-line';
+          strip.position.set(x * blockSize, y * blockSize, z * blockSize);
+          strip.scale.setScalar(blockSize);
+          root.add(strip);
+        }
       }
     }
     scene.add(root);
