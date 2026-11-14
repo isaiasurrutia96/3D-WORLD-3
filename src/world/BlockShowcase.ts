@@ -161,10 +161,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
   if (single) {
-    // Four blocks, two by two, side by side.
-    for (let x = 0; x < 2; x += 1) {
-      for (let z = 0; z < 2; z += 1) cells.set(`${x},0,${z}`, 'bright');
-    }
+    // Two blocks, side by side.
+    for (let x = 0; x < 2; x += 1) cells.set(`${x},0,0`, 'bright');
   } else {
     for (let x = 0; x < 2; x += 1) {
       for (let z = 0; z < 2; z += 1) {
@@ -310,7 +308,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         block.castShadow = true;
         block.receiveShadow = true;
         block.scale.setScalar(blockSize);
-        block.position.set((x - 0.5) * blockSize, y * blockSize, (z - 0.5) * blockSize);
+        block.position.set((x - 0.5) * blockSize, y * blockSize, z * blockSize);
         root.add(block);
         cube = block;
       }
@@ -321,8 +319,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // but the grooves between blocks go only that far in, so there is
         // no gap through the middle from any side.
         const reach = 1 - 0.1 * 0.92;
-        // Two blocks wide and deep, one high.
-        const core: Mesh = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
+        // Two blocks wide, one high and one deep.
+        const core: Mesh = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach - 1), material);
         // Black, with its own unlit material, so the little gap where the four
         // corners meet looks like a deep dark crack.
         core.material = new MeshBasicMaterial({ color: '#000000' });
@@ -344,10 +342,10 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         const lineMaterial = new MeshBasicMaterial({ color: '#000000' });
         lineMaterial.toneMapped = false;
         const y = reach - 0.5 + 0.0015; // just on the core's top
-        const strips: Array<[number, number, number, number, number, number]> = [
-          [0, y, 0, LINE, 0.001, ARM],
-          [0, y, 0, ARM, 0.001, LINE],
-        ];
+        // With two blocks there is no centre where four corners meet.
+        void y;
+        void ARM;
+        const strips: Array<[number, number, number, number, number, number]> = [];
         for (const [x, y, z, w, hh, d] of strips) {
           const strip = new Mesh(new BoxGeometry(w, hh, d), lineMaterial);
           strip.name = 'seam-line';
@@ -360,7 +358,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 2.1 },
+      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 1.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
