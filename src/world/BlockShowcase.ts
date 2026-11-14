@@ -41,7 +41,9 @@ export const CHARACTER_HEIGHT = 1.82;
 /** One block's edge, from the golden ratio. */
 export const BLOCK_SIZE = CHARACTER_HEIGHT / PHI;
 
-const COLOURS = { grass: '#93d91e', earth: '#da965a' } as const;
+// `bright` is the single block's: a strong orange that stands out against
+// the blue sky on every face, lit or in shade.
+const COLOURS = { grass: '#93d91e', earth: '#da965a', bright: '#ff7a14' } as const;
 type Kind = keyof typeof COLOURS;
 
 /** The six directions: normal, and the two axes across the face. */
@@ -131,16 +133,32 @@ function length(metres: number): string {
   return metres < 1 ? `${(metres * 100).toFixed(1)} cm` : `${metres.toFixed(3)} m`;
 }
 
-export function buildBlockShowcase(scene: Scene): BlockShowcase {
+/** The size the owner chose from the comparison: 0.146× the baseline. */
+export const CHOSEN_MULTIPLIER = PHI ** -4;
+
+export interface ShowcaseOptions {
+  /**
+   * One block on its own, at the chosen size, in the bright colour, with
+   * no figure and no label. Otherwise the full comparison row.
+   */
+  single?: boolean;
+}
+
+export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}): BlockShowcase {
+  const single = options.single === true;
   const root = new Group();
   root.name = 'block-showcase';
 
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
-  for (let x = 0; x < 2; x += 1) {
-    for (let z = 0; z < 2; z += 1) {
-      cells.set(`${x},0,${z}`, 'earth');
-      cells.set(`${x},1,${z}`, 'grass');
+  if (single) {
+    cells.set('0,0,0', 'bright');
+  } else {
+    for (let x = 0; x < 2; x += 1) {
+      for (let z = 0; z < 2; z += 1) {
+        cells.set(`${x},0,${z}`, 'earth');
+        cells.set(`${x},1,${z}`, 'grass');
+      }
     }
   }
   const at = (x: number, y: number, z: number) => cells.has(`${x},${y},${z}`);
@@ -239,12 +257,43 @@ export function buildBlockShowcase(scene: Scene): BlockShowcase {
   geometry.setIndex(indices);
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
   material.toneMapped = false;
+  if (single) {
+    // A glow of its own, so a face turned from the sun stays clearly orange
+    // instead of going dark; the faces still differ enough to read as a cube.
+    material.emissive = new Color(COLOURS.bright);
+    material.emissiveIntensity = 0.3;
+  }
   // ---- The seven groups, in a row from smallest to largest ----
   // Each is the same eight blocks, scaled equally in every direction; the
   // character beside each is always 1.82 m. The gaps grow with the cubes,
   // so a big cube never crowds the group next to it.
   const groups: ShowcaseGroup[] = [];
   let cursor = 0;
+  if (single) {
+    const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
+    const cube = new Mesh(geometry, material);
+    cube.name = 'showcase-blocks';
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+    cube.scale.setScalar(blockSize);
+    // Centred on the middle of the world.
+    cube.position.set(-blockSize / 2, -blockSize / 2, -blockSize / 2);
+    root.add(cube);
+    scene.add(root);
+    const frame = {
+      centre: new Vector3(0, 0, 0),
+      extent: { width: blockSize * 1.2, height: blockSize * 1.2, depth: blockSize * 1.2 },
+    };
+    const group: ShowcaseGroup = {
+      multiplier: CHOSEN_MULTIPLIER,
+      name: `${CHOSEN_MULTIPLIER.toFixed(3)}×`,
+      blockSize,
+      characterAt: new Vector3(0, -50, 0),
+      cube,
+      ...frame,
+    };
+    return { root, groups: [group], baseline: group, characterAt: group.characterAt, ...frame, triangleCount: indices.length / 3 };
+  }
   for (const multiplier of MULTIPLIERS) {
     const blockSize = BLOCK_SIZE * multiplier;
     const side = blockSize * 2;

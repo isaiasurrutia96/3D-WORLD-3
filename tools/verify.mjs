@@ -1073,52 +1073,35 @@ const island = await (async () => {
     timeout: 60000,
   });
   await islandPage.waitForTimeout(1500);
-  // The block showcase: eight blocks, the character floating beside them.
+  // The block showcase: one block at the chosen size, on its own.
   const result = await islandPage.evaluate(async () => {
     const d = window.__letsgo.debug;
     const show = d.showcase;
-    const Box = d.player.object.position.constructor;
-    const before = d.player.position.toArray();
-    await new Promise((r) => setTimeout(r, 1500));
-    const after = d.player.position.toArray();
-    // His height and where he is, from his drawn body; the cube's box.
-    const box3 = (object) => {
-      const min = [Infinity, Infinity, Infinity];
-      const max = [-Infinity, -Infinity, -Infinity];
-      object.updateWorldMatrix(true, true);
-      object.traverse((o) => {
-        if (!o.isMesh) return;
-        o.geometry.computeBoundingBox();
-        const b = o.geometry.boundingBox;
-        for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) {
-          const p = new Box(x, y, z).applyMatrix4(o.matrixWorld);
-          min[0] = Math.min(min[0], p.x); min[1] = Math.min(min[1], p.y); min[2] = Math.min(min[2], p.z);
-          max[0] = Math.max(max[0], p.x); max[1] = Math.max(max[1], p.y); max[2] = Math.max(max[2], p.z);
-        }
-      });
-      return { min, max };
-    };
-    const body = box3(d.player.object);
-    const round = (v) => Math.round(v * 1000) / 1000;
-    const cube = box3(show.baseline.cube);
-    // Every group: its block size, that its cube is cubic, and the figure beside it.
-    const figures = [d.player.object, ...d.engine.scene.children.filter((c) => c.name.startsWith('figure beside'))].map(box3);
-    const groups = show.groups.map((g) => {
-      const c = box3(g.cube);
-      const sizes = c.max.map((v, i) => v - c.min[i]);
-      const fig = figures.find((f) => Math.abs((f.min[0] + f.max[0]) / 2 - g.characterAt.x) < 0.6);
-      return { name: g.name, multiplier: g.multiplier, block: g.blockSize, cubic: Math.max(...sizes) - Math.min(...sizes) < 0.01, figure: fig ? round(fig.max[1] - fig.min[1]) : null, gap: fig ? round(fig.min[0] - c.max[0]) : null };
-    });
+    const V = d.player.object.position.constructor;
+    const before = show.baseline.cube.getWorldPosition(new V()).toArray();
+    await new Promise((r) => setTimeout(r, 1000));
+    const after = show.baseline.cube.getWorldPosition(new V()).toArray();
+    const g = show.baseline;
+    const c = g.cube;
+    c.geometry.computeBoundingBox();
+    const b = c.geometry.boundingBox;
     const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).display !== 'none' && !el.hidden; });
+    const visibleMeshes = [];
+    d.engine.scene.traverseVisible((o) => { if (o.isMesh || o.isSprite) visibleMeshes.push(o.name || o.type); });
     return {
-      cubeSize: cube.max.map((v, i) => round(v - cube.min[i])),
-      bodyHeight: round(body.max[1] - body.min[1]),
-      gap: round(body.min[0] - cube.max[0]),
-      groups,
-      labels: show.root.children.filter((c) => c.isSprite).length,
-      stayedPut: before.every((v, i) => Math.abs(v - after[i]) < 1e-6),
-      state: d.player.stateName,
-      onScreen: { touch: shown('.touch'), menu: shown('.hud__menu'), focus: shown('.hud__focus'), stats: shown('.hud__stats') },
+      groups: show.groups.length,
+      multiplier: g.multiplier,
+      blockSize: g.blockSize,
+      // The grid cell the block is built on, scaled: its edge.
+      cellEdge: c.scale.x,
+      cubic: c.scale.x === c.scale.y && c.scale.y === c.scale.z,
+      // The drawn size, cushion and all, as a share of the edge.
+      drawn: [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z].map((v) => Math.round(v * c.scale.x * 1000) / 1000),
+      still: before.every((v, i) => Math.abs(v - after[i]) < 1e-9),
+      avatarVisible: d.player.object.visible,
+      labels: show.root.children.filter((o) => o.isSprite).length,
+      onScreen: { touch: shown('.touch'), menu: shown('.hud__menu'), focus: shown('.hud__focus'), stats: shown('.hud__stats'), sizes: shown('.showcase-sizes') },
+      visibleMeshes,
     };
   });
   await islandPage.screenshot({ path: `${SHOTS}showcase.png` });
@@ -1129,27 +1112,21 @@ const island = await (async () => {
 {
   const r = island;
   const phi = (1 + Math.sqrt(5)) / 2;
-  // The cube's outer box includes each face's cushion, 0.05 of a block
-  // either side; the block's own edge is the grid it is built on.
-  const block = Math.round((r.cubeSize[1] / 2.1) * 1000) / 1000;
-  if (Math.abs(1.82 / phi - block) > 0.03) problems.push(`showcase: a block is ${block}m, not 1.82/φ`);
-  if (Math.abs(r.cubeSize[0] - r.cubeSize[1]) > 0.05 || Math.abs(r.cubeSize[2] - r.cubeSize[1]) > 0.05) problems.push(`showcase: the blocks are not a cube — ${r.cubeSize}`);
-  if (!(r.gap > 0.1)) problems.push(`showcase: he is not beside the blocks, he overlaps them (gap ${r.gap}m)`);
-  if (!r.stayedPut) problems.push('showcase: he moved; he should float still');
+  const wanted = (1.82 / phi) * phi ** -4;
+  if (r.groups !== 1) problems.push(`showcase: ${r.groups} groups, not one block`);
+  if (Math.abs(r.multiplier - phi ** -4) > 1e-9 || Math.abs(r.blockSize - wanted) > 1e-9 || Math.abs(r.cellEdge - wanted) > 1e-9) {
+    problems.push(`showcase: the block is ${r.blockSize}m, not 0.146× (${wanted.toFixed(4)}m)`);
+  }
+  if (!r.cubic) problems.push('showcase: the block is not cubic');
+  if (!r.still) problems.push('showcase: the block moved');
+  if (r.avatarVisible) problems.push('showcase: the avatar is showing; it should be the block only');
+  if (r.labels !== 0) problems.push(`showcase: ${r.labels} labels showing`);
   if (Object.values(r.onScreen).some(Boolean)) problems.push(`showcase: controls or messages on screen — ${JSON.stringify(r.onScreen)}`);
-  const wanted = [phi ** -4, phi ** -3, phi ** -2, phi ** -1, 1, phi, phi ** 2, phi ** 3];
-  if (r.groups.length !== 8) problems.push(`showcase: ${r.groups.length} groups, not 8`);
-  r.groups.forEach((g, i) => {
-    if (Math.abs(g.multiplier - wanted[i]) > 1e-6 || Math.abs(g.block - (1.82 / phi) * wanted[i]) > 1e-6) problems.push(`showcase: group ${g.name} has the wrong size`);
-    if (!g.cubic) problems.push(`showcase: group ${g.name} is not cubic`);
-    if (g.figure === null || Math.abs(g.figure - r.bodyHeight) > 0.02) problems.push(`showcase: group ${g.name} has no identical figure beside it (${g.figure})`);
-    if (!(g.gap > 0.1)) problems.push(`showcase: the figure overlaps group ${g.name}`);
-  });
-  if (r.labels !== 8) problems.push(`showcase: ${r.labels} labels, not 8`);
+  const others = r.visibleMeshes.filter((n) => n !== 'showcase-blocks' && n !== 'sky');
+  if (others.length) problems.push(`showcase: other things are visible — ${others.join(', ')}`);
   island.summary =
-    ` showcase       ${r.groups.length} groups: ${r.groups.map((g) => `${g.name} ${g.block.toFixed(3)}m`).join(', ')} · ${r.labels} labels · figures ${r.groups.map((g) => g.figure).join('/')}m\n` +
-    `                baseline cube ${r.cubeSize.join(' × ')}m (block ${block}m, his height ÷ block = ${(1.82 / block).toFixed(3)}) · ` +
-    `his body ${r.bodyHeight}m tall, ${r.gap}m clear of the cube · still: ${r.stayedPut} (${r.state}) · ` +
+    ` showcase       one block, ${r.multiplier.toFixed(3)}× = ${(r.blockSize * 100).toFixed(1)} cm edge (drawn ${r.drawn.join(' × ')} m with its cushion), cubic: ${r.cubic} · ` +
+    `still: ${r.still} · avatar hidden: ${!r.avatarVisible} · visible: ${[...new Set(r.visibleMeshes)].join(', ')} · ` +
     `on screen: ${Object.entries(r.onScreen).filter(([, v]) => v).map(([k]) => k).join(', ') || 'nothing but the build stamp'}`;
 }
 

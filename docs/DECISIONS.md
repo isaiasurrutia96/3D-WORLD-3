@@ -407,6 +407,15 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, sixth entry. The block size is chosen: 0.146×.** The
+owner chose the smallest size, 0.146× the 1.125 m baseline: a block edge of
+16.4 cm (1.82 / φ⁵ m). The preview now shows one block of that size on its
+own, with no avatar and no label, in a bright orange that stays clearly
+visible on every face, lit or shaded (a glow of its own lifts the shaded
+faces). It opens on a three-quarter view through a narrower lens so it reads
+as a true cube; drag and pinch look round it. The eight-size comparison is
+still in the code (`buildBlockShowcase(scene)` without `{ single: true }`).
+
 **14 November 2026, fifth entry. An eighth, smaller size; one-tap buttons.**
 Asked for by the owner: 0.146× (blocks 16.4 cm, the next golden-ratio step
 down) added to the comparison row, with its own figure and label. The size

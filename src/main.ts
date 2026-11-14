@@ -117,8 +117,18 @@ class Game {
       // and the circuit (racing/SkyCircuit.ts) are kept in the code and not
       // put in the scene; to bring them back, build them here as before with
       // buildVoxelIsland and buildSkyCircuit.
-      const showcase = buildBlockShowcase(this.engine.scene);
+      // One block at the chosen size (0.146×), on its own. The comparison row
+      // of eight sizes is buildBlockShowcase(scene) without { single: true }.
+      const showcase = buildBlockShowcase(this.engine.scene, { single: true });
       this.showcase = showcase;
+      // A three-quarter view from a little above, so the top and two sides
+      // all show and it reads as a cube.
+      this.showcaseYaw = 0.62;
+      this.showcasePitch = 0.5;
+      // A narrower lens from further off: up close a wide one bends a small
+      // block so its bottom looks narrower than its top.
+      this.engine.camera.fov = 28;
+      this.engine.camera.updateProjectionMatrix();
       this.engine.setFogScale(0);
       this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
       this.engine.sky.setCloudsVisible(false);
@@ -163,7 +173,7 @@ class Game {
     if (this.showcase) {
       document.body.classList.add('is-showcase');
       this.attachShowcaseLook(this.engine.renderer.domElement);
-      this.attachShowcaseSizes(container as HTMLElement);
+      if (this.showcase.groups.length > 1) this.attachShowcaseSizes(container as HTMLElement);
     }
     this.touch = wantsTouchControls() && !this.showcase;
     if (this.touch) {
@@ -492,6 +502,8 @@ class Game {
       // He stands still where he floats; the camera frames him and the
       // blocks, and dragging the view turns it round them.
       this.player.poseStanding(delta);
+      // With one block on its own there is no figure to compare it with.
+      if (this.showcase.groups.length === 1) this.player.object.visible = false;
       // An identical figure beside every other group: copies of him, made
       // once he has taken his standing pose, so all seven stand the same.
       if (!this.showcaseCopies && this.engine.clock.elapsedTime > 0.25) {

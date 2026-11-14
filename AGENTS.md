@@ -113,3 +113,8 @@ new work should use this repository as the shared source.
   (`src/world/BlockShowcase.ts`): a 2×2×2 cube of grass and earth blocks
   (edge 1.82 / φ m) with the clay avatar floating still beside it. The block
   island, bridge and circuit modules remain in `src/` but are not built.
+
+- **14 November 2026 — block size chosen.** The owner chose 0.146× the
+  1.125 m baseline: a 16.4 cm block. The root preview now shows that single
+  block alone (bright orange, no avatar). The comparison row remains in
+  `src/world/BlockShowcase.ts`.
