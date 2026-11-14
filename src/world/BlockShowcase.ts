@@ -322,7 +322,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // no gap through the middle from any side.
         const reach = 1 - 0.1 * 0.92;
         // Two blocks wide and deep, one high.
-        const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
+        const core: Mesh = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
         // Black, with its own unlit material, so the little gap where the four
         // corners meet looks like a deep dark crack.
         core.material = new MeshBasicMaterial({ color: '#000000' });
