@@ -12,7 +12,23 @@ body[data-capture] header,body[data-capture] nav,body[data-capture] #camera-hint
 body[data-capture] .avatar-touch{visibility:hidden}
 /* Floating left stick: only its touch zone is fixed; the visible base follows
    the initial contact and disappears on every release/cancellation path. */
-.avatar-touch{z-index:10}header,nav{z-index:20}#camera-hint{z-index:20}.move-pad{inset:0 auto 0 0;width:50%;height:100%;border:0;border-radius:0;background:none;box-shadow:none;bottom:0;left:0}.move-pad.is-down{background:none}.move-pad__base{position:absolute;width:122px;height:122px;transform:translate(-50%,-50%);border:2px solid #ffffffa6;border-radius:50%;background:#12382f45;box-shadow:inset 0 0 0 21px #ffffff0f;pointer-events:none}.move-pad__base .move-pad__knob{left:36px;top:36px}.avatar-actions button[data-action="driveBrake"]{width:58px;height:58px;font-size:10px}
+.avatar-touch{z-index:10}header,nav{z-index:20}#camera-hint{z-index:20}.move-pad{inset:0 auto 0 0;width:50%;height:100%;border:0;border-radius:0;background:none;box-shadow:none;bottom:0;left:0}.move-pad.is-down{background:none}.move-pad__base{position:absolute;width:122px;height:122px;transform:translate(-50%,-50%);border:2px solid #ffffffa6;border-radius:50%;background:#12382f45;box-shadow:inset 0 0 0 21px #ffffff0f;pointer-events:none}.move-pad__base .move-pad__knob{left:36px;top:36px}
 .kart-panel{position:absolute;right:max(25px,env(safe-area-inset-right));top:max(84px,calc(env(safe-area-inset-top) + 70px));z-index:20;display:flex;align-items:center;gap:9px;background:#ffffffce;border:1px solid #ffffffab;border-radius:15px;padding:6px;color:#29543e;font-size:11px}.kart-panel span{padding:0 7px;max-width:145px}.kart-panel button{background:#d4edc5}
 @media(max-width:600px) and (orientation:portrait){.kart-panel{top:max(178px,calc(env(safe-area-inset-top) + 165px));right:18px;font-size:10px}.kart-panel button{padding:8px 11px;min-height:38px}}
 @media(orientation:landscape) and (max-height:550px){.kart-panel{top:59px;right:20px;padding:4px}.kart-panel button{min-height:32px;font-size:10px;padding:6px 10px}}
+
+/* Walking keeps the floating pad; driving uses independent, familiar pedals
+   and arrow buttons. Only the buttons capture touches in kart mode. */
+.kart-touch{position:absolute;inset:0;pointer-events:none;--kart-left:max(24px,calc(env(safe-area-inset-left) + 16px));--kart-right:max(24px,calc(env(safe-area-inset-right) + 16px));--kart-bottom:max(44px,calc(env(safe-area-inset-bottom) + 20px))}
+.kart-touch button{pointer-events:auto;touch-action:none;-webkit-touch-callout:none;border:2px solid #ffffffba;background:#12382fa6;color:white;display:flex;align-items:center;justify-content:center}
+.kart-touch__steering{position:absolute;left:var(--kart-left);bottom:var(--kart-bottom);display:flex;gap:10px}
+.kart-touch__steering button{width:84px;height:84px;padding:8px;border-radius:22px;flex-direction:column;gap:3px}
+.kart-touch__steering span{font-size:30px;line-height:1}
+.kart-touch small{font-size:10px}
+.kart-touch__brake{position:absolute;left:calc(var(--kart-left) + 18px);bottom:calc(var(--kart-bottom) + 108px);width:112px;min-height:44px;padding:6px;border-radius:16px;gap:5px;font-size:10px}
+.kart-touch__brake span{font-size:20px}
+.kart-touch__gas{position:absolute;right:var(--kart-right);bottom:var(--kart-bottom);width:112px;height:144px;border-radius:30px;flex-direction:column;gap:10px;font-size:18px}
+.kart-touch__gas small{font-size:9px;font-weight:400}
+.kart-touch button.is-down{color:#234b36;background:#d3ef9de8;border-color:#efffcf}
+@media(orientation:landscape){.kart-touch{--kart-left:max(72px,9vw,calc(env(safe-area-inset-left) + 24px));--kart-right:max(72px,9vw,calc(env(safe-area-inset-right) + 24px));--kart-bottom:max(40px,calc(env(safe-area-inset-bottom) + 20px))}.kart-touch__gas{width:108px;height:140px}}
+@media(max-width:360px) and (orientation:portrait){.kart-touch{--kart-left:16px;--kart-right:16px}.kart-touch__steering button{width:76px}.kart-touch__gas{width:100px}}

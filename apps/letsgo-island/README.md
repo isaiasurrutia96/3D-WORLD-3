@@ -24,8 +24,10 @@ Angled and Overhead retain the reference presets and pause movement while
 inspecting the island. R restores Angled in those inspection views.
 Cross the east bridge to the parked kart. R/Drive kart gets in; R/Exit kart
 gets out when stopped. E/Up accelerates, D/Down brakes and reverses, and
-S/F or Left/Right steers. Phone buttons become Gas/Brake; the floating stick
-steers. Reset returns both player and kart home. Track shows the full course.
+S/F or Left/Right steers. Phones use separate Left, Right, Gas and
+Brake/Reverse buttons in the kart. The floating stick and Jump/Crouch buttons
+are for walking only and return when you exit. Reset returns both player and
+kart home. Track shows the full course.
 Graphics offers Low / Medium / High,
 remembered under letsgo.island.graphics.v1. Low remains the default and a
 Canvas 2D compatibility view works when WebGL cannot start. Medium/High need
