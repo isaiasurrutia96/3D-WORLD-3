@@ -291,18 +291,22 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       faceColours.set([tint.r * l, tint.g * l, tint.b * l], i * 3);
     }
     box.setAttribute('color', new BufferAttribute(faceColours, 3));
-    const cube = new Mesh(box, material);
-    cube.name = 'showcase-blocks';
-    cube.castShadow = true;
-    cube.receiveShadow = true;
-    cube.scale.setScalar(blockSize);
-    // Centred on the middle of the world.
-    cube.position.set(0, 0, 0);
-    root.add(cube);
+    // Four blocks side by side in a flat two-by-two square, touching.
+    let cube = new Mesh(box, material);
+    for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+      const block = new Mesh(box, material);
+      block.name = 'showcase-blocks';
+      block.castShadow = true;
+      block.receiveShadow = true;
+      block.scale.setScalar(blockSize);
+      block.position.set(x * blockSize, 0, z * blockSize);
+      root.add(block);
+      cube = block;
+    }
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 1.1, height: blockSize * 1.1, depth: blockSize * 1.1 },
+      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 2.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
