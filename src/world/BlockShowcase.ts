@@ -20,6 +20,7 @@
  */
 
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -285,7 +286,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
     let cube: Mesh;
-    if (options.allRounded) {
+    {
       // Every block rounded on all its own edges, over a tenth of the edge,
       // so a groove shows wherever two blocks touch.
       const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
@@ -314,18 +315,24 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         root.add(block);
         cube = block;
       }
-    } else {
-      // Sealed: one surface for all eight, built cell by cell above, rounded
-      // only where an edge or a corner faces the open air. Where two blocks
-      // touch, their faces meet flush, so there is no gap anywhere, even at
-      // the very middle where all eight corners meet.
-      cube = new Mesh(geometry, material);
-      cube.name = 'showcase-blocks';
-      cube.castShadow = true;
-      cube.receiveShadow = true;
-      cube.scale.setScalar(blockSize);
-      cube.position.set(-blockSize, -blockSize, -blockSize);
-      root.add(cube);
+      if (!options.allRounded) {
+        // Sealed inside: a solid core fills the space between the blocks,
+        // reaching to just under the bottom of the grooves. Each block still
+        // shows its rounded edges and corners wherever they can be seen,
+        // but the grooves between blocks go only that far in, so there is
+        // no gap through the middle from any side.
+        const reach = 1 - 0.1 * 0.92;
+        const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach, 2 * reach), material);
+        const coreColours = new Float32Array(core.geometry.attributes.position.count * 3);
+        const tint = new Color(COLOURS.bright).multiplyScalar(0.8);
+        for (let i = 0; i < core.geometry.attributes.position.count; i += 1) coreColours.set([tint.r, tint.g, tint.b], i * 3);
+        core.geometry.setAttribute('color', new BufferAttribute(coreColours, 3));
+        core.name = 'showcase-blocks';
+        core.scale.setScalar(blockSize);
+        core.castShadow = true;
+        core.receiveShadow = true;
+        root.add(core);
+      }
     }
     scene.add(root);
     const frame = {
