@@ -80,6 +80,8 @@ class Game {
   /** Which way the showcase camera looks from, round the blocks. */
   private showcaseYaw = 0.12;
   private showcasePitch = 0.22;
+  /** How far out the showcase camera is: 1 just fits everything. */
+  private showcaseZoom = 1;
   /**
    * `?view=overhead` or `?view=angled` holds the camera where one of the
    * two reference pictures was taken from, to compare the island with it.
@@ -154,7 +156,10 @@ class Game {
     // use to anyone, and there is no pointer to lock.
     // The showcase has nothing to steer: no touch controls, no corner menu,
     // no keyboard message.
-    if (this.showcase) document.body.classList.add('is-showcase');
+    if (this.showcase) {
+      document.body.classList.add('is-showcase');
+      this.attachShowcaseLook(this.engine.renderer.domElement);
+    }
     this.touch = wantsTouchControls() && !this.showcase;
     if (this.touch) {
       document.documentElement.classList.add('is-touch');
@@ -326,6 +331,71 @@ class Game {
   }
 
   /**
+   * Looking round the showcase: drag with a finger or the mouse to turn the
+   * camera round the blocks and tilt it; pinch or scroll to come closer or
+   * go further out. Nothing else on the page moves.
+   */
+  private attachShowcaseLook(element: HTMLElement): void {
+    element.style.touchAction = 'none';
+    element.style.cursor = 'grab';
+    this.releaseGestures = suppressPageGestures();
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const turn = (dx: number, dy: number) => {
+      // A drag across the whole width of the screen turns half way round.
+      const perPixel = Math.PI / Math.max(320, Math.min(window.innerWidth, 1400));
+      this.showcaseYaw -= dx * perPixel;
+      this.showcasePitch = Math.max(-0.4, Math.min(1.45, this.showcasePitch + dy * perPixel));
+    };
+    const zoomBy = (factor: number) => {
+      // Close enough to see the creases, far enough to see the pair small.
+      this.showcaseZoom = Math.max(0.62, Math.min(2.4, this.showcaseZoom * factor));
+    };
+    const spread = () => {
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    element.addEventListener('pointerdown', (event) => {
+      element.setPointerCapture?.(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2) pinch = spread();
+      element.style.cursor = 'grabbing';
+      event.preventDefault();
+    });
+    element.addEventListener('pointermove', (event) => {
+      const last = pointers.get(event.pointerId);
+      if (!last) return;
+      const now = { x: event.clientX, y: event.clientY };
+      if (pointers.size === 1) {
+        turn(now.x - last.x, now.y - last.y);
+      }
+      pointers.set(event.pointerId, now);
+      if (pointers.size === 2) {
+        const d = spread();
+        if (pinch > 0 && d > 0) zoomBy(pinch / d);
+        pinch = d;
+      }
+      event.preventDefault();
+    });
+    const up = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinch = 0;
+      if (pointers.size === 0) element.style.cursor = 'grab';
+    };
+    element.addEventListener('pointerup', up);
+    element.addEventListener('pointercancel', up);
+    element.addEventListener('lostpointercapture', up);
+    element.addEventListener(
+      'wheel',
+      (event) => {
+        zoomBy(Math.exp(event.deltaY * 0.0012));
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+  }
+
+  /**
    * Points the camera at the showcase from its current angle, far enough
    * off that the blocks and the character both fit on any screen shape.
    */
@@ -378,7 +448,7 @@ class Game {
       this.player.poseStanding(delta);
       this.showcaseYaw -= this.input.look.x;
       this.showcasePitch = Math.max(-0.4, Math.min(1.35, this.showcasePitch + this.input.look.y));
-      this.frameShowcase();
+      this.frameShowcase(this.showcaseZoom);
     } else {
       this.updateMovement(delta);
       this.cameraRig.update(delta, this.player);
@@ -472,6 +542,7 @@ class Game {
       cameraRig: this.cameraRig,
       kart: this.kartMode,
       showcase: this.showcase,
+      showcaseView: () => ({ yaw: this.showcaseYaw, pitch: this.showcasePitch, zoom: this.showcaseZoom }),
       spawn: this.spawn,
       touch: this.touch,
       touchControls: this.touchControls,
@@ -3747,6 +3818,7 @@ class Game {
       viewShowcase: (yaw: number, pitch: number, zoom = 1): void => {
         this.showcaseYaw = yaw;
         this.showcasePitch = pitch;
+        this.showcaseZoom = zoom;
         this.frameShowcase(zoom);
         this.engine.focusShadowsOn(this.showcase?.centre ?? this.player.position);
         this.engine.render(1 / 60);

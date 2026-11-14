@@ -407,6 +407,13 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, third entry. Looking round the blocks.** Asked for by
+the owner: from the link, turn the camera round the blocks and the
+character. One finger or the mouse drags the view round and up and down (a
+drag across the screen's width is half a turn); pinching or scrolling comes
+closer or goes further out, within limits. He stays still and the page
+does not scroll.
+
 **14 November 2026, second entry. Eight blocks for size comparison.** Asked
 for by the owner: the world erased; eight blocks, four grass and four earth,
 stacked as a 2×2×2 cube (grass on top), with the character floating beside
