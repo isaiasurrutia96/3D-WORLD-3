@@ -275,8 +275,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     // A plain cube: flat faces and sharp edges, nothing rounded or raised.
     // Each face is shaded a little differently by which way it points, so
     // the edges show; the glow keeps every face clearly orange.
-    // Very slightly rounded: corners and edges curve over 6% of the edge.
-    const box = new RoundedBoxGeometry(1, 1, 1, 4, 0.06);
+    // Slightly rounded: corners and edges curve over 10% of the edge.
+    const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
     const tint = new Color(COLOURS.bright);
     const faceColours = new Float32Array(box.attributes.position.count * 3);
     const normal = box.attributes.normal;
