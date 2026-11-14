@@ -20,7 +20,6 @@
  */
 
 import {
-  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -34,6 +33,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /** The golden ratio. */
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -275,13 +275,20 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     // A plain cube: flat faces and sharp edges, nothing rounded or raised.
     // Each face is shaded a little differently by which way it points, so
     // the edges show; the glow keeps every face clearly orange.
-    const box = new BoxGeometry(1, 1, 1).toNonIndexed();
-    const FACE_LIGHT = [0.86, 0.93, 1, 0.6, 0.88, 0.8];
+    // Very slightly rounded: corners and edges curve over 6% of the edge.
+    const box = new RoundedBoxGeometry(1, 1, 1, 4, 0.06);
     const tint = new Color(COLOURS.bright);
     const faceColours = new Float32Array(box.attributes.position.count * 3);
+    const normal = box.attributes.normal;
     for (let i = 0; i < box.attributes.position.count; i += 1) {
-      const light = FACE_LIGHT[Math.floor(i / 6)];
-      faceColours.set([tint.r * light, tint.g * light, tint.b * light], i * 3);
+      // Shade by which way the surface faces, blending round the curves.
+      const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
+      const light =
+        Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
+        Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+      const sum = Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1;
+      const l = light / sum;
+      faceColours.set([tint.r * l, tint.g * l, tint.b * l], i * 3);
     }
     box.setAttribute('color', new BufferAttribute(faceColours, 3));
     const cube = new Mesh(box, material);
