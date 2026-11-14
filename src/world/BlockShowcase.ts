@@ -345,6 +345,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // With two blocks there is no centre where four corners meet.
         void y;
         void ARM;
+        void LINE;
         const strips: Array<[number, number, number, number, number, number]> = [];
         for (const [x, y, z, w, hh, d] of strips) {
           const strip = new Mesh(new BoxGeometry(w, hh, d), lineMaterial);
