@@ -20,6 +20,7 @@
  */
 
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -271,18 +272,30 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    const cube = new Mesh(geometry, material);
+    // A plain cube: flat faces and sharp edges, nothing rounded or raised.
+    // Each face is shaded a little differently by which way it points, so
+    // the edges show; the glow keeps every face clearly orange.
+    const box = new BoxGeometry(1, 1, 1).toNonIndexed();
+    const FACE_LIGHT = [0.86, 0.93, 1, 0.6, 0.88, 0.8];
+    const tint = new Color(COLOURS.bright);
+    const faceColours = new Float32Array(box.attributes.position.count * 3);
+    for (let i = 0; i < box.attributes.position.count; i += 1) {
+      const light = FACE_LIGHT[Math.floor(i / 6)];
+      faceColours.set([tint.r * light, tint.g * light, tint.b * light], i * 3);
+    }
+    box.setAttribute('color', new BufferAttribute(faceColours, 3));
+    const cube = new Mesh(box, material);
     cube.name = 'showcase-blocks';
     cube.castShadow = true;
     cube.receiveShadow = true;
     cube.scale.setScalar(blockSize);
     // Centred on the middle of the world.
-    cube.position.set(-blockSize / 2, -blockSize / 2, -blockSize / 2);
+    cube.position.set(0, 0, 0);
     root.add(cube);
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 1.2, height: blockSize * 1.2, depth: blockSize * 1.2 },
+      extent: { width: blockSize * 1.1, height: blockSize * 1.1, depth: blockSize * 1.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
@@ -292,7 +305,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       cube,
       ...frame,
     };
-    return { root, groups: [group], baseline: group, characterAt: group.characterAt, ...frame, triangleCount: indices.length / 3 };
+    return { root, groups: [group], baseline: group, characterAt: group.characterAt, ...frame, triangleCount: 12 };
   }
   for (const multiplier of MULTIPLIERS) {
     const blockSize = BLOCK_SIZE * multiplier;

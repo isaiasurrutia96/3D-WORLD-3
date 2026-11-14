@@ -407,6 +407,12 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, seventh entry. A plain cube.** Asked for by the owner
+("just make the cube"): the single 16.4 cm block is now a plain cube, flat
+faces and sharp edges, with no rounding or cushion. Still bright orange with
+its glow, each face a slightly different shade so the edges read; still on
+its own.
+
 **14 November 2026, sixth entry. The block size is chosen: 0.146×.** The
 owner chose the smallest size, 0.146× the 1.125 m baseline: a block edge of
 16.4 cm (1.82 / φ⁵ m). The preview now shows one block of that size on its
