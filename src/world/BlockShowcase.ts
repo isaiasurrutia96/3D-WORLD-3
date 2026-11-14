@@ -160,11 +160,9 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
   if (single) {
-    // Eight blocks, two by two by two.
+    // Four blocks, two by two, side by side.
     for (let x = 0; x < 2; x += 1) {
-      for (let y = 0; y < 2; y += 1) {
-        for (let z = 0; z < 2; z += 1) cells.set(`${x},${y},${z}`, 'bright');
-      }
+      for (let z = 0; z < 2; z += 1) cells.set(`${x},0,${z}`, 'bright');
     }
   } else {
     for (let x = 0; x < 2; x += 1) {
@@ -311,7 +309,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         block.castShadow = true;
         block.receiveShadow = true;
         block.scale.setScalar(blockSize);
-        block.position.set((x - 0.5) * blockSize, (y - 0.5) * blockSize, (z - 0.5) * blockSize);
+        block.position.set((x - 0.5) * blockSize, y * blockSize, (z - 0.5) * blockSize);
         root.add(block);
         cube = block;
       }
@@ -322,7 +320,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // but the grooves between blocks go only that far in, so there is
         // no gap through the middle from any side.
         const reach = 1 - 0.1 * 0.92;
-        const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach, 2 * reach), material);
+        // Two blocks wide and deep, one high.
+        const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
         const coreColours = new Float32Array(core.geometry.attributes.position.count * 3);
         const tint = new Color(COLOURS.bright).multiplyScalar(0.8);
         for (let i = 0; i < core.geometry.attributes.position.count; i += 1) coreColours.set([tint.r, tint.g, tint.b], i * 3);
@@ -337,7 +336,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 2.1, height: blockSize * 2.1, depth: blockSize * 2.1 },
+      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 2.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
