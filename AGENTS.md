@@ -36,9 +36,11 @@ the worlds**. The projects belong in this repository, with separate runtimes.
   horizontal footprint and full original vertical clearance; `island-kart.js`
   reuses the existing vehicle model, physics and wheel animation. No racing
   startup, slab, items, NPCs, timing or ghost storage is brought into this app.
-  Preserve the standalone game and saved records. The touch stick now spawns
-  at each initial contact anywhere on the left half; menus stay above its
-  touch zone. Cancel, blur and page-hide must always release held controls.
+  Preserve the standalone game and saved records. The walking-only touch
+  stick spawns at each initial contact anywhere on the left half; menus stay
+  above its touch zone. In the kart, hide the stick and use separate Left,
+  Right, Gas and Brake/Reverse buttons. Never reuse the walking stick for kart
+  steering. Cancel, blur and page-hide must always release held controls.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's
   startup code with the other unless the user explicitly requests that work.

@@ -123,7 +123,7 @@ function followAvatar(delta){
  controls.update();syncFollowCamera();
 }
 const previousTarget=new THREE.Vector3();
-const actionNames=['jump','crouch','dive','sideFlip','climbDown','backflip','sideJump','diveJump','grab','driveGas','driveBrake'];
+const actionNames=['jump','crouch','dive','sideFlip','climbDown','backflip','sideJump','diveJump','grab','driveGas','driveBrake','driveLeft','driveRight'];
 function updateKartUI(){
  touchControls?.setDriving(kart.driving);
  const panel=document.getElementById('kart-panel'),button=document.getElementById('kart-action'),status=document.getElementById('kart-status');
@@ -183,7 +183,7 @@ function setView(name){
  controls.update();canvas.dataset.view=name;document.body.dataset.view=name;touchControls?.setVisible(name==='walk');
  for(const [id,target]of [['explore','walk'],['overview','angled'],['top-view','overhead'],['track-view','track']])document.getElementById(id).setAttribute('aria-pressed',String(name===target));
  document.getElementById('reset-avatar').hidden=name!=='walk';
- document.getElementById('camera-hint').textContent=name==='walk'?(kart.driving?(touch?'Touch left to steer · Gas / Brake · Stop to exit':'E / Up: gas · D / Down: brake/reverse · S/F or arrows: steer · R: exit · Backspace: reset'):(touch?'Touch left to move · Jump / Crouch · Drag right to look':'E/D/S/F or arrows: move · Space: jump · Shift: walk · C: crouch · R: kart · Backspace: reset')):
+ document.getElementById('camera-hint').textContent=name==='walk'?(kart.driving?(touch?'Left / Right: steer · Gas / Brake–Reverse · Stop to exit':'E / Up: gas · D / Down: brake/reverse · S/F or arrows: steer · R: exit · Backspace: reset'):(touch?'Touch left to move · Jump / Crouch · Drag right to look':'E/D/S/F or arrows: move · Space: jump · Shift: walk · C: crouch · R: kart · Backspace: reset')):
   (software?'Compatibility view · ':'')+'Drag to orbit · '+(touch?'Pinch':'Scroll')+' to zoom · R: angled view';
  updateKartUI();resize();requestDraw();if(name==='walk')startLoop();
 }

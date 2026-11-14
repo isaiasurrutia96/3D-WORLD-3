@@ -47,7 +47,9 @@ export function createIslandKart(link,avatar=null){
   update(delta,input,avatar){
    if(!driving)return;
    const back=input.move.y>.18||input.isDown('driveBrake'),forward=input.move.y<-.18||input.isDown('driveGas');
-   const drive={throttle:back?-1:forward?1:0,brake:back&&state.speed>.4,steer:Math.abs(input.move.x)>.08?input.move.x:0};
+   const left=input.isDown('driveLeft'),right=input.isDown('driveRight');
+   const steer=left||right?Number(right)-Number(left):Math.abs(input.move.x)>.08?input.move.x:0;
+   const drive={throttle:back?-1:forward?1:0,brake:back&&state.speed>.4,steer};
    accumulator+=Math.min(.1,delta);
    while(accumulator>=STEP){previous={...state};stepVehicle(state,drive,STEP,link.physics);accumulator-=STEP;}
    if(state.y<-35){api.reset(avatar);return;}
