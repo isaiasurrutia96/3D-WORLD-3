@@ -323,6 +323,9 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         const reach = 1 - 0.1 * 0.92;
         // Two blocks wide and deep, one high.
         const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
+        // Black, with its own unlit material, so the little gap where the four
+        // corners meet looks like a deep dark crack.
+        core.material = new MeshBasicMaterial({ color: '#000000' });
         const coreColours = new Float32Array(core.geometry.attributes.position.count * 3);
         const tint = new Color(COLOURS.bright);
         for (let i = 0; i < core.geometry.attributes.position.count; i += 1) coreColours.set([tint.r, tint.g, tint.b], i * 3);
