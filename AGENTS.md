@@ -98,3 +98,10 @@ new work should use this repository as the shared source.
   integration (`src/racing/`) are kept in the code but no longer built into
   the scene; `tools/racing-routes.ts` is not run by `tools/verify.mjs` while
   they are out.
+
+- **14 November 2026 — one circuit beside the block island.** At the owner's
+  request the Original Circuit floats east of the root block island, joined
+  to it by a plank bridge built in `src/world/VoxelIsland.ts`. It is placed
+  by `src/racing/SkyCircuit.ts`, which imports the racing app's own
+  `createTrack()` and only moves it; the racing app is unchanged. The kart
+  is not yet in the root scene.

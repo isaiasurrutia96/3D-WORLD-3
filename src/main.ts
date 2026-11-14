@@ -25,6 +25,7 @@ import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
+import { buildSkyCircuit, type SkyCircuit } from './racing/SkyCircuit.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -71,6 +72,8 @@ class Game {
   private kartMode: KartMode | null = null;
   /** The block island, when it is the world. */
   private voxel: VoxelIslandWorld | null = null;
+  /** The race circuit beside the island, reached by its bridge. */
+  private circuit: SkyCircuit | null = null;
   /**
    * `?view=overhead` or `?view=angled` holds the camera where one of the
    * two reference pictures was taken from, to compare the island with it.
@@ -106,6 +109,10 @@ class Game {
       // Clear air: the island floats in open sky, with nothing to haze.
       this.engine.setFogScale(0);
       this.voxel = island;
+      // The Original Circuit, floating beside the island at the end of its
+      // bridge.
+      this.circuit = buildSkyCircuit(this.engine.scene, this.collision, island.circuitAnchor);
+      island.triangleCount += this.circuit.triangleCount;
       // Lit and coloured the way the reference pictures are.
       this.engine.setSunDirection(island.sunDirection);
       this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
@@ -744,6 +751,9 @@ class Game {
           for (let x = box.minX - 1.6; x <= box.maxX + 1.6; x += 0.45) {
             for (let z = box.minZ - 1.6; z <= box.maxZ + 1.6; z += 0.45) {
               if (island.topAt(x, z) !== null) continue;
+              // The bridge to the circuit is ground past the edge on purpose.
+              const b = island.bridge;
+              if (x > b.minX - 0.6 && x < b.maxX + 0.6 && z > b.minZ - 0.6 && z < b.maxZ + 0.6) continue;
               // Clear of the edge by more than his own width.
               if (
                 island.topAt(x + 0.3, z) !== null ||
@@ -813,6 +823,35 @@ class Game {
           const floor = round(player.position.y);
           const out = walkTo(m.besidePool.x, m.besidePool.z, 8, 0.9);
           results.pool = { into: into.arrived, floor, out: out.arrived && player.position.y > -0.1 };
+        }
+
+        // Across the bridge and onto the circuit: from the lawn at the
+        // bridge's foot, along the deck, over the circuit's ramp and onto the
+        // middle of its road.
+        if (this.circuit) {
+          const b = island.bridge;
+          const mid = (b.minZ + b.maxZ) / 2;
+          put(b.minX - 1.5, mid, 0);
+          let lowest = player.position.y;
+          const legs = [
+            { x: b.maxX - 0.5, z: mid },
+            { x: this.circuit.roadPoint.x, z: mid },
+            { x: this.circuit.roadPoint.x, z: this.circuit.roadPoint.z },
+          ];
+          let arrived = true;
+          for (const leg of legs) {
+            const r = walkTo(leg.x, leg.z, 25);
+            if (!r.arrived) arrived = false;
+            lowest = Math.min(lowest, player.position.y);
+          }
+          for (let i = 0; i < frames(0.5); i += 1) step();
+          results.bridge = {
+            arrived,
+            lowest: round(lowest),
+            endedAt: `${round(player.position.x, 1)},${round(player.position.y, 2)},${round(player.position.z, 1)} ${player.stateName}`,
+            onGround: player.onGround,
+            y: round(player.position.y),
+          };
         }
 
         // Off the edge at eight places round the island: he falls, and is put
