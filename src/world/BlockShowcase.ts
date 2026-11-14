@@ -324,7 +324,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // Two blocks wide and deep, one high.
         const core = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach), material);
         const coreColours = new Float32Array(core.geometry.attributes.position.count * 3);
-        const tint = new Color(COLOURS.bright).multiplyScalar(0.8);
+        const tint = new Color(COLOURS.bright);
         for (let i = 0; i < core.geometry.attributes.position.count; i += 1) coreColours.set([tint.r, tint.g, tint.b], i * 3);
         core.geometry.setAttribute('color', new BufferAttribute(coreColours, 3));
         core.name = 'showcase-blocks';
@@ -336,7 +336,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         // top, the same down each side and underneath — so the middle reads
         // as four blocks meeting, not one solid patch.
         const LINE = 0.014;
-        const lineMaterial = new MeshBasicMaterial({ color: '#4a2206' });
+        const lineMaterial = new MeshBasicMaterial({ color: '#e0600a' });
         lineMaterial.toneMapped = false;
         // The groove between two rounded blocks is a V, LINE wide this far
         // below the surface (the edges are rounded over 0.1 of a block); the
