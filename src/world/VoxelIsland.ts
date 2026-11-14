@@ -190,6 +190,15 @@ const ROCKS: Array<Array<[number, number, number]>> = [
 /** Where the figure in the pictures stands: the game starts here. */
 const START = { c: 15, r: 62 };
 
+/**
+ * The bridge to the race circuit: a deck of planks off the east edge, from
+ * the first column past the island for LENGTH blocks, across rows FROM to
+ * TO, with a low rail along each side. Its far end is where the circuit's
+ * own entry ramp begins. The rows are clear of the tree and the rock pile
+ * on that side.
+ */
+const BRIDGE = { firstCol: 66, length: 48, from: 35, to: 45 };
+
 // ---- Colours, sampled from the pictures ----------------------------------------
 
 type Kind =
@@ -205,7 +214,8 @@ type Kind =
   | 'bushLow'
   | 'berry'
   | 'rock'
-  | 'cloud';
+  | 'cloud'
+  | 'plank';
 
 const COLOURS: Record<Kind, string> = {
   grass: '#a2dc10',
@@ -221,6 +231,7 @@ const COLOURS: Record<Kind, string> = {
   berry: '#f4622a',
   rock: '#d8ccd4',
   cloud: '#ffffff',
+  plank: '#c98f55',
 };
 
 // ---- Cubes -----------------------------------------------------------------
@@ -577,6 +588,10 @@ export interface VoxelIslandWorld {
   marks: Record<string, { x: number; z: number }>;
   /** Places near the edge and the way out over it from each, for tests. */
   edgeRuns: Array<{ x: number; z: number; dx: number; dz: number }>;
+  /** The bridge to the circuit: its deck's outline in metres, and its top. */
+  bridge: { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
+  /** Where the far end of the bridge meets the circuit's entry ramp. */
+  circuitAnchor: { x: number; z: number };
   /** The box the island's top fits in, in metres. */
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   /** The two reference views: where to look from, at what, and how wide. */
@@ -667,6 +682,23 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     }
   }
   const topOf = (c: number, r: number) => topCell.get(`${c},${r}`) ?? 0;
+
+  // ---- The bridge to the circuit ----
+  // Planks on top, level with the lawn, a beam of wood under them, and a rail
+  // a block high along each edge with a post standing higher every fourth
+  // block. Part of the ground, so the island's edge and the bridge are one.
+  for (let i = 0; i < BRIDGE.length; i += 1) {
+    const c = BRIDGE.firstCol + i;
+    for (let r = BRIDGE.from; r <= BRIDGE.to; r += 1) {
+      const edge = r === BRIDGE.from || r === BRIDGE.to;
+      ground.set(c, 0, r, edge ? 'wood' : 'plank');
+      if (!edge) ground.set(c, -1, r, 'wood');
+      if (edge) {
+        ground.set(c, 1, r, 'wood');
+        if (i % 4 === 0) ground.set(c, 2, r, 'wood');
+      }
+    }
+  }
 
   // ---- Trees ----
   const trunks: VoxelIslandWorld['trunks'] = [];
@@ -998,6 +1030,17 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
       { ...cell(59, 30), dx: 1, dz: 0 },
       { ...cell(22, 68), dx: -1, dz: 1 },
     ],
+    bridge: {
+      minX: origin.x + BRIDGE.firstCol * BLOCK,
+      maxX: origin.x + (BRIDGE.firstCol + BRIDGE.length) * BLOCK,
+      minZ: origin.z + BRIDGE.from * BLOCK,
+      maxZ: origin.z + (BRIDGE.to + 1) * BLOCK,
+      top: 0,
+    },
+    circuitAnchor: {
+      x: origin.x + (BRIDGE.firstCol + BRIDGE.length) * BLOCK,
+      z: origin.z + ((BRIDGE.from + BRIDGE.to + 1) / 2) * BLOCK,
+    },
     bounds: {
       minX: origin.x + 2 * BLOCK,
       maxX: origin.x + 66 * BLOCK,

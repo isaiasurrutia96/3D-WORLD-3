@@ -1112,6 +1112,9 @@ const island = await (async () => {
   if (!sim.backDown.arrived || sim.backDown.y > 0.12) problems.push(`island: he could not walk back down off the terrace — ${JSON.stringify(sim.backDown)}`);
   if (!sim.trunks.allSolid) problems.push(`island: a tree trunk did not stop him — ${JSON.stringify(sim.trunks.rows)}`);
   if (!sim.pool.into || !sim.pool.out) problems.push(`island: he could not step into the pool and back out — ${JSON.stringify(sim.pool)}`);
+  if (!sim.bridge || !sim.bridge.arrived || !sim.bridge.onGround || Math.abs(sim.bridge.y) > 0.2 || sim.bridge.lowest < -0.3) {
+    problems.push(`island: he could not walk across the bridge onto the circuit — ${JSON.stringify(sim.bridge)}`);
+  }
   if (!sim.falling.allBack) {
     problems.push(`island: going over the edge did not put him back on his feet — ${JSON.stringify(sim.falling.rows)}`);
   }
@@ -1126,7 +1129,7 @@ const island = await (async () => {
     `${sim.ground.low} low · ${sim.ground.beyond} of ${sim.ground.beyondTried} points past the edge are ground\n` +
     `                terrace: ${sim.terrace.walked ? 'walked up' : sim.terrace.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
     `high step: ${sim.highStep.walked ? 'walked up' : sim.highStep.jumped ? 'jumped up' : 'NOT REACHED'} · ` +
-    `trunks stop him: ${sim.trunks.allSolid} · pool in and out: ${sim.pool.into && sim.pool.out}\n` +
+    `trunks stop him: ${sim.trunks.allSolid} · pool in and out: ${sim.pool.into && sim.pool.out} · across the bridge onto the circuit: ${!!sim.bridge?.arrived}\n` +
     `                over the edge in 8 directions, all back on his feet: ${sim.falling.allBack} · ` +
     `${islandAudit.solidMeshes} solid meshes, ${islandAudit.solidTriangles} triangles, ${islandAudit.faults.length} faults`;
 }

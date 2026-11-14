@@ -407,6 +407,17 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026. A circuit beside the island.** Asked for by the owner:
+one of the race tracks in the air next to the island, joined by a bridge.
+The Original Circuit (the racing game's floating winding circuit, from
+`apps/letsgo-racing/src/track.js`, reused, not copied) now floats east of
+the island at lawn height (`src/racing/SkyCircuit.ts`). A block bridge of
+planks with low rails, 48 blocks long and 11 wide, runs from the island's
+east edge to the circuit's entry ramp. The bridge, the ramp and the circuit's
+road are solid, so he can walk onto the circuit; its rails are drawn but not
+solid. The kart is not in the scene yet. The circuit is at the racing
+game's own scale, about 660 by 490 metres.
+
 **13 November 2026, tenth entry. Rounded blocks (approved).** The owner
 approved, from screenshots: every block's exposed edges and corners really
 curve (rounded cube geometry where two seen faces meet, with fills at inner
