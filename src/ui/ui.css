@@ -838,3 +838,37 @@
 .is-showcase .hud__prompt {
   display: none !important;
 }
+
+/* The size buttons along the top of the block showcase. */
+.showcase-sizes {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 20px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  z-index: 60;
+}
+
+.showcase-sizes__button {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(6, 16, 32, 0.5);
+  color: #ffffff;
+  font: 600 14px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.showcase-sizes__button.is-on {
+  background: #ffffff;
+  color: #1d2b3a;
+}

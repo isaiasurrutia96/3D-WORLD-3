@@ -1099,14 +1099,23 @@ const island = await (async () => {
       return { min, max };
     };
     const body = box3(d.player.object);
-    const blocks = show.root.children.find((c) => c.name === 'showcase-blocks');
-    const cube = box3(blocks);
-    const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).display !== 'none' && !el.hidden; });
     const round = (v) => Math.round(v * 1000) / 1000;
+    const cube = box3(show.baseline.cube);
+    // Every group: its block size, that its cube is cubic, and the figure beside it.
+    const figures = [d.player.object, ...d.engine.scene.children.filter((c) => c.name.startsWith('figure beside'))].map(box3);
+    const groups = show.groups.map((g) => {
+      const c = box3(g.cube);
+      const sizes = c.max.map((v, i) => v - c.min[i]);
+      const fig = figures.find((f) => Math.abs((f.min[0] + f.max[0]) / 2 - g.characterAt.x) < 0.6);
+      return { name: g.name, multiplier: g.multiplier, block: g.blockSize, cubic: Math.max(...sizes) - Math.min(...sizes) < 0.01, figure: fig ? round(fig.max[1] - fig.min[1]) : null, gap: fig ? round(fig.min[0] - c.max[0]) : null };
+    });
+    const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).display !== 'none' && !el.hidden; });
     return {
       cubeSize: cube.max.map((v, i) => round(v - cube.min[i])),
       bodyHeight: round(body.max[1] - body.min[1]),
       gap: round(body.min[0] - cube.max[0]),
+      groups,
+      labels: show.root.children.filter((c) => c.isSprite).length,
       stayedPut: before.every((v, i) => Math.abs(v - after[i]) < 1e-6),
       state: d.player.stateName,
       onScreen: { touch: shown('.touch'), menu: shown('.hud__menu'), focus: shown('.hud__focus'), stats: shown('.hud__stats') },
@@ -1128,8 +1137,18 @@ const island = await (async () => {
   if (!(r.gap > 0.1)) problems.push(`showcase: he is not beside the blocks, he overlaps them (gap ${r.gap}m)`);
   if (!r.stayedPut) problems.push('showcase: he moved; he should float still');
   if (Object.values(r.onScreen).some(Boolean)) problems.push(`showcase: controls or messages on screen — ${JSON.stringify(r.onScreen)}`);
+  const wanted = [phi ** -3, phi ** -2, phi ** -1, 1, phi, phi ** 2, phi ** 3];
+  if (r.groups.length !== 7) problems.push(`showcase: ${r.groups.length} groups, not 7`);
+  r.groups.forEach((g, i) => {
+    if (Math.abs(g.multiplier - wanted[i]) > 1e-6 || Math.abs(g.block - (1.82 / phi) * wanted[i]) > 1e-6) problems.push(`showcase: group ${g.name} has the wrong size`);
+    if (!g.cubic) problems.push(`showcase: group ${g.name} is not cubic`);
+    if (g.figure === null || Math.abs(g.figure - r.bodyHeight) > 0.02) problems.push(`showcase: group ${g.name} has no identical figure beside it (${g.figure})`);
+    if (!(g.gap > 0.1)) problems.push(`showcase: the figure overlaps group ${g.name}`);
+  });
+  if (r.labels !== 7) problems.push(`showcase: ${r.labels} labels, not 7`);
   island.summary =
-    ` showcase       cube ${r.cubeSize.join(' × ')}m (block ${block}m, his height ÷ block = ${(1.82 / block).toFixed(3)}) · ` +
+    ` showcase       ${r.groups.length} groups: ${r.groups.map((g) => `${g.name} ${g.block.toFixed(3)}m`).join(', ')} · ${r.labels} labels · figures ${r.groups.map((g) => g.figure).join('/')}m\n` +
+    `                baseline cube ${r.cubeSize.join(' × ')}m (block ${block}m, his height ÷ block = ${(1.82 / block).toFixed(3)}) · ` +
     `his body ${r.bodyHeight}m tall, ${r.gap}m clear of the cube · still: ${r.stayedPut} (${r.state}) · ` +
     `on screen: ${Object.entries(r.onScreen).filter(([, v]) => v).map(([k]) => k).join(', ') || 'nothing but the build stamp'}`;
 }

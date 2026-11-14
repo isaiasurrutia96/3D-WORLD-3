@@ -26,7 +26,7 @@ import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
-import { buildBlockShowcase, type BlockShowcase } from './world/BlockShowcase.ts';
+import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -82,6 +82,10 @@ class Game {
   private showcasePitch = 0.22;
   /** How far out the showcase camera is: 1 just fits everything. */
   private showcaseZoom = 1;
+  /** The group the camera is on, or null for all of them. */
+  private showcaseFocus: ShowcaseFrame | null = null;
+  /** Whether the copies of him beside the other groups have been made. */
+  private showcaseCopies = false;
   /**
    * `?view=overhead` or `?view=angled` holds the camera where one of the
    * two reference pictures was taken from, to compare the island with it.
@@ -159,6 +163,7 @@ class Game {
     if (this.showcase) {
       document.body.classList.add('is-showcase');
       this.attachShowcaseLook(this.engine.renderer.domElement);
+      this.attachShowcaseSizes(container as HTMLElement);
     }
     this.touch = wantsTouchControls() && !this.showcase;
     if (this.touch) {
@@ -396,12 +401,43 @@ class Game {
   }
 
   /**
+   * A row of buttons across the top: All, and one per size, each pointing
+   * the camera at that group. Dragging and zooming then work round it.
+   */
+  private attachShowcaseSizes(container: HTMLElement): void {
+    const show = this.showcase;
+    if (!show) return;
+    const bar = document.createElement('div');
+    bar.className = 'showcase-sizes';
+    const choices: Array<{ name: string; frame: ShowcaseFrame | null }> = [
+      { name: 'All', frame: null },
+      ...show.groups.map((g) => ({ name: g.name, frame: g as ShowcaseFrame })),
+    ];
+    const buttons: HTMLButtonElement[] = [];
+    for (const choice of choices) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'showcase-sizes__button';
+      button.textContent = choice.name;
+      button.addEventListener('click', () => {
+        this.showcaseFocus = choice.frame;
+        this.showcaseZoom = 1;
+        for (const b of buttons) b.classList.toggle('is-on', b === button);
+      });
+      buttons.push(button);
+      bar.appendChild(button);
+    }
+    buttons[0].classList.add('is-on');
+    container.appendChild(bar);
+  }
+
+  /**
    * Points the camera at the showcase from its current angle, far enough
    * off that the blocks and the character both fit on any screen shape.
    */
   private frameShowcase(zoom = 1): void {
-    const show = this.showcase;
-    if (!show) return;
+    if (!this.showcase) return;
+    const show = this.showcaseFocus ?? this.showcase;
     const camera = this.engine.camera;
     // Fit a ball round everything inside the narrower of the two angles of
     // view, so it fits from any direction on any screen shape.
@@ -446,6 +482,19 @@ class Game {
       // He stands still where he floats; the camera frames him and the
       // blocks, and dragging the view turns it round them.
       this.player.poseStanding(delta);
+      // An identical figure beside every other group: copies of him, made
+      // once he has taken his standing pose, so all seven stand the same.
+      if (!this.showcaseCopies && this.engine.clock.elapsedTime > 0.25) {
+        this.showcaseCopies = true;
+        for (const group of this.showcase.groups) {
+          if (group === this.showcase.baseline) continue;
+          const copy = this.player.object.clone(true);
+          copy.name = `figure beside ${group.name}`;
+          copy.position.copy(group.characterAt);
+          copy.rotation.y = this.spawnFacing;
+          this.engine.scene.add(copy);
+        }
+      }
       this.showcaseYaw -= this.input.look.x;
       this.showcasePitch = Math.max(-0.4, Math.min(1.35, this.showcasePitch + this.input.look.y));
       this.frameShowcase(this.showcaseZoom);
@@ -468,7 +517,8 @@ class Game {
     // From a reference view the whole island is in the picture, so the
     // shadows are centred on it and not on him.
     const view = held && (this.fixedView === 'overhead' || this.fixedView === 'angled') ? this.voxel?.views[this.fixedView] : undefined;
-    this.engine.focusShadowsOn(view ? view.at : this.player.position);
+    const showcaseAt = this.showcase ? (this.showcaseFocus ?? this.showcase).centre : null;
+    this.engine.focusShadowsOn(view ? view.at : (showcaseAt ?? this.player.position));
 
     // What the screen looks like follows the camera, not the character. He
     // can be treading water with his head out while the camera sits below
@@ -3815,12 +3865,13 @@ class Game {
        * The showcase from an angle round it (yaw and pitch in radians) and
        * how far out (1 is just fitting everything), for screenshots.
        */
-      viewShowcase: (yaw: number, pitch: number, zoom = 1): void => {
+      viewShowcase: (yaw: number, pitch: number, zoom = 1, group: number | null = null): void => {
+        this.showcaseFocus = group === null ? null : (this.showcase?.groups[group] ?? null);
         this.showcaseYaw = yaw;
         this.showcasePitch = pitch;
         this.showcaseZoom = zoom;
         this.frameShowcase(zoom);
-        this.engine.focusShadowsOn(this.showcase?.centre ?? this.player.position);
+        this.engine.focusShadowsOn((this.showcaseFocus ?? this.showcase)?.centre ?? this.player.position);
         this.engine.render(1 / 60);
       },
       /** Draws one frame from a reference view, with or without the figure. */

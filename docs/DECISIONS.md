@@ -407,6 +407,16 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, fourth entry. Seven block sizes to choose from.** Asked
+for by the owner, within the comparison preview only: seven cubes of eight
+blocks (grass over earth, same look) at golden-ratio steps of the 1.125 m
+baseline: 0.236×, 0.382×, 0.618×, 1.000×, 1.618×, 2.618× and 4.236× (blocks
+26.6 cm, 43.0 cm, 69.5 cm, 1.125 m, 1.820 m, 2.945 m, 4.765 m). Each has an
+identical 1.82 m figure beside it and a label with its multiple and block
+size; they stand in a row, smallest to largest, with wide gaps. Buttons
+along the top (All, then one per size) point the camera at a group; drag
+and pinch work as before. No size is chosen yet.
+
 **14 November 2026, third entry. Looking round the blocks.** Asked for by
 the owner: from the link, turn the camera round the blocks and the
 character. One finger or the mouse drags the view round and up and down (a

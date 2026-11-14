@@ -1,11 +1,13 @@
 /**
- * Eight blocks and nothing else: a cube of two by two by two, the top four
- * grass and the bottom four earth, floating in the sky, for comparing the
- * size of a block with the size of the character.
+ * Blocks for comparing sizes, and nothing else: seven cubes of two by two by
+ * two blocks, the top four grass and the bottom four earth, floating in the
+ * sky in a row from smallest to largest, each with the character beside it
+ * at his fixed height and a label saying how big its blocks are.
  *
- * The size comes from the golden ratio: the character's height divided by a
- * block's edge is φ (1.618…), so a block is 1.82 / φ ≈ 1.125 m and the cube
- * stands 2.25 m.
+ * The baseline block comes from the golden ratio: the character's height
+ * divided by a block's edge is φ (1.618…), so a block is 1.82 / φ ≈ 1.125 m.
+ * The seven sizes go up and down from it in steps of φ: 0.236×, 0.382×,
+ * 0.618×, 1×, 1.618×, 2.618× and 4.236×. Every block stays a cube.
  *
  * The blocks are drawn the way the island preview (apps/letsgo-island) draws
  * its blocks, which the owner prefers: each face has a shallow cushion that
@@ -20,11 +22,15 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  CanvasTexture,
   Color,
   Group,
   Mesh,
   MeshStandardMaterial,
   Scene,
+  Sprite,
+  SpriteMaterial,
+  SRGBColorSpace,
   Vector3,
 } from 'three';
 
@@ -54,15 +60,75 @@ function variation(x: number, y: number, z: number): number {
   return 0.92 + (s - Math.floor(s)) * 0.16;
 }
 
-export interface BlockShowcase {
-  root: Group;
-  /** Where the character floats, beside the cube, feet level with its bottom. */
-  characterAt: Vector3;
-  /** The middle of everything, for the camera to look at. */
+/** The seven sizes, as multiples of the baseline block, in golden-ratio steps. */
+export const MULTIPLIERS = [PHI ** -3, PHI ** -2, PHI ** -1, 1, PHI, PHI ** 2, PHI ** 3];
+/** The space between one group and the next, before the extra for big cubes. */
+const GAP = 6;
+
+/** What the camera frames: a middle and how big a box round it is. */
+export interface ShowcaseFrame {
   centre: Vector3;
-  /** How wide and tall the whole group is, in metres, for framing it. */
   extent: { width: number; height: number; depth: number };
+}
+
+/** One cube of eight blocks, its character and its label. */
+export interface ShowcaseGroup extends ShowcaseFrame {
+  /** The multiple of the baseline block, e.g. 0.236. */
+  multiplier: number;
+  /** The label's text for the multiple, e.g. "0.236×". */
+  name: string;
+  /** One block's edge, in metres. */
+  blockSize: number;
+  /** Where the character floats beside it, feet level with the cube's bottom. */
+  characterAt: Vector3;
+  /** The drawn cube. */
+  cube: Mesh;
+}
+
+export interface BlockShowcase extends ShowcaseFrame {
+  root: Group;
+  /** The seven groups, smallest first. */
+  groups: ShowcaseGroup[];
+  /** The baseline (1×) group, where the controllable figure itself stands. */
+  baseline: ShowcaseGroup;
+  /** Where the character floats in the baseline group. */
+  characterAt: Vector3;
   triangleCount: number;
+}
+
+/** A label: the multiple, large, and the block's size under it. */
+function label(title: string, detail: string): Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 220;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.fillStyle = 'rgba(255,255,255,0.92)';
+    const r = 40;
+    context.beginPath();
+    context.roundRect(8, 8, 496, 204, r);
+    context.fill();
+    context.fillStyle = '#1d2b3a';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.font = '700 92px system-ui, -apple-system, "Segoe UI", sans-serif';
+    context.fillText(title, 256, 84);
+    context.font = '500 50px system-ui, -apple-system, "Segoe UI", sans-serif';
+    context.fillStyle = '#41556a';
+    context.fillText(detail, 256, 164);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 4;
+  const sprite = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  sprite.material.toneMapped = false;
+  sprite.name = `label ${title}`;
+  return sprite;
+}
+
+/** A length in metres or centimetres, whichever reads more easily. */
+function length(metres: number): string {
+  return metres < 1 ? `${(metres * 100).toFixed(1)} cm` : `${metres.toFixed(3)} m`;
 }
 
 export function buildBlockShowcase(scene: Scene): BlockShowcase {
@@ -124,9 +190,9 @@ export function buildBlockShowcase(scene: Scene): BlockShowcase {
           const smooth = normal.map((value, i) => value - d.u[i] * da - d.v[i] * db);
           const sl = Math.hypot(...smooth) || 1;
           positions.push(
-            (x + 0.5 + core[0] + normal[0] * RADIUS + d.n[0] * height) * BLOCK_SIZE,
-            (y + 0.5 + core[1] + normal[1] * RADIUS + d.n[1] * height) * BLOCK_SIZE,
-            (z + 0.5 + core[2] + normal[2] * RADIUS + d.n[2] * height) * BLOCK_SIZE,
+            x + 0.5 + core[0] + normal[0] * RADIUS + d.n[0] * height,
+            y + 0.5 + core[1] + normal[1] * RADIUS + d.n[1] * height,
+            z + 0.5 + core[2] + normal[2] * RADIUS + d.n[2] * height,
           );
           normals.push(smooth[0] / sl, smooth[1] / sl, smooth[2] / sl);
           colours.push(c.r, c.g, c.b);
@@ -155,9 +221,9 @@ export function buildBlockShowcase(scene: Scene): BlockShowcase {
         const a = sa * limit(ua, d.u, sa);
         const b = sb * limit(va, d.v, sb);
         positions.push(
-          (x + 0.5 + d.n[0] * 0.34 + d.u[0] * a + d.v[0] * b) * BLOCK_SIZE,
-          (y + 0.5 + d.n[1] * 0.34 + d.u[1] * a + d.v[1] * b) * BLOCK_SIZE,
-          (z + 0.5 + d.n[2] * 0.34 + d.u[2] * a + d.v[2] * b) * BLOCK_SIZE,
+          x + 0.5 + d.n[0] * 0.34 + d.u[0] * a + d.v[0] * b,
+          y + 0.5 + d.n[1] * 0.34 + d.u[1] * a + d.v[1] * b,
+          z + 0.5 + d.n[2] * 0.34 + d.u[2] * a + d.v[2] * b,
         );
         normals.push(...d.n);
         colours.push(c.r * 0.86, c.g * 0.86, c.b * 0.86);
@@ -173,24 +239,63 @@ export function buildBlockShowcase(scene: Scene): BlockShowcase {
   geometry.setIndex(indices);
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
   material.toneMapped = false;
-  const blocks = new Mesh(geometry, material);
-  blocks.name = 'showcase-blocks';
-  blocks.castShadow = true;
-  blocks.receiveShadow = true;
-  // Centred on the origin across, standing up from y = 0.
-  blocks.position.set(-BLOCK_SIZE, 0, -BLOCK_SIZE);
-  root.add(blocks);
+  // ---- The seven groups, in a row from smallest to largest ----
+  // Each is the same eight blocks, scaled equally in every direction; the
+  // character beside each is always 1.82 m. The gaps grow with the cubes,
+  // so a big cube never crowds the group next to it.
+  const groups: ShowcaseGroup[] = [];
+  let cursor = 0;
+  for (const multiplier of MULTIPLIERS) {
+    const blockSize = BLOCK_SIZE * multiplier;
+    const side = blockSize * 2;
+    const cube = new Mesh(geometry, material);
+    cube.name = 'showcase-blocks';
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+    cube.scale.setScalar(blockSize);
+    cube.position.set(cursor, 0, -side / 2);
+    root.add(cube);
+    // Far enough that his hands stay clear of the cube from any angle.
+    const characterAt = new Vector3(cursor + side + 0.8 + 0.3, 0, 0);
+    const name = `${multiplier.toFixed(3)}×`;
+    const tag = label(name, `block ${length(blockSize)}`);
+    const tall = Math.max(side, CHARACTER_HEIGHT);
+    const tagWidth = Math.max(1.6, tall * 0.75);
+    tag.scale.set(tagWidth, tagWidth * (220 / 512), 1);
+    tag.position.set(cursor + (side + 1.4) / 2, tall + tagWidth * 0.32 + 0.25, 0);
+    root.add(tag);
+    const width = side + 1.4;
+    groups.push({
+      multiplier,
+      name,
+      blockSize,
+      characterAt,
+      cube,
+      centre: new Vector3(cursor + width / 2, tall / 2 + tagWidth * 0.2, 0),
+      extent: { width: width + 0.4, height: tall + tagWidth * 0.6, depth: Math.max(side, 1) },
+    });
+    // Clearly apart: a wide gap, wider still after the bigger cubes.
+    cursor += width + GAP + side * 0.6;
+  }
+  // The whole row, centred on the middle of the world.
+  const shift = -(cursor - GAP) / 2;
+  for (const g of groups) {
+    g.cube.position.x += shift;
+    g.characterAt.x += shift;
+    g.centre.x += shift;
+  }
+  for (const child of root.children) if (child instanceof Sprite) child.position.x += shift;
   scene.add(root);
 
-  const cube = BLOCK_SIZE * 2;
-  // Far enough that his hands stay clear of the cube from any angle.
-  const gap = 0.8;
-  const characterAt = new Vector3(cube / 2 + gap + 0.3, 0, 0);
+  const baseline = groups[3];
+  const tallest = groups[groups.length - 1];
   return {
     root,
-    characterAt,
-    centre: new Vector3((characterAt.x + 0.4 - cube / 2) / 2, cube / 2, 0),
-    extent: { width: cube + gap + 0.9, height: cube, depth: cube },
-    triangleCount: indices.length / 3,
+    groups,
+    baseline,
+    characterAt: baseline.characterAt,
+    centre: new Vector3(0, tallest.centre.y, 0),
+    extent: { width: cursor - GAP + 0.6, height: tallest.extent.height, depth: tallest.extent.depth },
+    triangleCount: (indices.length / 3) * groups.length,
   };
 }
