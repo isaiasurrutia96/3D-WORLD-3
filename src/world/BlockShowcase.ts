@@ -332,32 +332,18 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         core.castShadow = true;
         core.receiveShadow = true;
         root.add(core);
-        // A very thin dark line along the bottom of each groove — a cross on
-        // top, the same down each side and underneath — so the middle reads
-        // as four blocks meeting, not one solid patch.
-        const LINE = 0.014;
+        // A tiny, very thin cross in the little spot at the very centre of
+        // the top, where the four rounded corners meet and the core shows: so
+        // that spot reads as four corners meeting, not one solid dot. It lies
+        // flat on the core and spans only that spot.
+        const LINE = 0.006;
+        const ARM = 0.18; // the whole cross, end to end, as a part of a block
         const lineMaterial = new MeshBasicMaterial({ color: '#e0600a' });
         lineMaterial.toneMapped = false;
-        // The groove between two rounded blocks is a V, LINE wide this far
-        // below the surface (the edges are rounded over 0.1 of a block); the
-        // line sits there, so only its top shows, in the bottom of the groove.
-        const below = 0.1 - Math.sqrt(0.1 ** 2 - (0.1 - LINE / 2) ** 2);
-        const top = 0.5 - below - 0.001; // the line's outer face, from the middle of a block
-        const depth = 0.04;
-        const mid = top - depth / 2;
-        const side = 1 - below - 0.001; // the same on the outer sides (two blocks wide)
-        const sideMid = side - depth / 2;
+        const y = reach - 0.5 + 0.0015; // just on the core's top
         const strips: Array<[number, number, number, number, number, number]> = [
-          // Top and bottom: a cross each way.
-          [0, mid, 0, LINE, depth, 2],
-          [0, mid, 0, 2, depth, LINE],
-          [0, -mid, 0, LINE, depth, 2],
-          [0, -mid, 0, 2, depth, LINE],
-          // Down the middle of each side.
-          [0, 0, sideMid, LINE, 1, depth],
-          [0, 0, -sideMid, LINE, 1, depth],
-          [sideMid, 0, 0, depth, 1, LINE],
-          [-sideMid, 0, 0, depth, 1, LINE],
+          [0, y, 0, LINE, 0.001, ARM],
+          [0, y, 0, ARM, 0.001, LINE],
         ];
         for (const [x, y, z, w, hh, d] of strips) {
           const strip = new Mesh(new BoxGeometry(w, hh, d), lineMaterial);
