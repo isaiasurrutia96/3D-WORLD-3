@@ -26,7 +26,7 @@ export function createCanvasView(original,initialFaces){
    for(const face of [...faces,...actors()]){
     const n=face.normal,center=face.avatar?face.points.reduce((sum,point)=>sum.map((value,i)=>value+point[i]/face.points.length),[0,0,0]):face.center??(face.center=face.points.reduce((sum,point)=>sum.map((value,i)=>value+point[i]/face.points.length),[0,0,0]));
     const front=camera.isPerspectiveCamera?n[0]*(c[12]-center[0])+n[1]*(c[13]-center[1])+n[2]*(c[14]-center[2]):n[0]*c[8]+n[1]*c[9]+n[2]*c[10];
-    if(front<=.00001)continue;
+    if(front<=.00001&&!face.doubleSided)continue;
     const projected=project(face.points);if(projected.length<3)continue;
     const xs=projected.map(point=>point[0]),ys=projected.map(point=>point[1]);
     if(Math.max(...xs)<0||Math.min(...xs)>width||Math.max(...ys)<0||Math.min(...ys)>height)continue;
@@ -47,7 +47,7 @@ export function createCanvasView(original,initialFaces){
    }
    for(const {face,projected}of visible){
     ctx.globalAlpha=face.alpha??1;
-    if(face.water||face.avatar)polygon(projected,face.css,face.avatar&&face.alpha===1);
+    if(face.water||face.avatar||face.surface)polygon(projected,face.css,(face.avatar||face.surface)&&face.alpha===1);
     else{polygon(projected,face.rim,true);polygon(project(face.inner),face.css,false,true);}
    }
    ctx.globalAlpha=1;renderer.info.render.faces=visible.length;

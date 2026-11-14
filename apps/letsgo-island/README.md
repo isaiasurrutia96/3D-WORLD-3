@@ -3,7 +3,8 @@
 Interactive island at /3D-WORLD-3/island/. The two supplied images are treated
 as views of ONE island. The approved terrain is preserved, with the existing
 clay avatar and movement controller now connected for walking and jumping.
-No racing or minigame scene is loaded here.
+The existing Original Circuit floats alongside it with a walkable bridge and
+drivable kart. No race session, NPCs, weapons, timing or ghosts are loaded here.
 
 ## Run
 
@@ -15,10 +16,16 @@ Use Node.js 24 and the root's pinned dependencies:
     npm run build:island
 
 Explore follows the avatar. E/D/S/F or arrows move, Space jumps, Shift walks,
-C crouches, and Backspace/Reset returns to the lawn spawn. Phones have a left
-analogue pad and Jump/Crouch buttons. Drag to orbit; scroll/pinch to zoom.
+C crouches, and Backspace/Reset returns to the lawn spawn. On phones, touch
+anywhere on the left half to place the pad under your thumb, then slide to
+move. Lifting or cancelling hides/releases it. Right buttons jump/crouch.
+Drag to orbit; scroll/pinch to zoom.
 Angled and Overhead retain the reference presets and pause movement while
 inspecting the island. R restores Angled in those inspection views.
+Cross the east bridge to the parked kart. R/Drive kart gets in; R/Exit kart
+gets out when stopped. E/Up accelerates, D/Down brakes and reverses, and
+S/F or Left/Right steers. Phone buttons become Gas/Brake; the floating stick
+steers. Reset returns both player and kart home. Track shows the full course.
 Graphics offers Low / Medium / High,
 remembered under letsgo.island.graphics.v1. Low remains the default and a
 Canvas 2D compatibility view works when WebGL cannot start. Medium/High need
@@ -59,6 +66,15 @@ Movement tests cover lawn seams, the original jump, landing on a terrace,
 fall recovery and the irregular pond. Touch controls release on cancellation,
 lost capture, blur, page hide and visibility changes.
 
+src/track-link.js imports Original Circuit's existing mesh builder and road/
+rail data. Its X/Z footprint is fitted at 40% beside the island, preserving
+the complete route and original vertical clearance. A new level bridge meets
+its original access stub without a gap or railing across the opening. The
+kart model, dimensions, acceleration, steering and rail response are reused
+unchanged from the standalone game via src/island-kart.js. The standalone
+course and its records are unchanged. Vite deduplicates Three.js for this
+combined scene without changing either project's pinned dependencies.
+
 ## Graphics
 
 Low uses rounded faces, baked colors/shading, no shadow maps and pixel ratio 1.
@@ -73,7 +89,8 @@ than a placeholder. Near-plane clipping handles scenery beside the camera.
 ## Inspection and comparison
 
 window.__letsgoIsland provides world, setBlock(x,y,z,type), collisionBoxes,
-setQuality(level), setView('walk'|'overhead'|'angled'), avatar, resetAvatar(),
+setQuality(level), setView('walk'|'overhead'|'angled'|'track'), avatar, kart,
+trackLink, resetAvatar(),
 stats and referenceLandmarks().
 setBlock(...,null) removes one cell and rebuilds the view. No building UI is
 included. referenceLandmarks() projects approximate, manually interpreted
@@ -91,5 +108,6 @@ selection, untouched ghost storage, phone layouts and Firefox without WebGL.
 
 Approved terrain checkpoint before the avatar:
 checkpoint-island-approved-before-avatar-2026-11-13 at 3ca2853.
+Checkpoint before the connected track: checkpoint-island-avatar-before-track.
 Earlier reconstruction checkpoint: checkpoint-before-two-view-island-2026-11-13
 at 93f7199.

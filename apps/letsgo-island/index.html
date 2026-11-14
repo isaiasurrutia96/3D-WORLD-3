@@ -14,8 +14,9 @@
     <header><span class="brand">LetsGo<sup>®</sup></span><span class="place">ISLAND</span></header>
     <nav aria-label="Island views and graphics">
       <label class="graphics-select" for="graphics-quality"><span>Graphics</span><select id="graphics-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-      <button id="explore" type="button">Explore</button><button id="overview" type="button">Angled</button><button id="top-view" type="button">Overhead</button><button id="reset-avatar" type="button">Reset</button>
+      <button id="explore" type="button">Explore</button><button id="overview" type="button">Angled</button><button id="top-view" type="button">Overhead</button><button id="track-view" type="button">Track</button><button id="reset-avatar" type="button">Reset</button>
     </nav>
+    <div id="kart-panel" class="kart-panel" hidden><button id="kart-action" type="button">Drive kart</button><span id="kart-status"></span></div>
     <p id="camera-hint">Drag to look around <span>·</span> Scroll to zoom</p>
     <section id="load-error" role="alert" hidden>
       <h1>The island couldn’t open</h1>

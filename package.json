@@ -15,7 +15,7 @@
     "test:racing": "npm --prefix apps/letsgo-racing run test",
     "dev:island": "vite --config apps/letsgo-island/vite.config.js",
     "build:island": "vite build --config apps/letsgo-island/vite.config.js",
-    "test:island": "node apps/letsgo-island/tests/terrain.test.js && node apps/letsgo-island/tests/renderer.test.js && node apps/letsgo-island/tests/avatar.test.js",
+    "test:island": "node apps/letsgo-island/tests/terrain.test.js && node apps/letsgo-island/tests/renderer.test.js && node apps/letsgo-island/tests/avatar.test.js && node apps/letsgo-island/tests/track-link.test.js",
     "build:all": "npm run build && npm --prefix apps/letsgo-racing run build -- --outDir ../../dist/racing --emptyOutDir && npm run build:island"
   },
   "dependencies": {

@@ -31,6 +31,14 @@ the worlds**. The projects belong in this repository, with separate runtimes.
   checkpoint is `checkpoint-island-approved-before-avatar-2026-11-13`.
   Keep Explore, Angled and Overhead views, keyboard/touch controls, Low graphics
   and the no-WebGL avatar projection working. No minigames or new arena yet.
+  The owner now requests one existing floating circuit and kart connected by
+  a bridge. `track-link.js` reuses Original Circuit geometry with a fitted
+  horizontal footprint and full original vertical clearance; `island-kart.js`
+  reuses the existing vehicle model, physics and wheel animation. No racing
+  startup, slab, items, NPCs, timing or ghost storage is brought into this app.
+  Preserve the standalone game and saved records. The touch stick now spawns
+  at each initial contact anywhere on the left half; menus stay above its
+  touch zone. Cancel, blur and page-hide must always release held controls.
 - Scope changes to the requested project. Do not connect scenes, share player
   controllers, move obstacles/tracks between games, or replace one game's
   startup code with the other unless the user explicitly requests that work.

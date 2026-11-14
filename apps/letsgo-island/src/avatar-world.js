@@ -52,7 +52,7 @@ function shadowTexture(){
 }
 
 export function createIslandAvatar(world){
- let collider=createIslandCollision(world),quality='',cheapMaterials=[];
+ let collider=createIslandCollision(world),quality='',cheapMaterials=[];const extraSolids=[];
  const spawn=new Vector3(...AVATAR_SPAWN).multiplyScalar(METRES_PER_CELL);
  const player=new Player(collider.collision,spawn,{}, {plain:true}),input=new Input(),root=new Group();
  player.facing=Math.PI;root.name='Existing clay avatar';root.scale.setScalar(AVATAR_SCALE);root.position.y=.1;root.add(player.object);
@@ -64,6 +64,7 @@ export function createIslandAvatar(world){
   root,player,input,shadow,
   get collision(){return collider.collision;},
   get colliderTriangles(){return collider.triangles;},
+  addCollision(mesh){extraSolids.push(mesh);collider.collision.addSolid(mesh);},
   get position(){return player.position.clone().multiplyScalar(AVATAR_SCALE);},
   focus(target=new Vector3()){return player.getFocusPoint(target).multiplyScalar(AVATAR_SCALE).add(root.position);},
   step(delta,yaw,pitch=0){
@@ -95,7 +96,8 @@ export function createIslandAvatar(world){
   // CollisionWorld object the controller already holds, rather than a stale one.
   rebuildCollision(){
    const next=createIslandCollision(world),existing=collider.collision;
-   existing.octree.clear();existing.octree.fromGraphNode(next.mesh);existing.solids.splice(0,existing.solids.length,next.mesh);
+   existing.octree.clear();existing.solids.length=0;
+   for(const mesh of [next.mesh,...extraSolids])existing.addSolid(mesh);
    existing.waters.splice(0,existing.waters.length,...next.collision.waters);
    collider.mesh.geometry.dispose();collider.mesh.material.dispose();collider={...next,collision:existing};
    const p=player.position.clone().multiplyScalar(AVATAR_SCALE),height=surfaceHeight(p.x,p.z);
