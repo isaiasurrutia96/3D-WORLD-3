@@ -1137,15 +1137,15 @@ const island = await (async () => {
   if (!(r.gap > 0.1)) problems.push(`showcase: he is not beside the blocks, he overlaps them (gap ${r.gap}m)`);
   if (!r.stayedPut) problems.push('showcase: he moved; he should float still');
   if (Object.values(r.onScreen).some(Boolean)) problems.push(`showcase: controls or messages on screen — ${JSON.stringify(r.onScreen)}`);
-  const wanted = [phi ** -3, phi ** -2, phi ** -1, 1, phi, phi ** 2, phi ** 3];
-  if (r.groups.length !== 7) problems.push(`showcase: ${r.groups.length} groups, not 7`);
+  const wanted = [phi ** -4, phi ** -3, phi ** -2, phi ** -1, 1, phi, phi ** 2, phi ** 3];
+  if (r.groups.length !== 8) problems.push(`showcase: ${r.groups.length} groups, not 8`);
   r.groups.forEach((g, i) => {
     if (Math.abs(g.multiplier - wanted[i]) > 1e-6 || Math.abs(g.block - (1.82 / phi) * wanted[i]) > 1e-6) problems.push(`showcase: group ${g.name} has the wrong size`);
     if (!g.cubic) problems.push(`showcase: group ${g.name} is not cubic`);
     if (g.figure === null || Math.abs(g.figure - r.bodyHeight) > 0.02) problems.push(`showcase: group ${g.name} has no identical figure beside it (${g.figure})`);
     if (!(g.gap > 0.1)) problems.push(`showcase: the figure overlaps group ${g.name}`);
   });
-  if (r.labels !== 7) problems.push(`showcase: ${r.labels} labels, not 7`);
+  if (r.labels !== 8) problems.push(`showcase: ${r.labels} labels, not 8`);
   island.summary =
     ` showcase       ${r.groups.length} groups: ${r.groups.map((g) => `${g.name} ${g.block.toFixed(3)}m`).join(', ')} · ${r.labels} labels · figures ${r.groups.map((g) => g.figure).join('/')}m\n` +
     `                baseline cube ${r.cubeSize.join(' × ')}m (block ${block}m, his height ÷ block = ${(1.82 / block).toFixed(3)}) · ` +

@@ -855,9 +855,10 @@
 }
 
 .showcase-sizes__button {
-  min-height: 40px;
-  min-width: 44px;
-  padding: 0 12px;
+  min-height: 44px;
+  min-width: 52px;
+  padding: 0 14px;
+  touch-action: none;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(6, 16, 32, 0.5);

@@ -6,7 +6,7 @@
  *
  * The baseline block comes from the golden ratio: the character's height
  * divided by a block's edge is φ (1.618…), so a block is 1.82 / φ ≈ 1.125 m.
- * The seven sizes go up and down from it in steps of φ: 0.236×, 0.382×,
+ * The eight sizes go up and down from it in steps of φ: 0.146×, 0.236×, 0.382×,
  * 0.618×, 1×, 1.618×, 2.618× and 4.236×. Every block stays a cube.
  *
  * The blocks are drawn the way the island preview (apps/letsgo-island) draws
@@ -60,8 +60,8 @@ function variation(x: number, y: number, z: number): number {
   return 0.92 + (s - Math.floor(s)) * 0.16;
 }
 
-/** The seven sizes, as multiples of the baseline block, in golden-ratio steps. */
-export const MULTIPLIERS = [PHI ** -3, PHI ** -2, PHI ** -1, 1, PHI, PHI ** 2, PHI ** 3];
+/** The eight sizes, as multiples of the baseline block, in golden-ratio steps. */
+export const MULTIPLIERS = [PHI ** -4, PHI ** -3, PHI ** -2, PHI ** -1, 1, PHI, PHI ** 2, PHI ** 3];
 /** The space between one group and the next, before the extra for big cubes. */
 const GAP = 6;
 
@@ -287,7 +287,7 @@ export function buildBlockShowcase(scene: Scene): BlockShowcase {
   for (const child of root.children) if (child instanceof Sprite) child.position.x += shift;
   scene.add(root);
 
-  const baseline = groups[3];
+  const baseline = groups.find((g) => g.multiplier === 1) ?? groups[0];
   const tallest = groups[groups.length - 1];
   return {
     root,

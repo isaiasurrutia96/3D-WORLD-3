@@ -407,6 +407,14 @@ approved state.
 
 ## K) Change log
 
+**14 November 2026, fifth entry. An eighth, smaller size; one-tap buttons.**
+Asked for by the owner: 0.146× (blocks 16.4 cm, the next golden-ratio step
+down) added to the comparison row, with its own figure and label. The size
+buttons now act the moment a finger or the mouse goes down instead of on the
+click that follows, because a phone can drop that click when the finger
+moves slightly, and the owner was having to tap several times. The test
+browser does not reproduce Safari's dropped click, so the cause is inferred.
+
 **14 November 2026, fourth entry. Seven block sizes to choose from.** Asked
 for by the owner, within the comparison preview only: seven cubes of eight
 blocks (grass over earth, same look) at golden-ratio steps of the 1.125 m

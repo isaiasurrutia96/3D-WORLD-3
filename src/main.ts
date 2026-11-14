@@ -419,10 +419,20 @@ class Game {
       button.type = 'button';
       button.className = 'showcase-sizes__button';
       button.textContent = choice.name;
-      button.addEventListener('click', () => {
+      // Acted on the moment the finger or the mouse goes down, not on the
+      // click that follows: a phone drops a click whenever the finger moves
+      // even slightly, which made a button need several taps.
+      const choose = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
         this.showcaseFocus = choice.frame;
         this.showcaseZoom = 1;
         for (const b of buttons) b.classList.toggle('is-on', b === button);
+      };
+      button.addEventListener('pointerdown', choose);
+      // A keyboard (Enter or Space on a focused button) still works.
+      button.addEventListener('click', (event) => {
+        if ((event as MouseEvent).detail === 0) choose(event);
       });
       buttons.push(button);
       bar.appendChild(button);
