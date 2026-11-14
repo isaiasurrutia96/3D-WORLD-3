@@ -143,6 +143,12 @@ export interface ShowcaseOptions {
    * no figure and no label. Otherwise the full comparison row.
    */
   single?: boolean;
+  /**
+   * With `single`: every block rounded on all its own edges, so grooves show
+   * where blocks touch. Otherwise (the default) the blocks are sealed:
+   * rounded only where an edge faces the open air, flush where they touch.
+   */
+  allRounded?: boolean;
 }
 
 export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}): BlockShowcase {
@@ -153,7 +159,12 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
   if (single) {
-    cells.set('0,0,0', 'bright');
+    // Eight blocks, two by two by two.
+    for (let x = 0; x < 2; x += 1) {
+      for (let y = 0; y < 2; y += 1) {
+        for (let z = 0; z < 2; z += 1) cells.set(`${x},${y},${z}`, 'bright');
+      }
+    }
   } else {
     for (let x = 0; x < 2; x += 1) {
       for (let z = 0; z < 2; z += 1) {
@@ -168,15 +179,16 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   const normals: number[] = [];
   const colours: number[] = [];
   const indices: number[] = [];
-  const RADIUS = 0.19;
+  // The chosen blocks are rounded over a tenth of their edge and flat-faced.
+  const RADIUS = single ? 0.1 : 0.19;
   // A little shallower than the island preview's, as these blocks are more
   // than twice the size and the cushion would otherwise look puffy.
-  const CUSHION = 0.05;
+  const CUSHION = single ? 0 : 0.05;
   const steps = [-0.5, -0.5 + RADIUS * 0.3, -0.5 + RADIUS, 0.5 - RADIUS, 0.5 - RADIUS * 0.3, 0.5];
 
   for (const [key, kind] of cells) {
     const [x, y, z] = key.split(',').map(Number);
-    const tint = new Color(COLOURS[kind]).multiplyScalar(variation(x, y, z));
+    const tint = new Color(COLOURS[kind]).multiplyScalar(single ? 1 : variation(x, y, z));
     // Which neighbours are there: an edge toward a neighbour is not rounded,
     // so touching blocks meet exactly on their shared plane.
     const occupied = [
@@ -272,41 +284,53 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    // A plain cube: flat faces and sharp edges, nothing rounded or raised.
-    // Each face is shaded a little differently by which way it points, so
-    // the edges show; the glow keeps every face clearly orange.
-    // Slightly rounded: corners and edges curve over 10% of the edge.
-    const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
-    const tint = new Color(COLOURS.bright);
-    const faceColours = new Float32Array(box.attributes.position.count * 3);
-    const normal = box.attributes.normal;
-    for (let i = 0; i < box.attributes.position.count; i += 1) {
-      // Shade by which way the surface faces, blending round the curves.
-      const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
-      const light =
-        Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-        Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
-      const sum = Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1;
-      const l = light / sum;
-      faceColours.set([tint.r * l, tint.g * l, tint.b * l], i * 3);
-    }
-    box.setAttribute('color', new BufferAttribute(faceColours, 3));
-    // Four blocks side by side in a flat two-by-two square, touching.
-    let cube = new Mesh(box, material);
-    for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
-      const block = new Mesh(box, material);
-      block.name = 'showcase-blocks';
-      block.castShadow = true;
-      block.receiveShadow = true;
-      block.scale.setScalar(blockSize);
-      block.position.set(x * blockSize, 0, z * blockSize);
-      root.add(block);
-      cube = block;
+    let cube: Mesh;
+    if (options.allRounded) {
+      // Every block rounded on all its own edges, over a tenth of the edge,
+      // so a groove shows wherever two blocks touch.
+      const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
+      const tint = new Color(COLOURS.bright);
+      const faceColours = new Float32Array(box.attributes.position.count * 3);
+      const normal = box.attributes.normal;
+      for (let i = 0; i < box.attributes.position.count; i += 1) {
+        // Shade by which way the surface faces, blending round the curves.
+        const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
+        const light =
+          Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
+          Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+        const sum = Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1;
+        faceColours.set([tint.r * (light / sum), tint.g * (light / sum), tint.b * (light / sum)], i * 3);
+      }
+      box.setAttribute('color', new BufferAttribute(faceColours, 3));
+      cube = new Mesh(box, material);
+      for (const key of cells.keys()) {
+        const [x, y, z] = key.split(',').map(Number);
+        const block = new Mesh(box, material);
+        block.name = 'showcase-blocks';
+        block.castShadow = true;
+        block.receiveShadow = true;
+        block.scale.setScalar(blockSize);
+        block.position.set((x - 0.5) * blockSize, (y - 0.5) * blockSize, (z - 0.5) * blockSize);
+        root.add(block);
+        cube = block;
+      }
+    } else {
+      // Sealed: one surface for all eight, built cell by cell above, rounded
+      // only where an edge or a corner faces the open air. Where two blocks
+      // touch, their faces meet flush, so there is no gap anywhere, even at
+      // the very middle where all eight corners meet.
+      cube = new Mesh(geometry, material);
+      cube.name = 'showcase-blocks';
+      cube.castShadow = true;
+      cube.receiveShadow = true;
+      cube.scale.setScalar(blockSize);
+      cube.position.set(-blockSize, -blockSize, -blockSize);
+      root.add(cube);
     }
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 2.1 },
+      extent: { width: blockSize * 2.1, height: blockSize * 2.1, depth: blockSize * 2.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,

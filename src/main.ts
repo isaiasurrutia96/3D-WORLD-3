@@ -119,7 +119,9 @@ class Game {
       // buildVoxelIsland and buildSkyCircuit.
       // One block at the chosen size (0.146×), on its own. The comparison row
       // of eight sizes is buildBlockShowcase(scene) without { single: true }.
-      const showcase = buildBlockShowcase(this.engine.scene, { single: true });
+      // `?blocks=rounded` shows every block fully rounded, for comparing.
+      const allRounded = new URLSearchParams(window.location.search).get('blocks') === 'rounded';
+      const showcase = buildBlockShowcase(this.engine.scene, { single: true, allRounded });
       this.showcase = showcase;
       // A three-quarter view from a little above, so the top and two sides
       // all show and it reads as a cube.
