@@ -505,8 +505,6 @@ class Game {
       // He stands still where he floats; the camera frames him and the
       // blocks, and dragging the view turns it round them.
       this.player.poseStanding(delta);
-      // With one block on its own there is no figure to compare it with.
-      if (this.showcase.groups.length === 1) this.player.object.visible = false;
       // An identical figure beside every other group: copies of him, made
       // once he has taken his standing pose, so all seven stand the same.
       if (!this.showcaseCopies && this.engine.clock.elapsedTime > 0.25) {

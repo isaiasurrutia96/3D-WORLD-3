@@ -453,15 +453,20 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       });
     }
     scene.add(root);
+    // The character beside it, for size comparison only: feet level with
+    // the bottom of the big block, a little way off its right end.
+    const characterAt = new Vector3(2 * blockSize + 0.45, -blockSize, 0);
+    const left = -2 * blockSize;
+    const right = characterAt.x + 0.4;
     const frame = {
-      centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 4.1, height: blockSize * 2.1, depth: blockSize * 2.1 },
+      centre: new Vector3((left + right) / 2, -blockSize + CHARACTER_HEIGHT / 2, 0),
+      extent: { width: right - left + 0.2, height: CHARACTER_HEIGHT + 0.1, depth: 2 * blockSize },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
       name: `${CHOSEN_MULTIPLIER.toFixed(3)}×`,
       blockSize,
-      characterAt: new Vector3(0, -50, 0),
+      characterAt,
       cube,
       ...frame,
     };
