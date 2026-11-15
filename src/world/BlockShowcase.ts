@@ -24,6 +24,9 @@ import {
   BufferGeometry,
   CanvasTexture,
   Color,
+  BoxGeometry,
+  InstancedMesh,
+  Matrix4,
   DoubleSide,
   IcosahedronGeometry,
   Group,
@@ -35,6 +38,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /** The golden ratio. */
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -231,11 +235,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   if (single) {
     // A tiny patch of land: LAND × LAND blocks, grass on top of two layers
     // of dirt.
-    for (let x = 0; x < LAND; x += 1) {
-      for (let z = 0; z < LAND; z += 1) {
-        for (let y = 0; y < LAND_HIGH; y += 1) cells.set(`${x},${y},${z}`, y === LAND_HIGH - 1 ? 'grass' : 'earth');
-      }
-    }
+    // (Built block by block further down; nothing for the shared builder.)
+    cells.set('0,0,0', 'grass');
   } else {
     for (let x = 0; x < 2; x += 1) {
       for (let z = 0; z < 2; z += 1) {
@@ -355,20 +356,69 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    // One big block made of the sixteen: rounded only on its outside edges
-    // and corners, flush where blocks meet, each block its own slight shade
-    // of grass or dirt, as the island preview colours them.
+    // Every block rounded on its own, so each reads separately with a soft
+    // groove between them, drawn as one instanced shape per layer kind with
+    // each block its own shade. Grass is LAND × LAND on top; the dirt under it
+    // reaches one block further out on every side, a step down from the grass.
+    // A solid core under each layer seals the grooves, so nothing shows
+    // through anywhere.
+    const DIRT = LAND + 2;
+    const shape = new RoundedBoxGeometry(1, 1, 1, 3, 0.1);
+    {
+      // Shading by which way each part faces, baked in as a grey the block's
+      // own colour multiplies.
+      const normal = shape.attributes.normal;
+      const shades = new Float32Array(normal.count * 3);
+      for (let i = 0; i < normal.count; i += 1) {
+        const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
+        const light =
+          Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
+          Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+        const l = light / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
+        shades.set([l, l, l], i * 3);
+      }
+      shape.setAttribute('color', new BufferAttribute(shades, 3));
+    }
     const plain = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
     plain.toneMapped = false;
-    const cube = new Mesh(geometry, plain);
-    cube.name = 'showcase-blocks';
-    cube.castShadow = true;
-    cube.receiveShadow = true;
-    cube.scale.setScalar(blockSize);
-    // Centred across, with its top at height 0, where he stands.
-    cube.position.set((-LAND / 2) * blockSize, -LAND_HIGH * blockSize, (-LAND / 2) * blockSize);
-    root.add(cube);
-
+    const layer = (kind: 'grass' | 'earth', across: number, y: number) => {
+      const blocks = new InstancedMesh(shape, plain, across * across);
+      blocks.name = 'showcase-blocks';
+      blocks.castShadow = true;
+      blocks.receiveShadow = true;
+      const place = new Matrix4();
+      let n = 0;
+      for (let x = 0; x < across; x += 1) {
+        for (let z = 0; z < across; z += 1) {
+          place.makeScale(blockSize, blockSize, blockSize);
+          place.setPosition((x - across / 2 + 0.5) * blockSize, (y + 0.5) * blockSize, (z - across / 2 + 0.5) * blockSize);
+          blocks.setMatrixAt(n, place);
+          blocks.setColorAt(n, new Color(COLOURS[kind]).multiplyScalar(variation(x, y, z)));
+          n += 1;
+        }
+      }
+      blocks.instanceMatrix.needsUpdate = true;
+      if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
+      root.add(blocks);
+      return blocks;
+    };
+    const cube = layer('grass', LAND, -1);
+    for (let y = -LAND_HIGH; y < -1; y += 1) layer('earth', DIRT, y);
+    // The cores: just under the bottom of the grooves.
+    const seal = 0.1 * 0.92;
+    const core = (kind: 'grass' | 'earth', across: number, bottom: number, high: number) => {
+      const mat = new MeshStandardMaterial({ color: new Color(COLOURS[kind]).multiplyScalar(0.7), roughness: 1 });
+      mat.toneMapped = false;
+      const box = new Mesh(
+        new BoxGeometry((across - 2 * seal) * blockSize, (high - 2 * seal) * blockSize, (across - 2 * seal) * blockSize),
+        mat,
+      );
+      box.name = 'showcase-blocks';
+      box.position.set(0, (bottom + high / 2) * blockSize, 0);
+      root.add(box);
+    };
+    core('grass', LAND, -1, 1);
+    core('earth', DIRT, -LAND_HIGH, LAND_HIGH - 1);
 
     // ---- A pattern of grass blades and stones ----
     // Cells: x 0–3 from left to right, z 0 at the back and 1 at the front.
@@ -422,11 +472,11 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       const stone = new IcosahedronGeometry(1, 1);
       const r = 0.08 * blockSize;
       // Round the four sides, on every other dirt block (a checkerboard).
-      const half = (LAND / 2) * blockSize;
-      for (let i = 0; i < LAND; i += 1) {
+      const half = (DIRT / 2) * blockSize;
+      for (let i = 0; i < DIRT; i += 1) {
         for (let y = 0; y < LAND_HIGH - 1; y += 1) {
           if ((i + y) % 2 !== 0) continue;
-          const along = cellX(i) * blockSize;
+          const along = (i - DIRT / 2 + 0.5) * blockSize;
           const height = (y + 0.5 - LAND_HIGH) * blockSize;
           for (const [px, pz, flatX] of [
             [along, half, false],
@@ -448,7 +498,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
 
     // He stands in the middle of the land.
     const characterAt = new Vector3(0, 0, 0);
-    const across = LAND * blockSize;
+    const across = DIRT * blockSize;
     const frame = {
       centre: new Vector3(0, (CHARACTER_HEIGHT - LAND_HIGH * blockSize) / 2, 0),
       extent: { width: across, height: CHARACTER_HEIGHT + LAND_HIGH * blockSize, depth: across },
