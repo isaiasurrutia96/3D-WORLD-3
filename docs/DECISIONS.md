@@ -414,10 +414,10 @@ use for every track, house or other build).**
    trees, rocks, bushes and other objects, 10.75 cm for small things. Eight
    of each size fill one of the next. Everything sits on one grid, and
    collision always comes from the same blocks.
-2. **Every block rounded (10%), merged with its neighbours:** one solid
-   shape per object, rounded only where an edge faces the open air, each
-   block a slightly different shade (grass and dirt in the island preview's
-   colours).
+2. **Plain square blocks, no rounding anywhere** (changed by the owner
+   later on 15 November, replacing the earlier rounded and grooved styles):
+   flat faces and sharp edges, each block a slightly different shade (grass
+   and dirt in the island preview's colours). The avatar is not affected.
 3. **Build bottom-up, complete:** a foundation is a complete solid (the
    dirt slab, with its whole top) and what sits on it is laid on top flat
    and square, so no gap ever shows the sky.
