@@ -314,10 +314,14 @@ function facesOf(
   const o = cells.origin;
   const r = round ? ROUND : 0;
   let group = '';
+  let level = 0;
+  // A different material counts as there beside a block (the layers run on
+  // level, square), but not above or below it: where one material sits on
+  // another, each is rounded, so the layers show as separate soft bands.
   const solidAt = (x: number, y: number, z: number) => {
     const k = cells.get(x, y, z);
     if (k === undefined) return beyond?.(x, y, z) ?? false;
-    return (!only || only(k)) && groupOf(k) === group;
+    return (!only || only(k)) && (y === level || groupOf(k) === group);
   };
   // Each side: its normal axis and sign, and the two axes across it.
   const SIDES: Array<{ a: number; sign: 1 | -1; u: number; v: number }> = [
@@ -347,6 +351,7 @@ function facesOf(
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
     group = groupOf(kind);
+    level = y;
     const across = CUBE_CELLS[kind] ?? 1;
     colour.set(COLOURS[kind]);
     const cell = [x, y, z];
@@ -613,11 +618,11 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
       const pool = inPool(c, r);
       const top = pool ? -1 : terrace(c, r);
       // Grass on top (the path where it runs, earth under the water), earth
-      // under it down to three blocks below the lawn — two at the very rim,
-      // where the picture shows it thinner.
+      // under it down to three blocks below the lawn.
       ground.set(c, top, r, pool ? 'dirt' : onPath(c, r) ? 'path' : 'grass');
-      const d = edgeOf(c, r);
-      const dirtBottom = d <= 1 ? -2 : -3;
+      // The same depth everywhere, the rim too, so grass, dirt and stone
+      // meet in straight, level bands.
+      const dirtBottom = -3;
       for (let y = top - 1; y >= dirtBottom; y -= 1) ground.set(c, y, r, 'dirt');
       // Stone under that, in two-block chunks: one chunk at the rim, deeper
       // toward the middle, each chunk's depth set by where it is.

@@ -419,7 +419,9 @@ use for every track, house or other build).**
    stone, road, rails) is one continuous surface, with no per-block shading
    and no visible block lines. Each group is rounded on its own (about 30%
    of a block) wherever it faces the open air or a different material, so
-   grass, dirt and stone read as separate soft layers.
+   grass, dirt and stone read as separate soft layers. Rounded only where
+   one material sits on another (not sideways between columns), and the
+   dirt is one even depth, so the bands are straight and level.
    The blocks stay underneath as the grid everything is built on. The
    avatar is not affected.
 3. **Build bottom-up, complete:** a foundation is a complete solid (the
