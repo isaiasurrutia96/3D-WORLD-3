@@ -377,15 +377,23 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     {
       const HEIGHT = 0.075; // metres
       const WIDTH = 0.018;
-      const bladeMaterial = new MeshStandardMaterial({ color: '#5fa818', roughness: 0.9, side: DoubleSide });
-      bladeMaterial.toneMapped = false;
       const shape = new BufferGeometry();
       shape.setAttribute(
         'position',
         new BufferAttribute(new Float32Array([-WIDTH / 2, 0, 0, WIDTH / 2, 0, 0, 0, HEIGHT, 0]), 3),
       );
-      shape.computeVertexNormals();
+      // Lit as if it faced up, like the top of the block it stands on, so it
+      // comes out the very same shade of green.
+      shape.setAttribute('normal', new BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
       for (const [x, z] of [[0, 1], [2, 0]] as const) {
+        // The same colour as that block's top: its grass, at its own shade.
+        const bladeMaterial = new MeshStandardMaterial({
+          color: new Color(COLOURS.grass).multiplyScalar(variation(x, 1, z)),
+          roughness: 0.86,
+          metalness: 0,
+          side: DoubleSide,
+        });
+        bladeMaterial.toneMapped = false;
         const blade = new Mesh(shape, bladeMaterial);
         blade.name = 'grass-blade';
         blade.castShadow = true;
