@@ -364,101 +364,57 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     cube.position.set(-2 * blockSize, -blockSize, -blockSize);
     root.add(cube);
 
-    // A fixed scatter, the same every time.
-    const rand = (a: number, b: number) => {
-      const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-      return v - Math.floor(v);
-    };
 
-    // ---- Blades of grass: skinny pointed triangles standing on the top ----
+    // ---- A pattern of grass blades and stones ----
+    // Cells: x 0–3 from left to right, z 0 at the back and 1 at the front.
+    // The middle of a cell, in blocks, from the middle of the big block.
+    const cellX = (x: number) => x - 1.5;
+    const cellZ = (z: number) => z - 0.5;
+
+    // One blade on one grass block in every four: two of the eight, on
+    // opposite corners of the pattern. Each stands in the middle of its block,
+    // a perfect isosceles triangle the size of his finger, facing front.
     {
-      const positions: number[] = [];
-      const colours: number[] = [];
-      const GREENS = ['#6fb51a', '#86c820', '#5aa015', '#9ad62a'].map((c) => new Color(c));
-      // Two blades on each of the eight grass blocks, somewhere on its top
-      // and clear of its edges (all in blocks).
-      for (let i = 0; i < 16; i += 1) {
-        const cell = Math.floor(i / 2);
-        const cx = -1.5 + (cell % 4);
-        const cz = cell < 4 ? -0.5 : 0.5;
-        const x = cx + (rand(i, 1) - 0.5) * 0.6;
-        const z = cz + (rand(i, 2) - 0.5) * 0.6;
-        const height = 0.1 + rand(i, 3) * 0.12;
-        const width = 0.022 + rand(i, 4) * 0.014;
-        const turn = rand(i, 5) * Math.PI;
-        const lean = (rand(i, 6) - 0.5) * 0.08;
-        const ux = Math.cos(turn) * width;
-        const uz = Math.sin(turn) * width;
-        const tipX = x + Math.sin(turn + Math.PI / 2) * lean;
-        const tipZ = z + Math.cos(turn + Math.PI / 2) * lean;
-        const y0 = 1 - 0.01; // the top of the big block is one block up from the middle
-        const tri = [
-          [x - ux, y0, z - uz],
-          [x + ux, y0, z + uz],
-          [tipX, y0 + height, tipZ],
-        ];
-        const c = GREENS[i % GREENS.length];
-        const base = c.clone().multiplyScalar(0.8);
-        tri.forEach((p, k) => {
-          positions.push(p[0] * blockSize, p[1] * blockSize, p[2] * blockSize);
-          const col = k === 2 ? c : base;
-          colours.push(col.r, col.g, col.b);
-        });
-      }
-      const blades = new BufferGeometry();
-      blades.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-      blades.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
-      blades.computeVertexNormals();
-      const bladeMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: DoubleSide });
+      const HEIGHT = 0.075; // metres
+      const WIDTH = 0.018;
+      const bladeMaterial = new MeshStandardMaterial({ color: '#5fa818', roughness: 0.9, side: DoubleSide });
       bladeMaterial.toneMapped = false;
-      const grass = new Mesh(blades, bladeMaterial);
-      grass.name = 'grass-blades';
-      grass.castShadow = true;
-      root.add(grass);
+      const shape = new BufferGeometry();
+      shape.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array([-WIDTH / 2, 0, 0, WIDTH / 2, 0, 0, 0, HEIGHT, 0]), 3),
+      );
+      shape.computeVertexNormals();
+      for (const [x, z] of [[0, 1], [2, 0]] as const) {
+        const blade = new Mesh(shape, bladeMaterial);
+        blade.name = 'grass-blade';
+        blade.castShadow = true;
+        blade.position.set(cellX(x) * blockSize, blockSize - 0.001, cellZ(z) * blockSize);
+        root.add(blade);
+      }
     }
 
-    // ---- Little grey stones set into the dirt, on each side ----
+    // One stone on every other dirt block, in a checkerboard: on that block's
+    // outside face, in the middle of it. One plain grey.
     {
-      const stone = new IcosahedronGeometry(1, 1);
-      // One plain mid grey, the same for every stone.
       const GREY = new Color('#a3a3a3');
-      // The four sides of the dirt layer: where each faces, and its extent.
-      const sides: Array<{ n: [number, number, number]; along: 'x' | 'z'; half: number }> = [
-        { n: [0, 0, 1], along: 'x', half: 2 },
-        { n: [0, 0, -1], along: 'x', half: 2 },
-        { n: [1, 0, 0], along: 'z', half: 1 },
-        { n: [-1, 0, 0], along: 'z', half: 1 },
-      ];
-      sides.forEach((side, si) => {
-        // Three on each side, spread along it.
-        for (let i = 0; i < 3; i += 1) {
-          const t = ((i - 1) * 0.62 + (rand(si * 50 + i, 7) - 0.5) * 0.25) * (side.half - 0.25);
-          const y = -0.84 + rand(si * 50 + i, 8) * 0.68; // within the dirt layer, clear of its edges
-          const r = 0.06 + rand(si * 50 + i, 9) * 0.02;
-          const out = side.half === 2 ? 1 : 2; // how far that face is from the middle
-          const pos = [0, y, 0];
-          if (side.along === 'x') {
-            pos[0] = t;
-            pos[2] = side.n[2] * out;
-          } else {
-            pos[2] = t;
-            pos[0] = side.n[0] * out;
-          }
-          // A glow of its own so it stays plain grey in shade, never charcoal.
-          const mat = new MeshStandardMaterial({ color: GREY, roughness: 1, emissive: GREY, emissiveIntensity: 0.35 });
-          mat.toneMapped = false;
-          const pebble = new Mesh(stone, mat);
-          pebble.name = 'dirt-stone';
-          // Set into the face, flattened, so it reads as a dot in the dirt.
-          pebble.scale.set(r * blockSize, r * blockSize * 0.85, r * blockSize);
-          if (side.along === 'x') pebble.scale.z *= 0.35;
-          else pebble.scale.x *= 0.35;
-          pebble.position.set(pos[0] * blockSize, pos[1] * blockSize, pos[2] * blockSize);
-          root.add(pebble);
-        }
-      });
+      const stoneMaterial = new MeshStandardMaterial({ color: GREY, roughness: 1, emissive: GREY, emissiveIntensity: 0.35 });
+      stoneMaterial.toneMapped = false;
+      const stone = new IcosahedronGeometry(1, 1);
+      const r = 0.08 * blockSize;
+      for (const [x, z] of [[0, 1], [2, 1], [1, 0], [3, 0]] as const) {
+        const pebble = new Mesh(stone, stoneMaterial);
+        pebble.name = 'dirt-stone';
+        // Flattened against the face so it reads as a stone set into it.
+        pebble.scale.set(r, r * 0.85, r * 0.35);
+        const face = z === 1 ? 1 : -1;
+        pebble.position.set(cellX(x) * blockSize, -0.5 * blockSize, face * blockSize);
+        root.add(pebble);
+      }
     }
+
     scene.add(root);
+
     // The character beside it, for size comparison only: feet level with
     // the bottom of the big block, a little way off its right end.
     const characterAt = new Vector3(2 * blockSize + 0.45, -blockSize, 0);
