@@ -107,11 +107,13 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
   }
   blocks(root, TERRAIN, terrain, 'terrain');
   // A solid core under the grooves of each layer so nothing shows through.
-  // It is the colour of the dirt: the bottom of every gap is dirt.
+  // Each core is its own layer's colour: between grass blocks it is grass,
+  // so they read as sealed; under the dirt, and at the foot of the step, it
+  // is dirt.
   const seal = 0.092;
-  const coreMaterial = new MeshStandardMaterial({ color: DIRT, roughness: 1 });
-  coreMaterial.toneMapped = false;
-  for (const [across, y] of [[N, -2], [N - 2, -1]] as const) {
+  for (const [across, y, colour] of [[N, -2, DIRT], [N - 2, -1, GRASS]] as const) {
+    const coreMaterial = new MeshStandardMaterial({ color: colour, roughness: 1 });
+    coreMaterial.toneMapped = false;
     const core = new Mesh(
       new BoxGeometry((across - 2 * seal) * TERRAIN, (1 - 2 * seal) * TERRAIN, (across - 2 * seal) * TERRAIN),
       coreMaterial,
@@ -141,7 +143,7 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
   // ---- A rock and a bush, also 21.5 cm ----
   {
     const rx = step(0.86, OBJ);
-    const rz = step(-0.86, OBJ);
+    const rz = step(0.645, OBJ);
     blocks(root, OBJ, [
       [rx, 0, rz, '#a3a3a3'], [rx + 1, 0, rz, '#a3a3a3'], [rx, 0, rz + 1, '#a3a3a3'], [rx, 1, rz, '#a3a3a3'],
     ], 'rock');
@@ -154,8 +156,9 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
 
   // ---- A small cubicle of 10.75 cm blocks: three low walls and a desk ----
   const cubicle: Array<[number, number, number, string]> = [];
-  const cx = step(0.645, SM);
-  const cz = step(0.215, SM);
+  // On the grass, at the back right, its open side to the front.
+  const cx = step(0.215, SM);
+  const cz = step(-1.075, SM);
   const W = step(0.86, SM);
   const wallHigh = step(0.54, SM);
   const deskAt = step(0.33, SM);
