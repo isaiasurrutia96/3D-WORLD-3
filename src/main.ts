@@ -27,6 +27,7 @@ import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
+import { buildHalvingScene } from './world/HalvingScene.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -122,6 +123,14 @@ class Game {
       // `?blocks=rounded` shows every block fully rounded, for comparing.
       const allRounded = new URLSearchParams(window.location.search).get('blocks') === 'rounded';
       const showcase = buildBlockShowcase(this.engine.scene, { single: true, allRounded });
+      // `?blocks=halving`: the three nesting sizes in a small scene instead.
+      if (new URLSearchParams(window.location.search).get('blocks') === 'halving') {
+        showcase.root.visible = false;
+        const halving = buildHalvingScene(this.engine.scene);
+        showcase.characterAt.copy(halving.characterAt);
+        showcase.centre.copy(halving.centre);
+        Object.assign(showcase.extent, halving.extent);
+      }
       this.showcase = showcase;
       // A three-quarter view from a little above, so the top and two sides
       // all show and it reads as a cube.
