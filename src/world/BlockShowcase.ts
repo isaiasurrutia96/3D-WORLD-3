@@ -33,6 +33,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /** The golden ratio. */
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -139,7 +140,7 @@ function length(metres: number): string {
  * rounding fades to nothing as it nears that corner, so the three edges that
  * meet there run from rounded to sharp, and the corner itself is a point.
  */
-function pointyBlock(sharp: [number, number, number], colour: Color, radius = 0.1, steps = 22): BufferGeometry {
+export function pointyBlock(sharp: [number, number, number], colour: Color, radius = 0.1, steps = 22): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colours: number[] = [];
@@ -344,22 +345,35 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    // Eight blocks, two by two by two, a small gap between each so none
-    // touch. Each is rounded except one sharp corner: the front corner that
-    // points toward the middle, so from the front the four sharp corners of
-    // the front blocks meet at the centre.
-    const GAP = 0.06;
+    // Sixteen rounded blocks, touching: four wide, two deep, two high, grass
+    // on top and dirt underneath, in the island preview's colours, each
+    // block a slightly different shade, the way that preview does it.
+    const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
+    const plain = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
+    plain.toneMapped = false;
     let cube = new Mesh();
-    for (const sx of [-1, 1]) {
-      for (const sy of [-1, 1]) {
-        for (const sz of [-1, 1]) {
-          const block = new Mesh(pointyBlock([-sx, -sy, 1], new Color(COLOURS.bright)), material);
+    for (let x = 0; x < 4; x += 1) {
+      for (let y = 0; y < 2; y += 1) {
+        for (let z = 0; z < 2; z += 1) {
+          const tint = new Color(y === 1 ? COLOURS.grass : COLOURS.earth).multiplyScalar(variation(x, y, z));
+          const geometry = box.clone();
+          const normal = geometry.attributes.normal;
+          const shades = new Float32Array(normal.count * 3);
+          for (let i = 0; i < normal.count; i += 1) {
+            const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
+            const light =
+              Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
+              Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+            const l = light / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
+            shades.set([tint.r * l, tint.g * l, tint.b * l], i * 3);
+          }
+          geometry.setAttribute('color', new BufferAttribute(shades, 3));
+          const block = new Mesh(geometry, plain);
           block.name = 'showcase-blocks';
           block.castShadow = true;
           block.receiveShadow = true;
           block.scale.setScalar(blockSize);
-          const step = (0.5 + GAP / 2) * blockSize;
-          block.position.set(sx * step, sy * step, sz * step);
+          block.position.set((x - 1.5) * blockSize, (y - 0.5) * blockSize, (z - 0.5) * blockSize);
           root.add(block);
           cube = block;
         }
@@ -368,7 +382,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 2.15, height: blockSize * 2.15, depth: blockSize * 2.15 },
+      extent: { width: blockSize * 4.1, height: blockSize * 2.1, depth: blockSize * 2.1 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
