@@ -11,22 +11,19 @@
  */
 
 import {
-  BoxGeometry,
   BufferAttribute,
+  BufferGeometry,
   Color,
   Group,
-  InstancedMesh,
-  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Scene,
   Vector3,
 } from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const TERRAIN = 0.43;
 /** How round each block's edges are, as a part of the block. */
-const ROUND = 0.07;
+const ROUND = 0.1;
 
 /** A fixed lighter-or-darker amount per block, the same every time. */
 function shade(x: number, y: number, z: number): number {
@@ -34,41 +31,86 @@ function shade(x: number, y: number, z: number): number {
   return 0.92 + (s - Math.floor(s)) * 0.16;
 }
 
-const shape = (() => {
-  // Slightly rounded: the edges curve over 7% of a block.
-  const g = new RoundedBoxGeometry(1, 1, 1, 3, ROUND);
-  const n = g.attributes.normal;
-  const c = new Float32Array(n.count * 3);
-  for (let i = 0; i < n.count; i += 1) {
-    const nx = n.getX(i), ny = n.getY(i), nz = n.getZ(i);
-    const light =
-      Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-      Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
-    const l = light / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
-    c.set([l, l, l], i * 3);
-  }
-  g.setAttribute('color', new BufferAttribute(c, 3));
-  return g;
-})();
 
-const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
-material.toneMapped = false;
 
-/** Blocks of one size: each [x, y, z, colour], in steps of that size, x/z centred. */
+const merged = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
+merged.toneMapped = false;
+
+/**
+ * Blocks of one size, each [x, y, z, colour] in steps of that size, merged
+ * into one solid shape: faces between blocks are left out, and edges and
+ * corners are rounded only where they face the open air, so the blocks read
+ * as one big rounded block, each still its own slight shade.
+ */
 function blocks(root: Group, size: number, list: Array<[number, number, number, string]>, name: string): void {
-  const mesh = new InstancedMesh(shape, material, list.length);
+  const cells = new Map<string, Color>();
+  for (const [x, y, z, colour] of list) cells.set(`${x},${y},${z}`, new Color(colour).multiplyScalar(shade(x, y, z)));
+  const at = (x: number, y: number, z: number) => cells.has(`${x},${y},${z}`);
+  const R = ROUND;
+  const steps = [-0.5, -0.5 + R * 0.35, -0.5 + R, 0.5 - R, 0.5 - R * 0.35, 0.5];
+  const SIDES: Array<{ n: [number, number, number]; u: [number, number, number]; v: [number, number, number] }> = [
+    { n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0] },
+    { n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
+    { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, -1] },
+    { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1] },
+    { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] },
+    { n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0] },
+  ];
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colours: number[] = [];
+  const indices: number[] = [];
+  for (const [key, tint] of cells) {
+    const [x, y, z] = key.split(',').map(Number);
+    const occupied = [
+      [at(x - 1, y, z), at(x + 1, y, z)],
+      [at(x, y - 1, z), at(x, y + 1, z)],
+      [at(x, y, z - 1), at(x, y, z + 1)],
+    ];
+    for (const side of SIDES) {
+      if (at(x + side.n[0], y + side.n[1], z + side.n[2])) continue;
+      const base = positions.length / 3;
+      for (const b of steps) {
+        for (const a of steps) {
+          const p = [0, 1, 2].map((i) => side.n[i] * 0.5 + side.u[i] * a + side.v[i] * b);
+          // Toward a neighbour the edge stays square, so the blocks meet flush.
+          const core = p.map((value, i) =>
+            Math.max(occupied[i][0] ? -0.5 : -0.5 + R, Math.min(occupied[i][1] ? 0.5 : 0.5 - R, value)),
+          );
+          const off = p.map((value, i) => value - core[i]);
+          const len = Math.hypot(off[0], off[1], off[2]) || 1;
+          const n = off.map((value) => value / len);
+          positions.push(
+            (x + 0.5 + core[0] + n[0] * R) * size,
+            (y + 0.5 + core[1] + n[1] * R) * size,
+            (z + 0.5 + core[2] + n[2] * R) * size,
+          );
+          normals.push(n[0], n[1], n[2]);
+          const light =
+            Math.max(0, n[0]) * 0.86 + Math.max(0, -n[0]) * 0.93 + Math.max(0, n[1]) * 1 +
+            Math.max(0, -n[1]) * 0.6 + Math.max(0, n[2]) * 0.88 + Math.max(0, -n[2]) * 0.8;
+          const l = light / (Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]) || 1);
+          colours.push(tint.r * l, tint.g * l, tint.b * l);
+        }
+      }
+      const row = steps.length;
+      for (let j = 0; j < row - 1; j += 1) {
+        for (let i = 0; i < row - 1; i += 1) {
+          const k = base + j * row + i;
+          indices.push(k, k + 1, k + row + 1, k, k + row + 1, k + row);
+        }
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
+  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
+  geometry.setIndex(indices);
+  const mesh = new Mesh(geometry, merged);
   mesh.name = name;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  const m = new Matrix4();
-  list.forEach(([x, y, z, colour], i) => {
-    m.makeScale(size, size, size);
-    m.setPosition((x + 0.5) * size, (y + 0.5) * size, (z + 0.5) * size);
-    mesh.setMatrixAt(i, m);
-    mesh.setColorAt(i, new Color(colour).multiplyScalar(shade(x, y, z)));
-  });
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   root.add(mesh);
 }
 
@@ -109,21 +151,7 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
     }
   }
   blocks(root, TERRAIN, terrain, 'terrain');
-  // A solid core under the grooves of each layer so nothing shows through.
-  // Each core is its own layer's colour: between grass blocks it is grass,
-  // so they read as sealed; under the dirt, and at the foot of the step, it
-  // is dirt.
-  const seal = ROUND * 0.92;
-  for (const [across, y, colour] of [[N, -2, DIRT], [N - 2, -1, GRASS]] as const) {
-    const coreMaterial = new MeshStandardMaterial({ color: colour, roughness: 1 });
-    coreMaterial.toneMapped = false;
-    const core = new Mesh(
-      new BoxGeometry((across - 2 * seal) * TERRAIN, (1 - 2 * seal) * TERRAIN, (across - 2 * seal) * TERRAIN),
-      coreMaterial,
-    );
-    core.position.y = (y + 0.5) * TERRAIN;
-    root.add(core);
-  }
+  // Merged, there are no grooves to seal.
 
   // ---- A tree of 21.5 cm blocks: a trunk and a round crown ----
   const tree: Array<[number, number, number, string]> = [];
