@@ -20,14 +20,12 @@
  */
 
 import {
-  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
   Color,
   Group,
   Mesh,
-  MeshBasicMaterial,
   MeshStandardMaterial,
   Scene,
   Sprite,
@@ -35,7 +33,6 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /** The golden ratio. */
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -134,6 +131,71 @@ function label(title: string, detail: string): Sprite {
 /** A length in metres or centimetres, whichever reads more easily. */
 function length(metres: number): string {
   return metres < 1 ? `${(metres * 100).toFixed(1)} cm` : `${metres.toFixed(3)} m`;
+}
+
+/**
+ * One block, rounded everywhere except one sharp corner, as a unit cube
+ * centred on the origin. `sharp` says which corner (each part ±1). The
+ * rounding fades to nothing as it nears that corner, so the three edges that
+ * meet there run from rounded to sharp, and the corner itself is a point.
+ */
+function pointyBlock(sharp: [number, number, number], colour: Color, radius = 0.1, steps = 22): BufferGeometry {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colours: number[] = [];
+  const indices: number[] = [];
+  const corner = sharp.map((v) => v * 0.5);
+  // Each face: its normal axis and sign, and the two axes across it.
+  const faces: Array<[number, number, number, number]> = [
+    [0, 1, 1, 2], [0, -1, 2, 1], [1, 1, 2, 0], [1, -1, 0, 2], [2, 1, 0, 1], [2, -1, 1, 0],
+  ];
+  const LIGHT = (n: number[]) => {
+    const l =
+      Math.max(0, n[0]) * 0.86 + Math.max(0, -n[0]) * 0.93 + Math.max(0, n[1]) * 1 +
+      Math.max(0, -n[1]) * 0.6 + Math.max(0, n[2]) * 0.88 + Math.max(0, -n[2]) * 0.8;
+    return l / (Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]) || 1);
+  };
+  for (const [a, sign, u, v] of faces) {
+    const base = positions.length / 3;
+    for (let j = 0; j <= steps; j += 1) {
+      for (let i = 0; i <= steps; i += 1) {
+        const p = [0, 0, 0];
+        p[a] = sign * 0.5;
+        p[u] = -0.5 + i / steps;
+        p[v] = -0.5 + j / steps;
+        // How round it is here: full away from the sharp corner, none at it.
+        const d = Math.hypot(p[0] - corner[0], p[1] - corner[1], p[2] - corner[2]);
+        const r = radius * Math.min(1, d / 0.45);
+        const core = p.map((value) => Math.max(-0.5 + r, Math.min(0.5 - r, value)));
+        const off = p.map((value, k) => value - core[k]);
+        const len = Math.hypot(off[0], off[1], off[2]);
+        const n = [0, 0, 0];
+        if (len > 1e-6 && r > 1e-6) {
+          for (let k = 0; k < 3; k += 1) n[k] = off[k] / len;
+          positions.push(core[0] + n[0] * r, core[1] + n[1] * r, core[2] + n[2] * r);
+        } else {
+          n[a] = sign;
+          positions.push(p[0], p[1], p[2]);
+        }
+        normals.push(n[0], n[1], n[2]);
+        const l = LIGHT(n);
+        colours.push(colour.r * l, colour.g * l, colour.b * l);
+      }
+    }
+    const row = steps + 1;
+    for (let j = 0; j < steps; j += 1) {
+      for (let i = 0; i < steps; i += 1) {
+        const k = base + j * row + i;
+        indices.push(k, k + 1, k + row + 1, k, k + row + 1, k + row);
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
+  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
+  geometry.setIndex(indices);
+  return geometry;
 }
 
 /** The size the owner chose from the comparison: 0.146× the baseline. */
@@ -282,84 +344,31 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    let cube: Mesh;
-    {
-      // Every block rounded on all its own edges, over a tenth of the edge,
-      // so a groove shows wherever two blocks touch.
-      const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
-      const tint = new Color(COLOURS.bright);
-      const faceColours = new Float32Array(box.attributes.position.count * 3);
-      const normal = box.attributes.normal;
-      for (let i = 0; i < box.attributes.position.count; i += 1) {
-        // Shade by which way the surface faces, blending round the curves.
-        const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
-        const light =
-          Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-          Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
-        const sum = Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1;
-        faceColours.set([tint.r * (light / sum), tint.g * (light / sum), tint.b * (light / sum)], i * 3);
-      }
-      box.setAttribute('color', new BufferAttribute(faceColours, 3));
-      cube = new Mesh(box, material);
-      for (const key of cells.keys()) {
-        const [x, y, z] = key.split(',').map(Number);
-        const block = new Mesh(box, material);
-        block.name = 'showcase-blocks';
-        block.castShadow = true;
-        block.receiveShadow = true;
-        block.scale.setScalar(blockSize);
-        block.position.set((x - 0.5) * blockSize, y * blockSize, z * blockSize);
-        root.add(block);
-        cube = block;
-      }
-      if (!options.allRounded) {
-        // Sealed inside: a solid core fills the space between the blocks,
-        // reaching to just under the bottom of the grooves. Each block still
-        // shows its rounded edges and corners wherever they can be seen,
-        // but the grooves between blocks go only that far in, so there is
-        // no gap through the middle from any side.
-        const reach = 1 - 0.1 * 0.92;
-        // Two blocks wide, one high and one deep.
-        const core: Mesh = new Mesh(new BoxGeometry(2 * reach, 2 * reach - 1, 2 * reach - 1), material);
-        // Black, with its own unlit material, so the little gap where the four
-        // corners meet looks like a deep dark crack.
-        core.material = new MeshBasicMaterial({ color: '#000000' });
-        const coreColours = new Float32Array(core.geometry.attributes.position.count * 3);
-        const tint = new Color(COLOURS.bright);
-        for (let i = 0; i < core.geometry.attributes.position.count; i += 1) coreColours.set([tint.r, tint.g, tint.b], i * 3);
-        core.geometry.setAttribute('color', new BufferAttribute(coreColours, 3));
-        core.name = 'showcase-blocks';
-        core.scale.setScalar(blockSize);
-        core.castShadow = true;
-        core.receiveShadow = true;
-        root.add(core);
-        // A tiny, very thin cross in the little spot at the very centre of
-        // the top, where the four rounded corners meet and the core shows: so
-        // that spot reads as four corners meeting, not one solid dot. It lies
-        // on the core, black, and spans only that spot.
-        const LINE = 0.006;
-        const ARM = 0.18; // the whole cross, end to end, as a part of a block
-        const lineMaterial = new MeshBasicMaterial({ color: '#000000' });
-        lineMaterial.toneMapped = false;
-        const y = reach - 0.5 + 0.0015; // just on the core's top
-        // With two blocks there is no centre where four corners meet.
-        void y;
-        void ARM;
-        void LINE;
-        const strips: Array<[number, number, number, number, number, number]> = [];
-        for (const [x, y, z, w, hh, d] of strips) {
-          const strip = new Mesh(new BoxGeometry(w, hh, d), lineMaterial);
-          strip.name = 'seam-line';
-          strip.position.set(x * blockSize, y * blockSize, z * blockSize);
-          strip.scale.setScalar(blockSize);
-          root.add(strip);
+    // Eight blocks, two by two by two, a small gap between each so none
+    // touch. Each is rounded except one sharp corner: the front corner that
+    // points toward the middle, so from the front the four sharp corners of
+    // the front blocks meet at the centre.
+    const GAP = 0.06;
+    let cube = new Mesh();
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const block = new Mesh(pointyBlock([-sx, -sy, 1], new Color(COLOURS.bright)), material);
+          block.name = 'showcase-blocks';
+          block.castShadow = true;
+          block.receiveShadow = true;
+          block.scale.setScalar(blockSize);
+          const step = (0.5 + GAP / 2) * blockSize;
+          block.position.set(sx * step, sy * step, sz * step);
+          root.add(block);
+          cube = block;
         }
       }
     }
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
-      extent: { width: blockSize * 2.1, height: blockSize * 1.1, depth: blockSize * 1.1 },
+      extent: { width: blockSize * 2.15, height: blockSize * 2.15, depth: blockSize * 2.15 },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,

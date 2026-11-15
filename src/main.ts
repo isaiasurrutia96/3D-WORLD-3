@@ -125,8 +125,9 @@ class Game {
       this.showcase = showcase;
       // A three-quarter view from a little above, so the top and two sides
       // all show and it reads as a cube.
-      this.showcaseYaw = 0.62;
-      this.showcasePitch = 0.5;
+      // Straight on from the front.
+      this.showcaseYaw = 0;
+      this.showcasePitch = 0;
       // A narrower lens from further off: up close a wide one bends a small
       // block so its bottom looks narrower than its top.
       this.engine.camera.fov = 28;
