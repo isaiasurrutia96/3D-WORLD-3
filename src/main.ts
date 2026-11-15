@@ -28,6 +28,7 @@ import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildHalvingScene } from './world/HalvingScene.ts';
+import { createGoldenFigure } from './player/GoldenFigure.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
 import {
@@ -129,6 +130,14 @@ class Game {
       if (option === 'halving' || option === 'golden') {
         showcase.root.visible = false;
         const halving = buildHalvingScene(this.engine.scene, option);
+        // `&golden=1`: the figure reshaped to golden-ratio proportions,
+        // standing beside him, for comparing.
+        if (new URLSearchParams(window.location.search).has('golden')) {
+          const golden = createGoldenFigure();
+          golden.position.copy(halving.characterAt).add(new Vector3(0.75, 0, 0));
+          golden.rotation.y = 0.35;
+          this.engine.scene.add(golden);
+        }
         showcase.characterAt.copy(halving.characterAt);
         showcase.centre.copy(halving.centre);
         Object.assign(showcase.extent, halving.extent);
