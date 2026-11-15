@@ -11,7 +11,6 @@
  */
 
 import {
-  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -24,8 +23,11 @@ import {
   Scene,
   Vector3,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const TERRAIN = 0.43;
+/** How round each block's edges are, as a part of the block. */
+const ROUND = 0.1;
 
 /** A fixed lighter-or-darker amount per block, the same every time. */
 function shade(x: number, y: number, z: number): number {
@@ -56,6 +58,8 @@ function blocks(
   for (const [x, y, z, colour] of list) cells.set(`${x},${y},${z}`, new Color(colour).multiplyScalar(shade(x, y, z)));
   const at = (x: number, y: number, z: number) => cells.has(`${x},${y},${z}`);
   const below = (x: number, y: number, z: number) => at(x, y - 1, z) || (restsOn?.(x, y - 1, z) ?? false);
+  const R = ROUND;
+  const steps = [-0.5, -0.5 + R * 0.35, -0.5 + R, 0.5 - R, 0.5 - R * 0.35, 0.5];
   const SIDES: Array<{ n: [number, number, number]; u: [number, number, number]; v: [number, number, number] }> = [
     { n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0] },
     { n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
@@ -70,26 +74,60 @@ function blocks(
   const indices: number[] = [];
   for (const [key, tint] of cells) {
     const [x, y, z] = key.split(',').map(Number);
-    // Plain square blocks: only faces that touch the open air are drawn.
+    const occupied = [
+      [at(x - 1, y, z), at(x + 1, y, z)],
+      [below(x, y, z), at(x, y + 1, z)],
+      [at(x, y, z - 1), at(x, y, z + 1)],
+    ];
+    // Where a block of this shape sits on this one and has an open side, its
+    // rounded upright edges leave small openings down to this block's top.
+    // That top is drawn there, flat, in this block's colour, so the corners
+    // close and never show the sky — wherever blocks stack: roots, walls,
+    // crowns, steps.
+    if (at(x, y + 1, z) && (!at(x - 1, y + 1, z) || !at(x + 1, y + 1, z) || !at(x, y + 1, z - 1) || !at(x, y + 1, z + 1))) {
+      const base = positions.length / 3;
+      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+        positions.push((x + 0.5 + a) * size, (y + 1) * size, (z + 0.5 + b) * size);
+        normals.push(0, 1, 0);
+        colours.push(tint.r, tint.g, tint.b);
+      }
+      indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
     for (const side of SIDES) {
       if (at(x + side.n[0], y + side.n[1], z + side.n[2])) continue;
       // Its underside, where it sits on what it rests on, is not seen.
       if (side.n[1] === -1 && below(x, y, z)) continue;
       const base = positions.length / 3;
-      const [nx, ny, nz] = side.n;
-      const l =
-        Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-        Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
-      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
-        positions.push(
-          (x + 0.5 + nx * 0.5 + side.u[0] * a + side.v[0] * b) * size,
-          (y + 0.5 + ny * 0.5 + side.u[1] * a + side.v[1] * b) * size,
-          (z + 0.5 + nz * 0.5 + side.u[2] * a + side.v[2] * b) * size,
-        );
-        normals.push(nx, ny, nz);
-        colours.push(tint.r * l, tint.g * l, tint.b * l);
+      for (const b of steps) {
+        for (const a of steps) {
+          const p = [0, 1, 2].map((i) => side.n[i] * 0.5 + side.u[i] * a + side.v[i] * b);
+          // Toward a neighbour the edge stays square, so the blocks meet flush.
+          const core = p.map((value, i) =>
+            Math.max(occupied[i][0] ? -0.5 : -0.5 + R, Math.min(occupied[i][1] ? 0.5 : 0.5 - R, value)),
+          );
+          const off = p.map((value, i) => value - core[i]);
+          const len = Math.hypot(off[0], off[1], off[2]) || 1;
+          const n = off.map((value) => value / len);
+          positions.push(
+            (x + 0.5 + core[0] + n[0] * R) * size,
+            (y + 0.5 + core[1] + n[1] * R) * size,
+            (z + 0.5 + core[2] + n[2] * R) * size,
+          );
+          normals.push(n[0], n[1], n[2]);
+          const light =
+            Math.max(0, n[0]) * 0.86 + Math.max(0, -n[0]) * 0.93 + Math.max(0, n[1]) * 1 +
+            Math.max(0, -n[1]) * 0.6 + Math.max(0, n[2]) * 0.88 + Math.max(0, -n[2]) * 0.8;
+          const l = light / (Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]) || 1);
+          colours.push(tint.r * l, tint.g * l, tint.b * l);
+        }
       }
-      indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      const row = steps.length;
+      for (let j = 0; j < row - 1; j += 1) {
+        for (let i = 0; i < row - 1; i += 1) {
+          const k = base + j * row + i;
+          indices.push(k, k + 1, k + row + 1, k, k + row + 1, k + row);
+        }
+      }
     }
   }
   const geometry = new BufferGeometry();
@@ -819,7 +857,7 @@ export function buildTreeScene(scene: Scene): HalvingScene {
     if (!hidden) surface.push([x, y, z]);
   }
   {
-    const cube = new BoxGeometry(1, 1, 1);
+    const cube = new RoundedBoxGeometry(1, 1, 1, 2, 0.16);
     const n = cube.attributes.normal;
     const light = new Float32Array(n.count * 3);
     for (let i = 0; i < n.count; i += 1) {
