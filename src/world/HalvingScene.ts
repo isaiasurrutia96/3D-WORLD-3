@@ -774,29 +774,23 @@ export function buildTreeScene(scene: Scene): HalvingScene {
   }
   blocks(root, OBJ, unique(trunk), 'tree-trunk');
 
-  // ---- Buttress roots and flare: 10.75 cm blocks at the four corners ----
-  // In 10.75 cm steps the trunk is x and z −2..3. Each root runs out
-  // diagonally from a corner, stepping down from four blocks high to one.
+  // ---- Roots: 21.5 cm blocks, two out of each side of the trunk ----
+  // The trunk is a plain 3 × 3 column. From each side, at its two outer
+  // blocks, a root reaches out two blocks: two high against the trunk, one
+  // high beyond that.
   const roots: Array<[number, number, number, string]> = [];
-  // (No roots at the corners: two out of each side, below.)
-  for (let i = -2; i <= 3; i += 1) {
-    for (let y = 0; y < 2; y += 1) roots.push([i, y, -3, BARK], [i, y, 4, BARK], [-3, y, i, BARK], [4, y, i, BARK]);
-  }
-  // And two out from each side, between the corner roots, one block wide
-  // each with a block's gap between them, stepping down the same way.
   for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    for (let k = 1; k <= 4; k += 1) {
-      const high = 5 - k;
-      for (let y = 0; y < high; y += 1) {
-        for (const w of [-1, 2]) {
-          const x = ax > 0 ? 3 + k : ax < 0 ? -2 - k : w;
-          const z = az > 0 ? 3 + k : az < 0 ? -2 - k : w;
+    for (const w of [-1, 1]) {
+      for (const [k, high] of [[2, 2], [3, 1]] as const) {
+        for (let y = 0; y < high; y += 1) {
+          const x = ax !== 0 ? ax * k : w;
+          const z = az !== 0 ? az * k : w;
           roots.push([x, y, z, BARK]);
         }
       }
     }
   }
-  blocks(root, SM, unique(roots), 'tree-roots');
+  blocks(root, OBJ, unique(roots), 'tree-roots', (x, y, z) => y === -1 && Math.abs(x + 0.5) < W / 2 && Math.abs(z + 0.5) < W / 2);
 
   // ---- Two thick branches angling out of the top of the trunk ----
   const branches: Array<[number, number, number, string]> = [];
