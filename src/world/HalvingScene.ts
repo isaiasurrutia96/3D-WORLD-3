@@ -772,7 +772,6 @@ export function buildTreeScene(scene: Scene): HalvingScene {
   for (let y = 0; y < TRUNK; y += 1) {
     for (let dx = -1; dx <= 1; dx += 1) for (let dz = -1; dz <= 1; dz += 1) trunk.push([dx, y, dz, BARK]);
   }
-  blocks(root, OBJ, unique(trunk), 'tree-trunk');
 
   // ---- Roots: 21.5 cm blocks, two out of each side of the trunk ----
   // The trunk is a plain 3 × 3 column. From each side, at its two outer
@@ -790,7 +789,8 @@ export function buildTreeScene(scene: Scene): HalvingScene {
       }
     }
   }
-  blocks(root, OBJ, unique(roots), 'tree-roots', (x, y, z) => y === -1 && Math.abs(x + 0.5) < W / 2 && Math.abs(z + 0.5) < W / 2);
+  // One solid with the trunk, so the roots grow out of it without a seam.
+  blocks(root, OBJ, unique([...trunk, ...roots]), 'tree-trunk', (x, y, z) => y === -1 && Math.abs(x + 0.5) < W / 2 && Math.abs(z + 0.5) < W / 2);
 
   // ---- Two thick branches angling out of the top of the trunk ----
   const branches: Array<[number, number, number, string]> = [];
