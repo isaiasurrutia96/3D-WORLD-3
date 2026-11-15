@@ -97,21 +97,28 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
   // ---- Terrain: 8 × 8 blocks of 43 cm, grass over one layer of dirt ----
   const N = 8;
   const terrain: Array<[number, number, number, string]> = [];
+  // The outer ring of grass is left off, so the dirt steps out one block.
   for (let x = -N / 2; x < N / 2; x += 1) {
     for (let z = -N / 2; z < N / 2; z += 1) {
-      terrain.push([x, -1, z, GRASS]);
+      const outer = x === -N / 2 || x === N / 2 - 1 || z === -N / 2 || z === N / 2 - 1;
+      if (!outer) terrain.push([x, -1, z, GRASS]);
       terrain.push([x, -2, z, DIRT]);
     }
   }
   blocks(root, TERRAIN, terrain, 'terrain');
-  // A solid core under the grooves so nothing shows through.
+  // A solid core under the grooves of each layer so nothing shows through.
+  // It is the colour of the dirt: the bottom of every gap is dirt.
   const seal = 0.092;
-  const core = new Mesh(
-    new BoxGeometry((N - 2 * seal) * TERRAIN, (2 - 2 * seal) * TERRAIN, (N - 2 * seal) * TERRAIN),
-    new MeshStandardMaterial({ color: new Color(DIRT).multiplyScalar(0.7), roughness: 1 }),
-  );
-  core.position.y = -TERRAIN;
-  root.add(core);
+  const coreMaterial = new MeshStandardMaterial({ color: DIRT, roughness: 1 });
+  coreMaterial.toneMapped = false;
+  for (const [across, y] of [[N, -2], [N - 2, -1]] as const) {
+    const core = new Mesh(
+      new BoxGeometry((across - 2 * seal) * TERRAIN, (1 - 2 * seal) * TERRAIN, (across - 2 * seal) * TERRAIN),
+      coreMaterial,
+    );
+    core.position.y = (y + 0.5) * TERRAIN;
+    root.add(core);
+  }
 
   // ---- A tree of 21.5 cm blocks: a trunk and a round crown ----
   const tree: Array<[number, number, number, string]> = [];
