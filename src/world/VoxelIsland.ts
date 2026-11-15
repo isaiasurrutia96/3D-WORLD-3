@@ -803,7 +803,10 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     const edge = r === BRIDGE.from || r === BRIDGE.to;
     return y === 0 || y === -1 || (edge && y === 1) || (edge && y === 2 && (c - BRIDGE.firstCol) % 4 === 0);
   };
-  mesh('block-ground', facesOf(ground, undefined, true, 2, entryAt), solid);
+  // The circuit is not built now, so nothing joins the bridge's far end:
+  // it is rounded off like any other open edge. Pass entryAt to bring it back.
+  void entryAt;
+  mesh('block-ground', facesOf(ground), solid);
   mesh('block-trunks', facesOf(props, (k) => k === 'wood'), solid);
   mesh('block-rocks', facesOf(rocks), solid);
   // Leaves and bushes: he passes through them. Named for what they are, so

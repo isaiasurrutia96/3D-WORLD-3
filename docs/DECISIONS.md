@@ -443,6 +443,8 @@ use for every track, house or other build).**
    of the smallest blocks (a quarter block), two thick and a block high,
    flush along the kerb line, with posts; at the entry they carry the
    bridge's rails on at the same size. Open at `?world=island`.
+   **Removed from the world** by the owner (15 November); the code
+   (`src/racing/BlockCircuit.ts`) is kept, unbuilt.
 
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.

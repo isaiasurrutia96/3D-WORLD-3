@@ -26,7 +26,7 @@ import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
-import { buildBlockCircuit, type BlockCircuit } from './racing/BlockCircuit.ts';
+import type { BlockCircuit } from './racing/BlockCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildHalvingScene, buildNatureScene, buildOvalScene, buildTrackScene, buildTreeScene } from './world/HalvingScene.ts';
 import { createGoldenFigure } from './player/GoldenFigure.ts';
@@ -120,9 +120,10 @@ class Game {
       const island = buildVoxelIsland(this.engine.scene, this.collision);
       this.engine.setFogScale(0);
       this.voxel = island;
-      // The circuit, built of blocks on the island's grid, carrying on from its bridge.
-      this.circuit = buildBlockCircuit(this.engine.scene, this.collision, { ...island.grid, anchor: island.circuitAnchor });
-      island.triangleCount += this.circuit.triangleCount;
+      // The race circuit (racing/BlockCircuit.ts) is kept in the code and not
+      // built: the owner removed it from the world. To bring it back:
+      // this.circuit = buildBlockCircuit(scene, collision, { ...island.grid, anchor: island.circuitAnchor })
+      // and pass the entry to the island's ground again (VoxelIsland.ts).
       this.engine.setSunDirection(island.sunDirection);
       this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
       this.engine.sky.setCloudsVisible(false);
