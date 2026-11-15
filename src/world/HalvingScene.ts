@@ -14,6 +14,8 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  Matrix4,
+  InstancedMesh,
   DoubleSide,
   Group,
   Mesh,
@@ -21,6 +23,7 @@ import {
   Scene,
   Vector3,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const TERRAIN = 0.43;
 /** How round each block's edges are, as a part of the block. */
@@ -710,5 +713,146 @@ export function buildNatureScene(scene: Scene): HalvingScene {
     characterAt: new Vector3(0.2, 0, 0.75),
     centre: new Vector3(0, 0.9, 0),
     extent: { width: (W + 2) * TERRAIN, height: 2.6, depth: (D + 2) * TERRAIN },
+  };
+}
+
+/**
+ * One tree in the style of the reference pictures: a thick trunk flaring at
+ * its foot with roots, branches of small blocks splitting off near the top,
+ * and a big puffy crown of separate, softly rounded leaf cubes — a large
+ * clump on top and smaller clumps round it — in one green, each cube its own
+ * slight shade.
+ */
+export function buildTreeScene(scene: Scene): HalvingScene {
+  const root = new Group();
+  root.name = 'tree-scene';
+  const OBJ = TERRAIN / 2;
+  const SM = TERRAIN / 4;
+  const GRASS = '#93d91e';
+  const DIRT = '#da965a';
+  const BARK = '#8a5530';
+  const LEAF = '#86cc22';
+
+  // ---- Ground ----
+  const W = 8;
+  const dirt: Array<[number, number, number, string]> = [];
+  const grass: Array<[number, number, number, string]> = [];
+  for (let i = -W / 2 - 1; i < W / 2 + 1; i += 1) {
+    for (let k = -W / 2 - 1; k < W / 2 + 1; k += 1) {
+      dirt.push([i, -2, k, DIRT]);
+      if (Math.abs(i + 0.5) < W / 2 && Math.abs(k + 0.5) < W / 2) grass.push([i, -1, k, GRASS]);
+    }
+  }
+  blocks(root, TERRAIN, dirt, 'dirt-slab');
+  blocks(root, TERRAIN, grass, 'grass', (x, y, z) => y === -2 && Math.abs(x + 0.5) < W / 2 + 1 && Math.abs(z + 0.5) < W / 2 + 1);
+
+  const rand = (a: number, b: number) => {
+    const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+
+  // ---- Trunk: 2 × 2 blocks of 21.5 cm, flaring at the foot ----
+  const HEIGHT = 6;
+  const trunk: Array<[number, number, number, string]> = [];
+  for (let y = 0; y < HEIGHT; y += 1) {
+    for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) trunk.push([-1 + dx, y, -1 + dz, BARK]);
+  }
+  for (const [x, z] of [[-2, -1], [-2, 0], [1, -1], [1, 0], [-1, -2], [0, -2], [-1, 1], [0, 1]]) {
+    const xx = x === 1 ? 1 : x;
+    trunk.push([xx === 1 ? 1 : xx, 0, z, BARK]);
+  }
+  trunk.push([-2, 1, 0, BARK], [1, 1, -1, BARK], [0, 1, 1, BARK]);
+  blocks(root, OBJ, trunk.filter((c, i, a) => a.findIndex((d) => d[0] === c[0] && d[1] === c[1] && d[2] === c[2]) === i), 'tree-trunk');
+
+  // Roots: small blocks reaching out along the ground from the flare.
+  const roots: Array<[number, number, number, string]> = [];
+  for (const [sx, sz, dx, dz] of [[-5, -1, -1, 0], [3, -2, 1, 0], [-1, -5, 0, -1], [0, 3, 0, 1], [-4, 2, -1, 1]]) {
+    for (let k = 0; k < 2; k += 1) roots.push([sx + dx * k, 0, sz + dz * k, BARK]);
+  }
+  blocks(root, SM, roots, 'tree-roots');
+
+  // ---- Crown: clumps of leaf cubes ----
+  const lobes: Array<[number, number, number, number, number]> = [
+    // centre x, y, z (in 21.5 cm blocks) and radius across, radius up
+    [0, 9.6, 0, 3.4, 2.5],
+    [-2.9, 7.8, 0.6, 2.2, 1.8],
+    [2.8, 7.9, -0.4, 2.2, 1.8],
+    [0.4, 7.7, 2.7, 2.0, 1.7],
+    [-0.5, 7.9, -2.8, 2.0, 1.7],
+  ];
+  const leaves = new Set<string>();
+  lobes.forEach(([cx, cy, cz, r, ry], n) => {
+    for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x += 1) {
+      for (let y = Math.floor(cy - ry - 1); y <= Math.ceil(cy + ry + 1); y += 1) {
+        for (let z = Math.floor(cz - r - 1); z <= Math.ceil(cz + r + 1); z += 1) {
+          const d = Math.hypot((x + 0.5 - cx) / r, (y + 0.5 - cy) / ry, (z + 0.5 - cz) / r);
+          if (d <= 1 + (rand(x * 7 + n, y * 3 + z * 5) - 0.5) * 0.25) leaves.add(`${x},${y},${z}`);
+        }
+      }
+    }
+  });
+  // Only the cubes that can be seen; the inside of a crown never is.
+  const surface: Array<[number, number, number]> = [];
+  for (const key of leaves) {
+    const [x, y, z] = key.split(',').map(Number);
+    const hidden = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].every(([a, b, c]) => leaves.has(`${x + a},${y + b},${z + c}`));
+    if (!hidden) surface.push([x, y, z]);
+  }
+  {
+    // Separate, softly rounded cubes, so the crown reads as many leaves.
+    const cube = new RoundedBoxGeometry(1, 1, 1, 2, 0.14);
+    const n = cube.attributes.normal;
+    const light = new Float32Array(n.count * 3);
+    for (let i = 0; i < n.count; i += 1) {
+      const nx = n.getX(i), ny = n.getY(i), nz = n.getZ(i);
+      const l0 =
+        Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
+        Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+      const l = l0 / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
+      light.set([l, l, l], i * 3);
+    }
+    cube.setAttribute('color', new BufferAttribute(light, 3));
+    const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+    mat.toneMapped = false;
+    const mesh = new InstancedMesh(cube, mat, surface.length);
+    mesh.name = 'foliage';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const m = new Matrix4();
+    surface.forEach(([x, y, z], i) => {
+      m.makeScale(OBJ, OBJ, OBJ);
+      m.setPosition((x + 0.5) * OBJ, (y + 0.5) * OBJ, (z + 0.5) * OBJ);
+      mesh.setMatrixAt(i, m);
+      mesh.setColorAt(i, new Color(LEAF).multiplyScalar(0.92 + rand(x * 13 + z, y * 17) * 0.16));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    root.add(mesh);
+  }
+
+  // ---- Branches: small blocks from the top of the trunk out into the clumps ----
+  const branches: Array<[number, number, number, string]> = [];
+  const top = { x: 0, y: HEIGHT * 2 - 2, z: 0 };
+  for (const [cx, cy, cz] of lobes.slice(1)) {
+    const end = { x: Math.round(cx * 2), y: Math.round((cy - 0.6) * 2), z: Math.round(cz * 2) };
+    const steps = Math.max(Math.abs(end.x - top.x), Math.abs(end.y - top.y), Math.abs(end.z - top.z));
+    for (let s = 0; s <= steps; s += 1) {
+      const t = s / steps;
+      const x = Math.round(top.x + (end.x - top.x) * t);
+      const y = Math.round(top.y + (end.y - top.y) * t);
+      const z = Math.round(top.z + (end.z - top.z) * t);
+      // Two blocks thick near the trunk, one further out.
+      const thick = t < 0.45 ? [[0, 0], [-1, 0], [0, -1], [-1, -1]] : [[0, 0]];
+      for (const [a, b] of thick) branches.push([x + a, y, z + b, BARK]);
+    }
+  }
+  blocks(root, SM, branches.filter((c, i, a) => a.findIndex((d) => d[0] === c[0] && d[1] === c[1] && d[2] === c[2]) === i), 'tree-branches');
+
+  scene.add(root);
+  return {
+    root,
+    characterAt: new Vector3(1.35, 0, 0.9),
+    centre: new Vector3(0.2, 1.4, 0),
+    extent: { width: 3.4, height: 3.2, depth: 3 },
   };
 }
