@@ -25,7 +25,8 @@ import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
-import { buildSkyCircuit, type SkyCircuit } from './racing/SkyCircuit.ts';
+import type { SkyCircuit } from './racing/SkyCircuit.ts';
+import { buildBlockCircuit, type BlockCircuit } from './racing/BlockCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildHalvingScene, buildNatureScene, buildOvalScene, buildTrackScene, buildTreeScene } from './world/HalvingScene.ts';
 import { createGoldenFigure } from './player/GoldenFigure.ts';
@@ -76,7 +77,7 @@ class Game {
   /** The block island, when it is the world. */
   private voxel: VoxelIslandWorld | null = null;
   /** The race circuit beside the island, reached by its bridge. */
-  private circuit: SkyCircuit | null = null;
+  private circuit: SkyCircuit | BlockCircuit | null = null;
   /** The eight blocks and the character beside them, when that is the world. */
   private showcase: BlockShowcase | null = null;
   /** Which way the showcase camera looks from, round the blocks. */
@@ -119,7 +120,8 @@ class Game {
       const island = buildVoxelIsland(this.engine.scene, this.collision);
       this.engine.setFogScale(0);
       this.voxel = island;
-      this.circuit = buildSkyCircuit(this.engine.scene, this.collision, island.circuitAnchor);
+      // The circuit, built of blocks on the island's grid, carrying on from its bridge.
+      this.circuit = buildBlockCircuit(this.engine.scene, this.collision, { ...island.grid, anchor: island.circuitAnchor });
       island.triangleCount += this.circuit.triangleCount;
       this.engine.setSunDirection(island.sunDirection);
       this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
@@ -3947,6 +3949,17 @@ class Game {
         this.engine.render(1 / 60);
         this.player.object.visible = true;
         return true;
+      },
+      /** Renders one frame from a camera at one world point looking at another (for screenshots). */
+      lookAt: (fx: number, fy: number, fz: number, ax: number, ay: number, az: number, fov = 50): void => {
+        const camera = this.engine.camera;
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+        camera.position.set(fx, fy, fz);
+        camera.lookAt(ax, ay, az);
+        camera.updateMatrixWorld();
+        this.engine.focusShadowsOn(new Vector3(ax, ay, az));
+        this.engine.render(1 / 60);
       },
       renderFrom: (dx: number, dy: number, dz: number, lookHeight: number): void => {
         const camera = this.engine.camera;

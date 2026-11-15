@@ -432,6 +432,15 @@ use for every track, house or other build).**
    banked road) can be laid over a block foundation.
 7. **The avatar stays as he is** (1.82 m, about φ³ terrain blocks tall).
 
+8. **The race circuit in blocks** (15 November): the same circuit at full
+   size, on the island's own block grid, so the bridge runs straight into
+   it. Road slab two blocks thick; climbs made of blocks with sloped
+   (wedge) tops; road, kerbs and stripes coloured along smooth lines across
+   the block tops. Rails are grey (the racing game's grey, not brown), made
+   of the smallest blocks (a quarter block), two thick and a block high,
+   flush along the kerb line, with posts; at the entry they carry the
+   bridge's rails on at the same size. Open at `?world=island`.
+
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.
 

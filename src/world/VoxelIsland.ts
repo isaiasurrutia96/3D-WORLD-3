@@ -292,7 +292,14 @@ function blockShade(x: number, y: number, z: number): number {
  * lies flat against another the faces stay flat and meet, so the blocks
  * read as one solid; each block is told apart only by its slight shade.
  */
-function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, curveSteps = 2): BufferGeometry {
+function facesOf(
+  cells: Cells,
+  only?: (kind: Kind) => boolean,
+  round = true,
+  curveSteps = 2,
+  /** Blocks built elsewhere that join these (the circuit's entry): they count as there. */
+  beyond?: (x: number, y: number, z: number) => boolean,
+): BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colours: number[] = [];
@@ -302,7 +309,8 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, cur
   const r = round ? ROUND : 0;
   const solidAt = (x: number, y: number, z: number) => {
     const k = cells.get(x, y, z);
-    return k !== undefined && (!only || only(k));
+    if (k === undefined) return beyond?.(x, y, z) ?? false;
+    return !only || only(k);
   };
   // Each side: its normal axis and sign, and the two axes across it.
   const SIDES: Array<{ a: number; sign: 1 | -1; u: number; v: number }> = [
@@ -531,6 +539,8 @@ export interface VoxelIslandWorld {
   bridge: { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
   /** Where the far end of the bridge meets the circuit's entry ramp. */
   circuitAnchor: { x: number; z: number };
+  /** The island's block grid and its bridge, which the circuit carries on. */
+  grid: { origin: Vector3; block: number; bridge: { firstCol: number; length: number; from: number; to: number } };
   /** The box the island's top fits in, in metres. */
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   /** The two reference views: where to look from, at what, and how wide. */
@@ -778,7 +788,14 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     parent.add(m);
     return m;
   };
-  mesh('block-ground', facesOf(ground), solid);
+  // The circuit's entry carries the bridge on, block for block: the end of
+  // the bridge is not rounded off, so the two meet flush.
+  const entryAt = (c: number, y: number, r: number) => {
+    if (c < BRIDGE.firstCol + BRIDGE.length || r < BRIDGE.from || r > BRIDGE.to) return false;
+    const edge = r === BRIDGE.from || r === BRIDGE.to;
+    return y === 0 || y === -1 || (edge && y === 1) || (edge && y === 2 && (c - BRIDGE.firstCol) % 4 === 0);
+  };
+  mesh('block-ground', facesOf(ground, undefined, true, 2, entryAt), solid);
   mesh('block-trunks', facesOf(props, (k) => k === 'wood'), solid);
   mesh('block-rocks', facesOf(rocks), solid);
   // Leaves and bushes: he passes through them. Named for what they are, so
@@ -973,6 +990,7 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
       maxZ: origin.z + (BRIDGE.to + 1) * BLOCK,
       top: 0,
     },
+    grid: { origin: origin.clone(), block: BLOCK, bridge: { ...BRIDGE } },
     circuitAnchor: {
       x: origin.x + (BRIDGE.firstCol + BRIDGE.length) * BLOCK,
       z: origin.z + ((BRIDGE.from + BRIDGE.to + 1) / 2) * BLOCK,
