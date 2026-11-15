@@ -33,7 +33,6 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /** The golden ratio. */
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -224,8 +223,13 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
   if (single) {
-    // Two blocks, side by side.
-    for (let x = 0; x < 2; x += 1) cells.set(`${x},0,0`, 'bright');
+    // Sixteen blocks: four wide, two deep, two high, grass over dirt.
+    for (let x = 0; x < 4; x += 1) {
+      for (let z = 0; z < 2; z += 1) {
+        cells.set(`${x},0,${z}`, 'earth');
+        cells.set(`${x},1,${z}`, 'grass');
+      }
+    }
   } else {
     for (let x = 0; x < 2; x += 1) {
       for (let z = 0; z < 2; z += 1) {
@@ -249,7 +253,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
 
   for (const [key, kind] of cells) {
     const [x, y, z] = key.split(',').map(Number);
-    const tint = new Color(COLOURS[kind]).multiplyScalar(single ? 1 : variation(x, y, z));
+    const tint = new Color(COLOURS[kind]).multiplyScalar(variation(x, y, z));
     // Which neighbours are there: an edge toward a neighbour is not rounded,
     // so touching blocks meet exactly on their shared plane.
     const occupied = [
@@ -345,40 +349,18 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   let cursor = 0;
   if (single) {
     const blockSize = BLOCK_SIZE * CHOSEN_MULTIPLIER;
-    // Sixteen rounded blocks, touching: four wide, two deep, two high, grass
-    // on top and dirt underneath, in the island preview's colours, each
-    // block a slightly different shade, the way that preview does it.
-    const box = new RoundedBoxGeometry(1, 1, 1, 5, 0.1);
+    // One big block made of the sixteen: rounded only on its outside edges
+    // and corners, flush where blocks meet, each block its own slight shade
+    // of grass or dirt, as the island preview colours them.
     const plain = new MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 });
     plain.toneMapped = false;
-    let cube = new Mesh();
-    for (let x = 0; x < 4; x += 1) {
-      for (let y = 0; y < 2; y += 1) {
-        for (let z = 0; z < 2; z += 1) {
-          const tint = new Color(y === 1 ? COLOURS.grass : COLOURS.earth).multiplyScalar(variation(x, y, z));
-          const geometry = box.clone();
-          const normal = geometry.attributes.normal;
-          const shades = new Float32Array(normal.count * 3);
-          for (let i = 0; i < normal.count; i += 1) {
-            const nx = normal.getX(i), ny = normal.getY(i), nz = normal.getZ(i);
-            const light =
-              Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-              Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
-            const l = light / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
-            shades.set([tint.r * l, tint.g * l, tint.b * l], i * 3);
-          }
-          geometry.setAttribute('color', new BufferAttribute(shades, 3));
-          const block = new Mesh(geometry, plain);
-          block.name = 'showcase-blocks';
-          block.castShadow = true;
-          block.receiveShadow = true;
-          block.scale.setScalar(blockSize);
-          block.position.set((x - 1.5) * blockSize, (y - 0.5) * blockSize, (z - 0.5) * blockSize);
-          root.add(block);
-          cube = block;
-        }
-      }
-    }
+    const cube = new Mesh(geometry, plain);
+    cube.name = 'showcase-blocks';
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+    cube.scale.setScalar(blockSize);
+    cube.position.set(-2 * blockSize, -blockSize, -blockSize);
+    root.add(cube);
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
