@@ -417,7 +417,9 @@ use for every track, house or other build).**
 2. **Merged material groups** (the owner's choice, 15 November, from a
    comparison picture, option 3): each connected material (grass, dirt,
    stone, road, rails) is one continuous surface, with no per-block shading
-   and no visible block lines; only edges facing the open air are rounded.
+   and no visible block lines. Each group is rounded on its own (about 30%
+   of a block) wherever it faces the open air or a different material, so
+   grass, dirt and stone read as separate soft layers.
    The blocks stay underneath as the grid everything is built on. The
    avatar is not affected.
 3. **Build bottom-up, complete:** a foundation is a complete solid (the

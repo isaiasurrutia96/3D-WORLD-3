@@ -271,7 +271,18 @@ class Cells {
 const CUBE_CELLS: Partial<Record<Kind, number>> = { rock: 3 };
 
 /** How round a block's exposed edges and corners are, as a part of a block. */
-const ROUND = 0.1;
+const ROUND = 0.3;
+
+/**
+ * Which material group a kind belongs to. Each group is one continuous,
+ * rounded shape: where it meets a different group (grass on dirt, dirt on
+ * stone) both are rounded, so the groups read as separate soft layers.
+ */
+function groupOf(kind: Kind): string {
+  if (kind === 'path') return 'grass';
+  if (kind === 'plank') return 'wood';
+  return kind;
+}
 
 
 /**
@@ -302,10 +313,11 @@ function facesOf(
   const s = cells.size;
   const o = cells.origin;
   const r = round ? ROUND : 0;
+  let group = '';
   const solidAt = (x: number, y: number, z: number) => {
     const k = cells.get(x, y, z);
     if (k === undefined) return beyond?.(x, y, z) ?? false;
-    return !only || only(k);
+    return (!only || only(k)) && groupOf(k) === group;
   };
   // Each side: its normal axis and sign, and the two axes across it.
   const SIDES: Array<{ a: number; sign: 1 | -1; u: number; v: number }> = [
@@ -334,6 +346,7 @@ function facesOf(
   const q = [0, 0, 0];
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
+    group = groupOf(kind);
     const across = CUBE_CELLS[kind] ?? 1;
     colour.set(COLOURS[kind]);
     const cell = [x, y, z];

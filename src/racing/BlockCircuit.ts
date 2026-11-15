@@ -58,7 +58,7 @@ const CURB_EDGE = TRACK_HALF_WIDTH + CURB_WIDTH;
 /** How thick the rails are: two of the smallest blocks. */
 const RAIL_W = 0.45 / 2;
 const SLAB_REACH = CURB_EDGE + RAIL_W + 0.34;
-const ROUND = 0.1;
+const ROUND = 0.3;
 
 const ROAD = new Color('#50545c');
 const CURB_RED = new Color('#dc2828');
@@ -420,22 +420,24 @@ export function buildBlockCircuit(scene: Scene, collision: CollisionWorld, grid:
         let runField = 0;
         const flushTop = (end: number) => {
           if (runStart < 0) return;
-          const x0 = ox + runStart * B;
-          const x1 = ox + end * B;
-          const z0 = oz + r * B;
-          const z1 = z0 + B;
+          // A millimetre over each edge, so no hairline crack shows where a
+          // long face meets the short ones beside it.
+          const x0 = ox + runStart * B - 0.001;
+          const x1 = ox + end * B + 0.001;
+          const z0 = oz + r * B - 0.001;
+          const z1 = z0 + B + 0.002;
           const yy = y * B;
-          quad([[x0, yy, z0], [x1, yy, z0], [x1, yy, z1], [x0, yy, z1]], [0, 1, 0], WHITE, runField);
+          quad([[x0, yy, z0], [x1, yy, z0], [x1, yy, z1], [x0, yy, z1]], [0, 1, 0], WHITE, runField); // the hidden stone top in road colours, so no seam ever shows light
           runStart = -1;
         };
         let botStart = -1;
         const flushBottom = (end: number) => {
           if (botStart < 0) return;
-          const x0 = ox + botStart * B;
-          const x1 = ox + end * B;
-          const z0 = oz + r * B;
+          const x0 = ox + botStart * B - 0.001;
+          const x1 = ox + end * B + 0.001;
+          const z0 = oz + r * B - 0.001;
           const yy = (y - 1) * B;
-          quad([[x0, yy, z0], [x1, yy, z0], [x1, yy, z0 + B], [x0, yy, z0 + B]], [0, -1, 0], STONE, 0);
+          quad([[x0, yy, z0], [x1, yy, z0], [x1, yy, z0 + B + 0.002], [x0, yy, z0 + B + 0.002]], [0, -1, 0], y === 0 ? SLAB_SIDE : STONE, 0);
           botStart = -1;
         };
         for (let c = c0; c < c0 + W; c += 1) {
@@ -446,10 +448,13 @@ export function buildBlockCircuit(scene: Scene, collision: CollisionWorld, grid:
           if (kind !== EMPTY) {
             const around = [filled(c + 1, y, r), filled(c - 1, y, r), filled(c, y, r + 1), filled(c, y, r - 1)];
             const all = around.every(Boolean);
-            const above = filled(c, y + 1, r);
-            const below = filled(c, y - 1, r);
-            plainTop = kind === K_ROAD && all && !above;
-            plainBottom = kind === K_STONE && all && !below;
+            // Above and below count only when the same material: where the
+            // road layer sits on the stone layer, each is rounded on its own.
+            const sameAt = (yy: number) => yy >= -1 && yy <= 2 && L(yy)[k] === kind;
+            const above = sameAt(y + 1);
+            const below = sameAt(y - 1);
+            plainTop = all && !above;
+            plainBottom = all && !below;
             const occupied = [
               [around[1], around[0]],
               [below, above],
@@ -469,7 +474,7 @@ export function buildBlockCircuit(scene: Scene, collision: CollisionWorld, grid:
               }
             }
             for (const side of SIDES) {
-              const nb = filled(c + side.n[0], y + side.n[1], r + side.n[2]);
+              const nb = side.n[1] === 0 ? filled(c + side.n[0], y, r + side.n[2]) : side.n[1] > 0 ? above : below;
               if (nb) continue;
               if (side.n[1] === 1 && plainTop) continue;
               if (side.n[1] === -1 && plainBottom) continue;
