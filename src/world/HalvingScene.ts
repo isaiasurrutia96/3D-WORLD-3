@@ -606,7 +606,7 @@ export function buildNatureScene(scene: Scene): HalvingScene {
   const BARK = '#9a5e2c';
 
   // ---- The ground: a dirt slab and grass on it ----
-  const W = 12;
+  const W = 16;
   const D = 6;
   const dirt: Array<[number, number, number, string]> = [];
   const grass: Array<[number, number, number, string]> = [];
@@ -676,22 +676,38 @@ export function buildNatureScene(scene: Scene): HalvingScene {
     if (fruit) blocks(root, SM, dots(crown, 9, ['#e8332a', '#d42a22'], seed), 'fruit');
   };
 
-  /** A bush: a low lump, with flowers if asked. */
+  /**
+   * A bush: a full, low dome, wider than it is tall, its rim coming right
+   * down to the ground, with flowers if asked.
+   */
   const bush = (x: number, z: number, flowers: boolean, seed: number) => {
-    const cells = lump(x, 1, z, 1.8, 1.25, 1.6, seed);
+    const cells: Array<[number, number, number]> = [];
+    // About 1.4 m across, 1.2 deep and 0.6 high.
+    const RX = 3.3;
+    const RY = 3.0;
+    const RZ = 3.0;
+    for (let a = -4; a < 4; a += 1) {
+      for (let b = 0; b <= 3; b += 1) {
+        for (let c = -3; c < 3; c += 1) {
+          // A dome on the ground, measured from the middle of each block.
+          const d = Math.hypot((a + 0.5) / RX, (b + 0.5) / RY, (c + 0.5) / RZ);
+          if (d <= 1 + (rand(a * 3 + seed, b * 5 + c * 7) - 0.5) * 0.08) cells.push([x + a, b, z + c]);
+        }
+      }
+    }
     blocks(root, OBJ, cells.filter(([, y]) => y >= 0).map(([a, b, c]) => [a, b, c, BUSH]), 'foliage');
     if (flowers) blocks(root, SM, dots(cells.filter(([, y]) => y >= 0), 5, ['#ff7eb6', '#ffffff', '#ffd23f'], seed), 'flowers');
   };
 
-  tree(-8, -1, false, 3);
-  tree(0, -1, true, 11);
-  bush(7, 0, true, 5);
-  bush(10, -1, false, 9);
+  tree(-11, -1, false, 3);
+  tree(-4, -1, true, 11);
+  bush(6, 0, true, 5);
+  bush(13, 0, false, 9);
 
   scene.add(root);
   return {
     root,
-    characterAt: new Vector3(-0.85, 0, 0.75),
+    characterAt: new Vector3(0.2, 0, 0.75),
     centre: new Vector3(0, 0.9, 0),
     extent: { width: (W + 2) * TERRAIN, height: 2.6, depth: (D + 2) * TERRAIN },
   };
