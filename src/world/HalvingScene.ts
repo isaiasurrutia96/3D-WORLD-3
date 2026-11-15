@@ -793,13 +793,13 @@ export function buildTreeScene(scene: Scene): HalvingScene {
   for (let i = -2; i <= 3; i += 1) {
     for (let y = 0; y < 2; y += 1) roots.push([i, y, -3, BARK], [i, y, 4, BARK], [-3, y, i, BARK], [4, y, i, BARK]);
   }
-  // And one out from the middle of each side, between the corner roots,
-  // two blocks wide, stepping down the same way.
+  // And two out from each side, between the corner roots, one block wide
+  // each with a block's gap between them, stepping down the same way.
   for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     for (let k = 1; k <= 4; k += 1) {
       const high = 5 - k;
       for (let y = 0; y < high; y += 1) {
-        for (const w of [0, 1]) {
+        for (const w of [-1, 2]) {
           const x = ax > 0 ? 3 + k : ax < 0 ? -2 - k : w;
           const z = az > 0 ? 3 + k : az < 0 ? -2 - k : w;
           roots.push([x, y, z, BARK]);
