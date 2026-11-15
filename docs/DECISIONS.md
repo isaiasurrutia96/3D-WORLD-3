@@ -407,6 +407,33 @@ approved state.
 
 ## K) Change log
 
+**15 November 2026. How the block world is built (the owner's choices, to
+use for every track, house or other build).**
+
+1. **Three block sizes that nest exactly:** 43 cm for terrain, 21.5 cm for
+   trees, rocks, bushes and other objects, 10.75 cm for small things. Eight
+   of each size fill one of the next. Everything sits on one grid, and
+   collision always comes from the same blocks.
+2. **Every block rounded (10%), merged with its neighbours:** one solid
+   shape per object, rounded only where an edge faces the open air, each
+   block a slightly different shade (grass and dirt in the island preview's
+   colours).
+3. **Build bottom-up, complete:** a foundation is a complete solid (the
+   dirt slab, with its whole top) and what sits on it is laid on top flat
+   and square, so no gap ever shows the sky.
+4. **Colours can follow a smooth line through blocks:** where a curve (a
+   track's edge, a path) crosses blocks, their tops are coloured part one
+   way, part the other, so the line runs smoothly instead of in steps.
+5. **Patterns on blocks:** blocks can carry a pattern where it suits, such
+   as bricks on a house wall.
+6. **Other shapes beside cubes:** wedges, ramps and corner pieces, in the
+   same three sizes, to make the world look better; smooth surfaces (a
+   banked road) can be laid over a block foundation.
+7. **The avatar stays as he is** (1.82 m, about φ³ terrain blocks tall).
+
+Previews of these are behind `?blocks=halving`, `?blocks=track` and
+`?blocks=oval` in the root game.
+
 **14 November 2026, seventh entry. A plain cube.** Asked for by the owner
 ("just make the cube"): the single 16.4 cm block is now a plain cube, flat
 faces and sharp edges, with no rounding or cushion. Still bright orange with
