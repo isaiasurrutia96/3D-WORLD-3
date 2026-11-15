@@ -234,3 +234,123 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
     extent: { width: across, height: 2.6, depth: across },
   };
 }
+
+/**
+ * A ramp: a wedge `long` cells along `dir` and `wide` cells across, rising
+ * one block from its low end to its high end. Corner (x0, z0) is the cell
+ * corner it starts at; it stands on height y0 (metres).
+ */
+function ramp(
+  root: Group,
+  size: number,
+  x0: number,
+  z0: number,
+  y0: number,
+  wide: number,
+  long: number,
+  /** Which way it rises: toward −z or +z. */
+  rises: -1 | 1,
+  colour: string,
+): void {
+  const X0 = x0 * size;
+  const X1 = (x0 + wide) * size;
+  const zLow = (rises === -1 ? z0 + long : z0) * size;
+  const zHigh = (rises === -1 ? z0 : z0 + long) * size;
+  const top = y0 + size;
+  const tint = new Color(colour);
+  const positions: number[] = [];
+  const colours: number[] = [];
+  const face = (pts: number[][], light: number) => {
+    for (const p of pts) {
+      positions.push(p[0], p[1], p[2]);
+      colours.push(tint.r * light, tint.g * light, tint.b * light);
+    }
+  };
+  const a = [X0, y0, zLow];
+  const b = [X1, y0, zLow];
+  const c = [X1, top, zHigh];
+  const d = [X0, top, zHigh];
+  const e = [X0, y0, zHigh];
+  const f = [X1, y0, zHigh];
+  // The slope, then the two sides and the high end.
+  const slope = rises === -1 ? [a, b, c, a, c, d] : [b, a, d, b, d, c];
+  face(slope, 0.97);
+  face(rises === -1 ? [a, d, e] : [a, e, d], 0.93);
+  face(rises === -1 ? [b, f, c] : [b, c, f], 0.86);
+  face(rises === -1 ? [e, d, c, e, c, f] : [f, c, d, f, d, e], 0.8);
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
+  geometry.computeVertexNormals();
+  const mesh = new Mesh(geometry, merged);
+  mesh.name = 'ramp';
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  root.add(mesh);
+}
+
+/**
+ * A tiny race track of blocks, to see how a track with levels looks: a loop
+ * two blocks wide round a grass field, its back straight raised one block,
+ * a ramp up on the left and down on the right, a rail of small red and
+ * white blocks along the raised part, and a white start line.
+ */
+export function buildTrackScene(scene: Scene): HalvingScene {
+  const root = new Group();
+  root.name = 'track-scene';
+  const GRASS = '#93d91e';
+  const DIRT = '#da965a';
+  const ROAD = '#5a5f68';
+  const W = 14;
+  const D = 10;
+  const ix = (i: number) => i - W / 2;
+  const iz = (j: number) => j - D / 2;
+  const onTrack = (i: number, j: number) => i < 2 || i >= W - 2 || j < 2 || j >= D - 2;
+  const isRamp = (i: number, j: number) => (i < 2 || i >= W - 2) && (j === 2 || j === 3);
+
+  // The dirt slab, one block bigger all round.
+  const dirt: Array<[number, number, number, string]> = [];
+  for (let i = -1; i <= W; i += 1) for (let j = -1; j <= D; j += 1) dirt.push([ix(i), -2, iz(j), DIRT]);
+  blocks(root, TERRAIN, dirt, 'dirt-slab');
+  const onSlab = (x: number, y: number, z: number) => y === -2 && x >= ix(-1) && x <= ix(W) && z >= iz(-1) && z <= iz(D);
+
+  // The ground layer: grass in the middle, road round it, a white start line.
+  const ground: Array<[number, number, number, string]> = [];
+  for (let i = 0; i < W; i += 1) {
+    for (let j = 0; j < D; j += 1) {
+      const road = onTrack(i, j);
+      const start = road && j >= D - 2 && i === 5;
+      ground.push([ix(i), -1, iz(j), start ? '#f2f2f2' : road ? ROAD : GRASS]);
+    }
+  }
+  blocks(root, TERRAIN, ground, 'ground', onSlab);
+  const onGround = (x: number, y: number, z: number) => y === -1 && x >= ix(0) && x < ix(W) && z >= iz(0) && z < iz(D);
+
+  // The raised back straight, one block up.
+  const raised: Array<[number, number, number, string]> = [];
+  for (let i = 0; i < W; i += 1) for (let j = 0; j < 2; j += 1) raised.push([ix(i), 0, iz(j), ROAD]);
+  blocks(root, TERRAIN, raised, 'raised-road', onGround);
+
+  // Ramps: up on the left, down on the right, each two blocks long.
+  ramp(root, TERRAIN, ix(0), iz(2), 0, 2, 2, -1, ROAD);
+  ramp(root, TERRAIN, ix(W - 2), iz(2), 0, 2, 2, -1, ROAD);
+  void isRamp;
+
+  // A rail of small blocks, red and white, along the back of the raised part.
+  const rail: Array<[number, number, number, string]> = [];
+  for (let k = 0; k < W * 4; k += 1) {
+    const colour = Math.floor(k / 2) % 2 ? '#f2f2f2' : '#dc2828';
+    rail.push([ix(0) * 4 + k, 4, iz(0) * 4, colour]);
+  }
+  blocks(root, SMALL_FOR_TRACK, rail, 'rail');
+
+  scene.add(root);
+  return {
+    root,
+    characterAt: new Vector3(0.3, 0, iz(D - 1) * TERRAIN),
+    centre: new Vector3(0, 0.4, 0),
+    extent: { width: (W + 2) * TERRAIN, height: 2.2, depth: (D + 2) * TERRAIN },
+  };
+}
+
+const SMALL_FOR_TRACK = TERRAIN / 4;
