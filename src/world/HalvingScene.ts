@@ -388,6 +388,11 @@ export function buildOvalScene(scene: Scene): HalvingScene {
   const roadHeight = (x: number, z: number) =>
     turnAt(x) * BANK * Math.min(1, Math.max(0, (across(x, z) + WIDE / 2) / WIDE));
 
+  /** Positive inside the concrete round the road, negative on the grass. */
+  const concreteness = (x: number, z: number) => WIDE / 2 + B * 0.5 - Math.abs(across(x, z));
+  /** Blocks the grass-to-concrete edge passes through, with the value at each corner. */
+  const edgeCells: Array<[number, number, number[]]> = [];
+
   // ---- The dirt slab and the ground layer of blocks ----
   const halfX = Math.ceil((L / 2 + R + WIDE / 2) / B) + 1;
   const halfZ = Math.ceil((R + WIDE / 2) / B) + 1;
@@ -401,7 +406,13 @@ export function buildOvalScene(scene: Scene): HalvingScene {
       dirt.push([i, -2, k, DIRT]);
       const off = across(x, z);
       const onRoad = Math.abs(off) <= WIDE / 2 + B * 0.5;
-      ground.push([i, -1, k, onRoad ? CONCRETE : GRASS]);
+      // A block wholly inside the concrete is concrete; one the edge passes
+      // through is grass, with its concrete part laid on top further down.
+      const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([dx, dz]) => concreteness((i + 0.5 + dx) * B, (k + 0.5 + dz) * B));
+      const allConcrete = corners.every((v) => v > 0);
+      const someConcrete = corners.some((v) => v > 0);
+      ground.push([i, -1, k, allConcrete ? CONCRETE : GRASS]);
+      if (someConcrete && !allConcrete) edgeCells.push([i, k, corners]);
       if (!onRoad) continue;
       // The foundation: whole blocks up to just under the road at the lowest
       // point of this cell, so none pokes through the road laid on top.
@@ -422,6 +433,43 @@ export function buildOvalScene(scene: Scene): HalvingScene {
   const groundAt = new Set(ground.map(([x, , z]) => `${x},${z}`));
   const raisedAt = new Set(raised.map(([x, y, z]) => `${x},${y},${z}`));
   blocks(root, B, raised, 'banking-blocks', (x, y, z) => (y === -1 ? groundAt.has(`${x},${z}`) : raisedAt.has(`${x},${y},${z}`)));
+
+  // ---- The smooth grass-to-concrete edge ----
+  // Where the edge passes through a block, the concrete part of its top is
+  // laid over the grass: cut along the true curve, so a block can have a
+  // corner of concrete, or half of it, and the line round the track runs
+  // smoothly instead of in steps.
+  {
+    const positions: number[] = [];
+    const tint = new Color(CONCRETE);
+    for (const [i, k, v] of edgeCells) {
+      const pts: Array<[number, number]> = [];
+      const cx = [i, i + 1, i + 1, i];
+      const cz = [k, k, k + 1, k + 1];
+      for (let c = 0; c < 4; c += 1) {
+        const n = (c + 1) % 4;
+        if (v[c] > 0) pts.push([cx[c], cz[c]]);
+        if ((v[c] > 0) !== (v[n] > 0)) {
+          const t = v[c] / (v[c] - v[n]);
+          pts.push([cx[c] + (cx[n] - cx[c]) * t, cz[c] + (cz[n] - cz[c]) * t]);
+        }
+      }
+      for (let t = 1; t < pts.length - 1; t += 1) {
+        for (const p of [pts[0], pts[t + 1], pts[t]]) positions.push(p[0] * B, 0.003, p[1] * B);
+      }
+    }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+    const normals = new Float32Array(positions.length);
+    for (let n = 1; n < normals.length; n += 3) normals[n] = 1;
+    g.setAttribute('normal', new BufferAttribute(normals, 3));
+    const m = new MeshStandardMaterial({ color: tint, roughness: 0.86, side: DoubleSide });
+    m.toneMapped = false;
+    const edge = new Mesh(g, m);
+    edge.name = 'concrete-edge';
+    edge.receiveShadow = true;
+    root.add(edge);
+  }
 
   // ---- The road: a smooth surface over the blocks, round the whole oval ----
   const P = 2 * L + 2 * Math.PI * R;
