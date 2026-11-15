@@ -25,6 +25,8 @@ import {
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const TERRAIN = 0.43;
+/** How round each block's edges are, as a part of the block. */
+const ROUND = 0.07;
 
 /** A fixed lighter-or-darker amount per block, the same every time. */
 function shade(x: number, y: number, z: number): number {
@@ -33,7 +35,8 @@ function shade(x: number, y: number, z: number): number {
 }
 
 const shape = (() => {
-  const g = new RoundedBoxGeometry(1, 1, 1, 3, 0.1);
+  // Slightly rounded: the edges curve over 7% of a block.
+  const g = new RoundedBoxGeometry(1, 1, 1, 3, ROUND);
   const n = g.attributes.normal;
   const c = new Float32Array(n.count * 3);
   for (let i = 0; i < n.count; i += 1) {
@@ -110,7 +113,7 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
   // Each core is its own layer's colour: between grass blocks it is grass,
   // so they read as sealed; under the dirt, and at the foot of the step, it
   // is dirt.
-  const seal = 0.092;
+  const seal = ROUND * 0.92;
   for (const [across, y, colour] of [[N, -2, DIRT], [N - 2, -1, GRASS]] as const) {
     const coreMaterial = new MeshStandardMaterial({ color: colour, roughness: 1 });
     coreMaterial.toneMapped = false;
