@@ -124,9 +124,11 @@ class Game {
       const allRounded = new URLSearchParams(window.location.search).get('blocks') === 'rounded';
       const showcase = buildBlockShowcase(this.engine.scene, { single: true, allRounded });
       // `?blocks=halving`: the three nesting sizes in a small scene instead.
-      if (new URLSearchParams(window.location.search).get('blocks') === 'halving') {
+      // `?blocks=golden`: the same scene in golden-ratio sizes.
+      const option = new URLSearchParams(window.location.search).get('blocks');
+      if (option === 'halving' || option === 'golden') {
         showcase.root.visible = false;
-        const halving = buildHalvingScene(this.engine.scene);
+        const halving = buildHalvingScene(this.engine.scene, option);
         showcase.characterAt.copy(halving.characterAt);
         showcase.centre.copy(halving.centre);
         Object.assign(showcase.extent, halving.extent);

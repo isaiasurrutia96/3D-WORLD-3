@@ -25,8 +25,6 @@ import {
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const TERRAIN = 0.43;
-export const OBJECT = TERRAIN / 2;
-export const SMALL = TERRAIN / 4;
 
 /** A fixed lighter-or-darker amount per block, the same every time. */
 function shade(x: number, y: number, z: number): number {
@@ -78,7 +76,19 @@ export interface HalvingScene {
   extent: { width: number; height: number; depth: number };
 }
 
-export function buildHalvingScene(scene: Scene): HalvingScene {
+/**
+ * The block sizes for the two options: halving (everything nests) or the
+ * golden ratio (43 / 26.6 / 16.4 cm: the proportions, but no nesting).
+ */
+export const SIZES = {
+  halving: { object: TERRAIN / 2, small: TERRAIN / 4 },
+  golden: { object: TERRAIN / 1.6180339887, small: TERRAIN / 1.6180339887 ** 2 },
+};
+
+export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'halving'): HalvingScene {
+  const { object: OBJ, small: SM } = SIZES[option];
+  /** A place given in metres, as a whole number of steps of a block size. */
+  const step = (metres: number, size: number) => Math.round(metres / size);
   const root = new Group();
   root.name = 'halving-scene';
   const GRASS = '#93d91e';
@@ -105,35 +115,44 @@ export function buildHalvingScene(scene: Scene): HalvingScene {
 
   // ---- A tree of 21.5 cm blocks: a trunk and a round crown ----
   const tree: Array<[number, number, number, string]> = [];
-  const tx = -5;
-  const tz = -5;
-  for (let y = 0; y < 5; y += 1) tree.push([tx, y, tz, '#a5632f']);
+  const tx = step(-1.075, OBJ);
+  const tz = step(-1.075, OBJ);
+  const trunk = step(1.075, OBJ);
+  for (let y = 0; y < trunk; y += 1) tree.push([tx, y, tz, '#a5632f']);
   for (let x = -2; x <= 2; x += 1) {
     for (let z = -2; z <= 2; z += 1) {
-      for (let y = 5; y <= 7; y += 1) {
+      for (let y = trunk; y <= trunk + 2; y += 1) {
         const corner = Math.abs(x) === 2 && Math.abs(z) === 2;
-        const top = y === 7 && (Math.abs(x) === 2 || Math.abs(z) === 2);
+        const top = y === trunk + 2 && (Math.abs(x) === 2 || Math.abs(z) === 2);
         if (corner || top) continue;
         tree.push([tx + x, y, tz + z, '#6cbf1c']);
       }
     }
   }
-  blocks(root, OBJECT, tree, 'tree');
+  blocks(root, OBJ, tree, 'tree');
 
   // ---- A rock and a bush, also 21.5 cm ----
-  blocks(root, OBJECT, [
-    [4, 0, -4, '#a3a3a3'], [5, 0, -4, '#a3a3a3'], [4, 0, -3, '#a3a3a3'], [4, 1, -4, '#a3a3a3'],
-  ], 'rock');
-  blocks(root, OBJECT, [
-    [-6, 0, 3, '#4fa414'], [-5, 0, 3, '#4fa414'], [-6, 0, 4, '#4fa414'], [-5, 0, 4, '#4fa414'], [-6, 1, 3, '#4fa414'],
-  ], 'bush');
+  {
+    const rx = step(0.86, OBJ);
+    const rz = step(-0.86, OBJ);
+    blocks(root, OBJ, [
+      [rx, 0, rz, '#a3a3a3'], [rx + 1, 0, rz, '#a3a3a3'], [rx, 0, rz + 1, '#a3a3a3'], [rx, 1, rz, '#a3a3a3'],
+    ], 'rock');
+    const bx = step(-1.29, OBJ);
+    const bz = step(0.645, OBJ);
+    blocks(root, OBJ, [
+      [bx, 0, bz, '#4fa414'], [bx + 1, 0, bz, '#4fa414'], [bx, 0, bz + 1, '#4fa414'], [bx + 1, 0, bz + 1, '#4fa414'], [bx, 1, bz, '#4fa414'],
+    ], 'bush');
+  }
 
   // ---- A small cubicle of 10.75 cm blocks: three low walls and a desk ----
   const cubicle: Array<[number, number, number, string]> = [];
-  const cx = 6;
-  const cz = 2;
-  const W = 8;
-  for (let y = 0; y < 5; y += 1) {
+  const cx = step(0.645, SM);
+  const cz = step(0.215, SM);
+  const W = step(0.86, SM);
+  const wallHigh = step(0.54, SM);
+  const deskAt = step(0.33, SM);
+  for (let y = 0; y < wallHigh; y += 1) {
     for (let i = 0; i < W; i += 1) {
       cubicle.push([cx + i, y, cz, '#d9cdb8']); // back wall
       if (i > 0) {
@@ -144,9 +163,9 @@ export function buildHalvingScene(scene: Scene): HalvingScene {
   }
   // The desk along the back wall, at table height, three blocks deep.
   for (let i = 1; i < W - 1; i += 1) {
-    for (let d = 1; d <= 3; d += 1) cubicle.push([cx + i, 3, cz + d, '#8a5a32']);
+    for (let d = 1; d <= step(0.32, SM); d += 1) cubicle.push([cx + i, deskAt, cz + d, '#8a5a32']);
   }
-  blocks(root, SMALL, cubicle, 'cubicle');
+  blocks(root, SM, cubicle, 'cubicle');
 
   scene.add(root);
   const across = N * TERRAIN;
