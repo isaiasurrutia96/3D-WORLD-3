@@ -67,6 +67,19 @@ function blocks(root: Group, size: number, list: Array<[number, number, number, 
       [at(x, y - 1, z), at(x, y + 1, z)],
       [at(x, y, z - 1), at(x, y, z + 1)],
     ];
+    // Where a block sits on this one and has an open side, its rounded
+    // corners leave small openings down to this block's top. This top is
+    // drawn there, flat, in this block's colour, so those corners show it
+    // (the dirt under the grass) and never the sky.
+    if (at(x, y + 1, z) && (!at(x - 1, y + 1, z) || !at(x + 1, y + 1, z) || !at(x, y + 1, z - 1) || !at(x, y + 1, z + 1))) {
+      const base = positions.length / 3;
+      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+        positions.push((x + 0.5 + a) * size, (y + 1) * size, (z + 0.5 + b) * size);
+        normals.push(0, 1, 0);
+        colours.push(tint.r, tint.g, tint.b);
+      }
+      indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
     for (const side of SIDES) {
       if (at(x + side.n[0], y + side.n[1], z + side.n[2])) continue;
       const base = positions.length / 3;
