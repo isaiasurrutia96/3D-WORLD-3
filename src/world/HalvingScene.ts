@@ -586,3 +586,113 @@ export function buildOvalScene(scene: Scene): HalvingScene {
     extent: { width: 2 * halfX * B, height: 2, depth: 2 * halfZ * B },
   };
 }
+
+/**
+ * Nature in the block world: a typical tree, a fruit tree, a bush and a
+ * flowering bush on a patch of grass. Trunks are 21.5 cm blocks and solid;
+ * leaves and bushes are 21.5 cm blocks, one green in slightly different
+ * shades block by block, and are walked through; fruit and flowers are
+ * 10.75 cm blocks set on their surface.
+ */
+export function buildNatureScene(scene: Scene): HalvingScene {
+  const root = new Group();
+  root.name = 'nature-scene';
+  const OBJ = TERRAIN / 2;
+  const SM = TERRAIN / 4;
+  const GRASS = '#93d91e';
+  const DIRT = '#da965a';
+  const LEAF = '#6fbf1f';
+  const BUSH = '#5cae1a';
+  const BARK = '#9a5e2c';
+
+  // ---- The ground: a dirt slab and grass on it ----
+  const W = 12;
+  const D = 6;
+  const dirt: Array<[number, number, number, string]> = [];
+  const grass: Array<[number, number, number, string]> = [];
+  for (let i = -W / 2 - 1; i < W / 2 + 1; i += 1) {
+    for (let k = -D / 2 - 1; k < D / 2 + 1; k += 1) {
+      dirt.push([i, -2, k, DIRT]);
+      if (i >= -W / 2 && i < W / 2 && k >= -D / 2 && k < D / 2) grass.push([i, -1, k, GRASS]);
+    }
+  }
+  blocks(root, TERRAIN, dirt, 'dirt-slab');
+  blocks(root, TERRAIN, grass, 'grass', (x, y, z) => y === -2 && x >= -W / 2 - 1 && x < W / 2 + 1 && z >= -D / 2 - 1 && z < D / 2 + 1);
+
+  /** A fixed scatter, the same every time. */
+  const rand = (a: number, b: number) => {
+    const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+
+  /** A round, lumpy mass of blocks: its cells, in steps of `OBJ`. */
+  const lump = (cx: number, cy: number, cz: number, rx: number, ry: number, rz: number, seed: number) => {
+    const cells: Array<[number, number, number]> = [];
+    for (let x = -Math.ceil(rx); x <= Math.ceil(rx); x += 1) {
+      for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y += 1) {
+        for (let z = -Math.ceil(rz); z <= Math.ceil(rz); z += 1) {
+          const d = Math.hypot(x / rx, y / ry, z / rz);
+          // Lumps: a little more or less in places, in a fixed pattern.
+          if (d <= 1 + (rand(x * 3 + seed, y * 5 + z * 7) - 0.5) * 0.28) cells.push([cx + x, cy + y, cz + z]);
+        }
+      }
+    }
+    return cells;
+  };
+
+  /**
+   * Small blocks set on the outside of a lump: one on every `every`th
+   * outward face, in a fixed pattern.
+   */
+  const dots = (cells: Array<[number, number, number]>, every: number, colours: string[], seed: number) => {
+    const has = new Set(cells.map((c) => c.join(',')));
+    const out: Array<[number, number, number, string]> = [];
+    let n = 0;
+    for (const [x, y, z] of cells) {
+      for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]]) {
+        if (has.has(`${x + dx},${y + dy},${z + dz}`)) continue;
+        n += 1;
+        if ((n * 7 + seed) % every !== 0) continue;
+        // In small-block steps: two per object block; just outside that face.
+        const sx = 2 * x + (dx > 0 ? 2 : dx < 0 ? -1 : 0) + (dx === 0 ? Math.floor(rand(n, seed) * 2) : 0);
+        const sy = 2 * y + (dy > 0 ? 2 : 0) + (dy === 0 ? Math.floor(rand(seed, n) * 2) : 0);
+        const sz = 2 * z + (dz > 0 ? 2 : dz < 0 ? -1 : 0) + (dz === 0 ? Math.floor(rand(n + 3, seed) * 2) : 0);
+        out.push([sx, sy, sz, colours[n % colours.length]]);
+      }
+    }
+    return out;
+  };
+
+  /** A tree: a trunk two blocks square, and a crown round its top. */
+  const tree = (x: number, z: number, fruit: boolean, seed: number) => {
+    const trunk: Array<[number, number, number, string]> = [];
+    const height = 6;
+    for (let y = 0; y < height; y += 1) {
+      for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) trunk.push([x + dx, y, z + dz, BARK]);
+    }
+    blocks(root, OBJ, trunk, 'tree-trunk');
+    const crown = lump(x, height + 2, z, 3.4, 2.7, 3.2, seed).map(([a, b, c]) => [a + 0.5 > x ? a : a, b, c] as [number, number, number]);
+    blocks(root, OBJ, crown.map(([a, b, c]) => [a, b, c, LEAF]), 'foliage');
+    if (fruit) blocks(root, SM, dots(crown, 9, ['#e8332a', '#d42a22'], seed), 'fruit');
+  };
+
+  /** A bush: a low lump, with flowers if asked. */
+  const bush = (x: number, z: number, flowers: boolean, seed: number) => {
+    const cells = lump(x, 1, z, 1.8, 1.25, 1.6, seed);
+    blocks(root, OBJ, cells.filter(([, y]) => y >= 0).map(([a, b, c]) => [a, b, c, BUSH]), 'foliage');
+    if (flowers) blocks(root, SM, dots(cells.filter(([, y]) => y >= 0), 5, ['#ff7eb6', '#ffffff', '#ffd23f'], seed), 'flowers');
+  };
+
+  tree(-8, -1, false, 3);
+  tree(0, -1, true, 11);
+  bush(7, 0, true, 5);
+  bush(10, -1, false, 9);
+
+  scene.add(root);
+  return {
+    root,
+    characterAt: new Vector3(-0.85, 0, 0.75),
+    centre: new Vector3(0, 0.9, 0),
+    extent: { width: (W + 2) * TERRAIN, height: 2.6, depth: (D + 2) * TERRAIN },
+  };
+}
