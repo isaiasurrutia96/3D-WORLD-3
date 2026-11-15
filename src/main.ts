@@ -27,7 +27,7 @@ import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
-import { buildHalvingScene, buildTrackScene } from './world/HalvingScene.ts';
+import { buildHalvingScene, buildOvalScene, buildTrackScene } from './world/HalvingScene.ts';
 import { createGoldenFigure } from './player/GoldenFigure.ts';
 import { buildRacingScene, CIRCUIT_RANGE } from './racing/RacingScene.ts';
 import { KartMode } from './racing/KartMode.ts';
@@ -127,10 +127,13 @@ class Game {
       // `?blocks=halving`: the three nesting sizes in a small scene instead.
       // `?blocks=golden`: the same scene in golden-ratio sizes.
       const option = new URLSearchParams(window.location.search).get('blocks');
-      if (option === 'halving' || option === 'golden' || option === 'track') {
+      if (option === 'halving' || option === 'golden' || option === 'track' || option === 'oval') {
         showcase.root.visible = false;
         // `?blocks=track`: a tiny block race track with a raised section.
-        const halving = option === 'track' ? buildTrackScene(this.engine.scene) : buildHalvingScene(this.engine.scene, option);
+        const halving =
+          option === 'track' ? buildTrackScene(this.engine.scene)
+          : option === 'oval' ? buildOvalScene(this.engine.scene)
+          : buildHalvingScene(this.engine.scene, option);
         // `&golden=1`: the figure reshaped to golden-ratio proportions,
         // standing beside him, for comparing.
         if (new URLSearchParams(window.location.search).has('golden')) {
