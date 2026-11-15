@@ -375,8 +375,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     // opposite corners of the pattern. Each stands in the middle of its block,
     // a perfect isosceles triangle the size of his finger, facing front.
     {
-      const HEIGHT = 0.075; // metres
-      const WIDTH = 0.018;
+      const HEIGHT = 0.09; // metres
+      const WIDTH = 0.0216;
       const shape = new BufferGeometry();
       shape.setAttribute(
         'position',
@@ -388,7 +388,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       for (const [x, z] of [[0, 1], [2, 0]] as const) {
         // The same colour as that block's top: its grass, at its own shade.
         const bladeMaterial = new MeshStandardMaterial({
-          color: new Color(COLOURS.grass).multiplyScalar(variation(x, 1, z)),
+          // A little darker than the block it stands on.
+          color: new Color(COLOURS.grass).multiplyScalar(variation(x, 1, z) * 0.82),
           roughness: 0.86,
           metalness: 0,
           side: DoubleSide,
