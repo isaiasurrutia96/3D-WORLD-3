@@ -778,18 +778,7 @@ export function buildTreeScene(scene: Scene): HalvingScene {
   // In 10.75 cm steps the trunk is x and z −2..3. Each root runs out
   // diagonally from a corner, stepping down from four blocks high to one.
   const roots: Array<[number, number, number, string]> = [];
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const cx = sx > 0 ? 3 : -2;
-    const cz = sz > 0 ? 3 : -2;
-    for (let k = 1; k <= 4; k += 1) {
-      const high = 5 - k;
-      for (let y = 0; y < high; y += 1) {
-        roots.push([cx + sx * k, y, cz + sz * k, BARK]);
-        roots.push([cx + sx * k, y, cz + sz * (k - 1), BARK]);
-        roots.push([cx + sx * (k - 1), y, cz + sz * k, BARK]);
-      }
-    }
-  }
+  // (No roots at the corners: two out of each side, below.)
   for (let i = -2; i <= 3; i += 1) {
     for (let y = 0; y < 2; y += 1) roots.push([i, y, -3, BARK], [i, y, 4, BARK], [-3, y, i, BARK], [4, y, i, BARK]);
   }
