@@ -717,11 +717,15 @@ export function buildNatureScene(scene: Scene): HalvingScene {
 }
 
 /**
- * One tree in the style of the reference pictures: a thick trunk flaring at
- * its foot with roots, branches of small blocks splitting off near the top,
- * and a big puffy crown of separate, softly rounded leaf cubes — a large
- * clump on top and smaller clumps round it — in one green, each cube its own
- * slight shade.
+ * One tree in the style of the reference pictures, looked at closely:
+ * - a short, thick trunk (43 cm square) flaring at its foot, with four
+ *   buttress roots stepping down to the ground at the corners;
+ * - two thick branches angling out of the top of the trunk into the crown;
+ * - a wide, dome-shaped crown, wider than it is tall and flat-ish beneath,
+ *   starting low, made of many small leaf cubes (10.75 cm, about four to the
+ *   trunk's width), separate and softly rounded, in clumps: a big dome on
+ *   top and lumpy clumps round its sides, one green in slightly different
+ *   shades, a little darker toward the bottom.
  */
 export function buildTreeScene(scene: Scene): HalvingScene {
   const root = new Group();
@@ -730,11 +734,11 @@ export function buildTreeScene(scene: Scene): HalvingScene {
   const SM = TERRAIN / 4;
   const GRASS = '#93d91e';
   const DIRT = '#da965a';
-  const BARK = '#8a5530';
-  const LEAF = '#86cc22';
+  const BARK = '#bb7843';
+  const LEAF = '#b2e830';
 
   // ---- Ground ----
-  const W = 8;
+  const W = 14;
   const dirt: Array<[number, number, number, string]> = [];
   const grass: Array<[number, number, number, string]> = [];
   for (let i = -W / 2 - 1; i < W / 2 + 1; i += 1) {
@@ -750,48 +754,91 @@ export function buildTreeScene(scene: Scene): HalvingScene {
     const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
     return v - Math.floor(v);
   };
+  const unique = (list: Array<[number, number, number, string]>) => {
+    const seen = new Set<string>();
+    return list.filter((c) => {
+      const k = `${c[0]},${c[1]},${c[2]}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
 
-  // ---- Trunk: 2 × 2 blocks of 21.5 cm, flaring at the foot ----
-  const HEIGHT = 6;
+  // ---- Trunk: 21.5 cm blocks, 3 × 3 (65 cm), short and thick ----
+  // In 21.5 cm steps the trunk is x and z −1..1, centred on x = z = 0.1075.
+  const C = OBJ / 2; // the tree's middle, across
+  const TRUNK = 10; // 2.15 m, its top inside the crown
   const trunk: Array<[number, number, number, string]> = [];
-  for (let y = 0; y < HEIGHT; y += 1) {
-    for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) trunk.push([-1 + dx, y, -1 + dz, BARK]);
+  for (let y = 0; y < TRUNK; y += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) for (let dz = -1; dz <= 1; dz += 1) trunk.push([dx, y, dz, BARK]);
   }
-  for (const [x, z] of [[-2, -1], [-2, 0], [1, -1], [1, 0], [-1, -2], [0, -2], [-1, 1], [0, 1]]) {
-    const xx = x === 1 ? 1 : x;
-    trunk.push([xx === 1 ? 1 : xx, 0, z, BARK]);
-  }
-  trunk.push([-2, 1, 0, BARK], [1, 1, -1, BARK], [0, 1, 1, BARK]);
-  blocks(root, OBJ, trunk.filter((c, i, a) => a.findIndex((d) => d[0] === c[0] && d[1] === c[1] && d[2] === c[2]) === i), 'tree-trunk');
+  blocks(root, OBJ, unique(trunk), 'tree-trunk');
 
-  // Roots: small blocks reaching out along the ground from the flare.
+  // ---- Buttress roots and flare: 10.75 cm blocks at the four corners ----
+  // In 10.75 cm steps the trunk is x and z −2..3. Each root runs out
+  // diagonally from a corner, stepping down from four blocks high to one.
   const roots: Array<[number, number, number, string]> = [];
-  for (const [sx, sz, dx, dz] of [[-5, -1, -1, 0], [3, -2, 1, 0], [-1, -5, 0, -1], [0, 3, 0, 1], [-4, 2, -1, 1]]) {
-    for (let k = 0; k < 2; k += 1) roots.push([sx + dx * k, 0, sz + dz * k, BARK]);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const cx = sx > 0 ? 3 : -2;
+    const cz = sz > 0 ? 3 : -2;
+    for (let k = 1; k <= 4; k += 1) {
+      const high = 5 - k;
+      for (let y = 0; y < high; y += 1) {
+        roots.push([cx + sx * k, y, cz + sz * k, BARK]);
+        roots.push([cx + sx * k, y, cz + sz * (k - 1), BARK]);
+        roots.push([cx + sx * (k - 1), y, cz + sz * k, BARK]);
+      }
+    }
   }
-  blocks(root, SM, roots, 'tree-roots');
+  for (let i = -2; i <= 3; i += 1) {
+    for (let y = 0; y < 2; y += 1) roots.push([i, y, -3, BARK], [i, y, 4, BARK], [-3, y, i, BARK], [4, y, i, BARK]);
+  }
+  blocks(root, SM, unique(roots), 'tree-roots');
 
-  // ---- Crown: clumps of leaf cubes ----
-  const lobes: Array<[number, number, number, number, number]> = [
-    // centre x, y, z (in 21.5 cm blocks) and radius across, radius up
-    [0, 9.6, 0, 3.4, 2.5],
-    [-2.9, 7.8, 0.6, 2.2, 1.8],
-    [2.8, 7.9, -0.4, 2.2, 1.8],
-    [0.4, 7.7, 2.7, 2.0, 1.7],
-    [-0.5, 7.9, -2.8, 2.0, 1.7],
+  // ---- Two thick branches angling out of the top of the trunk ----
+  const branches: Array<[number, number, number, string]> = [];
+  for (const side of [-1, 1]) {
+    for (let k = 0; k <= 7; k += 1) {
+      const x = (side > 0 ? 4 : -3) + side * k;
+      const y = 13 + Math.floor(k * 0.75);
+      const thick = k < 4 ? [-1, 0, 1, 2] : [0, 1];
+      for (const b of thick) for (let h = 0; h < (k < 4 ? 3 : 2); h += 1) branches.push([x, y + h, b, BARK]);
+    }
+  }
+  blocks(root, SM, unique(branches), 'tree-branches');
+
+  // ---- The crown: leaf cubes of 21.5 cm, in clumps ----
+  const clumps: Array<[number, number, number, number, number]> = [
+    [C, 3.17, C, 1.55, 0.85], // the big dome on top
+    [C - 1.45, 2.52, C + 0.1, 0.95, 0.65],
+    [C + 1.45, 2.54, C - 0.1, 0.95, 0.65],
+    [C + 0.15, 2.50, C + 1.35, 0.92, 0.62],
+    [C - 0.1, 2.52, C - 1.35, 0.92, 0.62],
+    [C + 1.0, 2.77, C + 0.95, 0.78, 0.58],
+    [C - 1.0, 2.80, C - 0.95, 0.78, 0.58],
+    [C - 0.95, 2.74, C + 1.0, 0.75, 0.56],
+    [C + 0.95, 2.80, C - 1.0, 0.75, 0.56],
   ];
+  const FLOOR = 1.94; // the crown's underside, flat-ish
   const leaves = new Set<string>();
-  lobes.forEach(([cx, cy, cz, r, ry], n) => {
-    for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x += 1) {
-      for (let y = Math.floor(cy - ry - 1); y <= Math.ceil(cy + ry + 1); y += 1) {
-        for (let z = Math.floor(cz - r - 1); z <= Math.ceil(cz + r + 1); z += 1) {
-          const d = Math.hypot((x + 0.5 - cx) / r, (y + 0.5 - cy) / ry, (z + 0.5 - cz) / r);
-          if (d <= 1 + (rand(x * 7 + n, y * 3 + z * 5) - 0.5) * 0.25) leaves.add(`${x},${y},${z}`);
+  clumps.forEach(([cx, cy, cz, r, ry], n) => {
+    const lo = (v: number, rr: number) => Math.floor((v - rr - OBJ) / OBJ);
+    const hi = (v: number, rr: number) => Math.ceil((v + rr + OBJ) / OBJ);
+    for (let x = lo(cx, r); x <= hi(cx, r); x += 1) {
+      for (let y = lo(cy, ry); y <= hi(cy, ry); y += 1) {
+        for (let z = lo(cz, r); z <= hi(cz, r); z += 1) {
+          const px = (x + 0.5) * OBJ;
+          const py = (y + 0.5) * OBJ;
+          const pz = (z + 0.5) * OBJ;
+          if (py < FLOOR) continue;
+          // Lumpy, cube by cube, so single cubes stand proud as in the picture.
+          const lumpy = (rand(x * 7 + n, y * 3 + z * 5) - 0.5) * 0.3;
+          const d = Math.hypot((px - cx) / r, (py - cy) / ry, (pz - cz) / r);
+          if (d <= 1 + lumpy) leaves.add(`${x},${y},${z}`);
         }
       }
     }
   });
-  // Only the cubes that can be seen; the inside of a crown never is.
   const surface: Array<[number, number, number]> = [];
   for (const key of leaves) {
     const [x, y, z] = key.split(',').map(Number);
@@ -799,15 +846,15 @@ export function buildTreeScene(scene: Scene): HalvingScene {
     if (!hidden) surface.push([x, y, z]);
   }
   {
-    // Separate, softly rounded cubes, so the crown reads as many leaves.
-    const cube = new RoundedBoxGeometry(1, 1, 1, 2, 0.14);
+    const cube = new RoundedBoxGeometry(1, 1, 1, 2, 0.16);
     const n = cube.attributes.normal;
     const light = new Float32Array(n.count * 3);
     for (let i = 0; i < n.count; i += 1) {
       const nx = n.getX(i), ny = n.getY(i), nz = n.getZ(i);
+      // Bright tops, as the sun catches them in the picture.
       const l0 =
-        Math.max(0, nx) * 0.86 + Math.max(0, -nx) * 0.93 + Math.max(0, ny) * 1 +
-        Math.max(0, -ny) * 0.6 + Math.max(0, nz) * 0.88 + Math.max(0, -nz) * 0.8;
+        Math.max(0, nx) * 0.84 + Math.max(0, -nx) * 0.92 + Math.max(0, ny) * 1.1 +
+        Math.max(0, -ny) * 0.62 + Math.max(0, nz) * 0.9 + Math.max(0, -nz) * 0.8;
       const l = l0 / (Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1);
       light.set([l, l, l], i * 3);
     }
@@ -819,40 +866,25 @@ export function buildTreeScene(scene: Scene): HalvingScene {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     const m = new Matrix4();
+    const top = 4.0;
     surface.forEach(([x, y, z], i) => {
       m.makeScale(OBJ, OBJ, OBJ);
       m.setPosition((x + 0.5) * OBJ, (y + 0.5) * OBJ, (z + 0.5) * OBJ);
       mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, new Color(LEAF).multiplyScalar(0.92 + rand(x * 13 + z, y * 17) * 0.16));
+      const height = Math.min(1, Math.max(0, ((y + 0.5) * OBJ - FLOOR) / (top - FLOOR)));
+      const shade = (0.92 + rand(x * 13 + z, y * 17) * 0.14) * (0.84 + 0.18 * height);
+      mesh.setColorAt(i, new Color(LEAF).multiplyScalar(shade));
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     root.add(mesh);
   }
 
-  // ---- Branches: small blocks from the top of the trunk out into the clumps ----
-  const branches: Array<[number, number, number, string]> = [];
-  const top = { x: 0, y: HEIGHT * 2 - 2, z: 0 };
-  for (const [cx, cy, cz] of lobes.slice(1)) {
-    const end = { x: Math.round(cx * 2), y: Math.round((cy - 0.6) * 2), z: Math.round(cz * 2) };
-    const steps = Math.max(Math.abs(end.x - top.x), Math.abs(end.y - top.y), Math.abs(end.z - top.z));
-    for (let s = 0; s <= steps; s += 1) {
-      const t = s / steps;
-      const x = Math.round(top.x + (end.x - top.x) * t);
-      const y = Math.round(top.y + (end.y - top.y) * t);
-      const z = Math.round(top.z + (end.z - top.z) * t);
-      // Two blocks thick near the trunk, one further out.
-      const thick = t < 0.45 ? [[0, 0], [-1, 0], [0, -1], [-1, -1]] : [[0, 0]];
-      for (const [a, b] of thick) branches.push([x + a, y, z + b, BARK]);
-    }
-  }
-  blocks(root, SM, branches.filter((c, i, a) => a.findIndex((d) => d[0] === c[0] && d[1] === c[1] && d[2] === c[2]) === i), 'tree-branches');
-
   scene.add(root);
   return {
     root,
-    characterAt: new Vector3(1.35, 0, 0.9),
-    centre: new Vector3(0.2, 1.4, 0),
-    extent: { width: 3.4, height: 3.2, depth: 3 },
+    characterAt: new Vector3(2.3, 0, 1.3),
+    centre: new Vector3(0.3, 2.0, 0),
+    extent: { width: 5.4, height: 4.2, depth: 4.4 },
   };
 }
