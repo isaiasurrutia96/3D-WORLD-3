@@ -24,6 +24,8 @@ import {
   BufferGeometry,
   CanvasTexture,
   Color,
+  DoubleSide,
+  IcosahedronGeometry,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -361,6 +363,95 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     cube.scale.setScalar(blockSize);
     cube.position.set(-2 * blockSize, -blockSize, -blockSize);
     root.add(cube);
+
+    // A fixed scatter, the same every time.
+    const rand = (a: number, b: number) => {
+      const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
+
+    // ---- Blades of grass: skinny pointed triangles standing on the top ----
+    {
+      const positions: number[] = [];
+      const colours: number[] = [];
+      const GREENS = ['#6fb51a', '#86c820', '#5aa015', '#9ad62a'].map((c) => new Color(c));
+      for (let i = 0; i < 46; i += 1) {
+        // On the top, clear of its rounded edges (all in blocks).
+        const x = -1.82 + rand(i, 1) * 3.64;
+        const z = -0.82 + rand(i, 2) * 1.64;
+        const height = 0.1 + rand(i, 3) * 0.12;
+        const width = 0.022 + rand(i, 4) * 0.014;
+        const turn = rand(i, 5) * Math.PI;
+        const lean = (rand(i, 6) - 0.5) * 0.08;
+        const ux = Math.cos(turn) * width;
+        const uz = Math.sin(turn) * width;
+        const tipX = x + Math.sin(turn + Math.PI / 2) * lean;
+        const tipZ = z + Math.cos(turn + Math.PI / 2) * lean;
+        const y0 = 1 - 0.01; // the top of the big block is one block up from the middle
+        const tri = [
+          [x - ux, y0, z - uz],
+          [x + ux, y0, z + uz],
+          [tipX, y0 + height, tipZ],
+        ];
+        const c = GREENS[i % GREENS.length];
+        const base = c.clone().multiplyScalar(0.8);
+        tri.forEach((p, k) => {
+          positions.push(p[0] * blockSize, p[1] * blockSize, p[2] * blockSize);
+          const col = k === 2 ? c : base;
+          colours.push(col.r, col.g, col.b);
+        });
+      }
+      const blades = new BufferGeometry();
+      blades.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+      blades.setAttribute('color', new BufferAttribute(new Float32Array(colours), 3));
+      blades.computeVertexNormals();
+      const bladeMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: DoubleSide });
+      bladeMaterial.toneMapped = false;
+      const grass = new Mesh(blades, bladeMaterial);
+      grass.name = 'grass-blades';
+      grass.castShadow = true;
+      root.add(grass);
+    }
+
+    // ---- Little grey stones set into the dirt, on each side ----
+    {
+      const stone = new IcosahedronGeometry(1, 1);
+      const GREYS = ['#9a9a9a', '#8a8a8a', '#b0aeac', '#7c7c7c'].map((c) => new Color(c));
+      // The four sides of the dirt layer: where each faces, and its extent.
+      const sides: Array<{ n: [number, number, number]; along: 'x' | 'z'; half: number }> = [
+        { n: [0, 0, 1], along: 'x', half: 2 },
+        { n: [0, 0, -1], along: 'x', half: 2 },
+        { n: [1, 0, 0], along: 'z', half: 1 },
+        { n: [-1, 0, 0], along: 'z', half: 1 },
+      ];
+      sides.forEach((side, si) => {
+        const count = side.half === 2 ? 14 : 7;
+        for (let i = 0; i < count; i += 1) {
+          const t = (rand(si * 50 + i, 7) * 2 - 1) * (side.half - 0.16);
+          const y = -0.84 + rand(si * 50 + i, 8) * 0.68; // within the dirt layer, clear of its edges
+          const r = 0.03 + rand(si * 50 + i, 9) * 0.035;
+          const out = side.half === 2 ? 1 : 2; // how far that face is from the middle
+          const pos = [0, y, 0];
+          if (side.along === 'x') {
+            pos[0] = t;
+            pos[2] = side.n[2] * out;
+          } else {
+            pos[2] = t;
+            pos[0] = side.n[0] * out;
+          }
+          const mat = new MeshStandardMaterial({ color: GREYS[(si + i) % GREYS.length], roughness: 1 });
+          mat.toneMapped = false;
+          const pebble = new Mesh(stone, mat);
+          pebble.name = 'dirt-stone';
+          // Set into the face, flattened, so it reads as a dot in the dirt.
+          pebble.scale.set(r * blockSize, r * blockSize * 0.85, r * blockSize);
+          if (side.along === 'x') pebble.scale.z *= 0.35;
+          else pebble.scale.x *= 0.35;
+          pebble.position.set(pos[0] * blockSize, pos[1] * blockSize, pos[2] * blockSize);
+          root.add(pebble);
+        }
+      });
+    }
     scene.add(root);
     const frame = {
       centre: new Vector3(0, 0, 0),
