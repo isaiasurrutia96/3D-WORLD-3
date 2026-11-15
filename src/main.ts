@@ -24,8 +24,8 @@ import {
 import { ARM } from './player/PlayerModel.ts';
 import { ParticleEffects } from './world/Effects.ts';
 import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
-import type { VoxelIslandWorld } from './world/VoxelIsland.ts';
-import type { SkyCircuit } from './racing/SkyCircuit.ts';
+import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
+import { buildSkyCircuit, type SkyCircuit } from './racing/SkyCircuit.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildHalvingScene, buildNatureScene, buildOvalScene, buildTrackScene, buildTreeScene } from './world/HalvingScene.ts';
 import { createGoldenFigure } from './player/GoldenFigure.ts';
@@ -113,6 +113,21 @@ class Game {
       this.course = buildCourse(this.engine.scene, this.collision);
       this.spawn = COURSE_SPAWN;
       this.spawnFacing = COURSE_FACING;
+    } else if (new URLSearchParams(window.location.search).get('world') === 'island') {
+      // `?world=island`: the floating block island, its bridge and the
+      // circuit, walkable, in the merged block style.
+      const island = buildVoxelIsland(this.engine.scene, this.collision);
+      this.engine.setFogScale(0);
+      this.voxel = island;
+      this.circuit = buildSkyCircuit(this.engine.scene, this.collision, island.circuitAnchor);
+      island.triangleCount += this.circuit.triangleCount;
+      this.engine.setSunDirection(island.sunDirection);
+      this.engine.sky.setLook({ top: '#4aa6fb', horizon: '#7cc4fc', bottom: '#8ccefc' });
+      this.engine.sky.setCloudsVisible(false);
+      this.world = island;
+      this.course = island;
+      this.spawn = island.spawn;
+      this.spawnFacing = island.spawnFacing;
     } else {
       // Eight blocks and the character beside them, for comparing sizes.
       // Nothing else: the block island (world/VoxelIsland.ts), its bridge

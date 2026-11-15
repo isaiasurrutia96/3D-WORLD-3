@@ -271,7 +271,13 @@ class Cells {
 const CUBE_CELLS: Partial<Record<Kind, number>> = { rock: 3 };
 
 /** How round a block's exposed edges and corners are, as a part of a block. */
-const ROUND = 0.34;
+const ROUND = 0.1;
+
+/** Each block a slightly different shade, as in the block previews. */
+function blockShade(x: number, y: number, z: number): number {
+  const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return 0.92 + (v - Math.floor(v)) * 0.16;
+}
 
 /**
  * The faces of a set of cubes that can be seen, as one geometry: a face is
@@ -283,8 +289,8 @@ const ROUND = 0.34;
  * finer near that edge and each point is pulled onto a rounded cube, so the
  * outline of the island is made of soft blocks. Two neighbouring faces round
  * the same edge onto the same curve, so they meet with no gap. Where a block
- * lies flat against another the faces stay flat and meet; the soft line
- * between them there is the rounded-block texture.
+ * lies flat against another the faces stay flat and meet, so the blocks
+ * read as one solid; each block is told apart only by its slight shade.
  */
 function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, curveSteps = 2): BufferGeometry {
   const positions: number[] = [];
@@ -326,7 +332,7 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, cur
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
     const across = CUBE_CELLS[kind] ?? 1;
-    colour.set(COLOURS[kind]);
+    colour.set(COLOURS[kind]).multiplyScalar(blockShade(x, y, z));
     const cell = [x, y, z];
     // Which of the block's six sides can be seen: those are the ones it is
     // rounded toward.
@@ -473,73 +479,6 @@ function facesOf(cells: Cells, only?: (kind: Kind) => boolean, round = true, cur
   return geometry;
 }
 
-/**
- * The rounded block, as two textures for one face: how much light reaches
- * each point (a little less toward the rounded edges and corners), and which
- * way each point faces (curving away at the edges), so the light and the sun
- * fall on every block as on a cube with soft, rounded corners.
- */
-function roundedBlock(): { shade: CanvasTexture; bumps: CanvasTexture } {
-  const size = 64;
-  /** Corner radius and the width of the curved edge, as parts of the face. */
-  const RADIUS = 0.2;
-  const EDGE = 0.17;
-  // Height across the face: flat in the middle, falling away round the edge.
-  const height = (u: number, v: number) => {
-    const qx = Math.abs(u - 0.5) - (0.5 - RADIUS);
-    const qy = Math.abs(v - 0.5) - (0.5 - RADIUS);
-    const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - RADIUS;
-    const t = Math.min(1, Math.max(0, -outside / EDGE));
-    // A quarter circle: the profile of a rounded edge.
-    return Math.sqrt(1 - (1 - t) * (1 - t));
-  };
-  const make = (fill: (u: number, v: number) => [number, number, number]) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext('2d');
-    if (context) {
-      const image = context.createImageData(size, size);
-      for (let py = 0; py < size; py += 1) {
-        for (let px = 0; px < size; px += 1) {
-          const [r, g, b] = fill((px + 0.5) / size, 1 - (py + 0.5) / size);
-          const k = (py * size + px) * 4;
-          image.data[k] = r;
-          image.data[k + 1] = g;
-          image.data[k + 2] = b;
-          image.data[k + 3] = 255;
-        }
-      }
-      context.putImageData(image, 0, 0);
-    }
-    const texture = new CanvasTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-    texture.anisotropy = 4;
-    return texture;
-  };
-  const shade = make((u, v) => {
-    const h = height(u, v);
-    // Soft: full light on the face, easing only a little in the crease
-    // between two blocks, so the lines are light but still show.
-    const light = Math.round(255 * (0.87 + 0.13 * h));
-    return [light, light, light];
-  });
-  shade.colorSpace = SRGBColorSpace;
-  const step = 1 / size;
-  const bumps = make((u, v) => {
-    const dx = (height(u + step, v) - height(u - step, v)) / (2 * step);
-    const dy = (height(u, v + step) - height(u, v - step)) / (2 * step);
-    const strength = 0.035;
-    const nx = -dx * strength;
-    const ny = -dy * strength;
-    const l = Math.hypot(nx, ny, 1);
-    return [Math.round((nx / l * 0.5 + 0.5) * 255), Math.round((ny / l * 0.5 + 0.5) * 255), Math.round((1 / l * 0.5 + 0.5) * 255)];
-  });
-  return { shade, bumps };
-}
-
-/** Water: bright cyan with pale lines like light on its surface. */
 function waterTexture(): CanvasTexture {
   const size = 32;
   const canvas = document.createElement('canvas');
@@ -824,14 +763,11 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   // Drawn with the colours as they are, not passed through the film curve
   // the rest of the game uses: the pictures are bright and saturated, and
   // that curve greys them.
-  // Matte, with every block shaded as a soft cube with rounded corners.
-  const rounded = roundedBlock();
+  // Matte; blocks merge, rounded only where an edge faces the open air.
   const material = new MeshStandardMaterial({
     vertexColors: true,
     roughness: 1,
     metalness: 0,
-    map: rounded.shade,
-    normalMap: rounded.bumps,
   });
   material.toneMapped = false;
   const mesh = (name: string, geometry: BufferGeometry, parent: Group, shadows = true) => {
