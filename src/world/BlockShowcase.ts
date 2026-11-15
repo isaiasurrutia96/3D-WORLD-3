@@ -375,10 +375,14 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       const positions: number[] = [];
       const colours: number[] = [];
       const GREENS = ['#6fb51a', '#86c820', '#5aa015', '#9ad62a'].map((c) => new Color(c));
-      for (let i = 0; i < 46; i += 1) {
-        // On the top, clear of its rounded edges (all in blocks).
-        const x = -1.82 + rand(i, 1) * 3.64;
-        const z = -0.82 + rand(i, 2) * 1.64;
+      // Two blades on each of the eight grass blocks, somewhere on its top
+      // and clear of its edges (all in blocks).
+      for (let i = 0; i < 16; i += 1) {
+        const cell = Math.floor(i / 2);
+        const cx = -1.5 + (cell % 4);
+        const cz = cell < 4 ? -0.5 : 0.5;
+        const x = cx + (rand(i, 1) - 0.5) * 0.6;
+        const z = cz + (rand(i, 2) - 0.5) * 0.6;
         const height = 0.1 + rand(i, 3) * 0.12;
         const width = 0.022 + rand(i, 4) * 0.014;
         const turn = rand(i, 5) * Math.PI;
@@ -416,7 +420,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     // ---- Little grey stones set into the dirt, on each side ----
     {
       const stone = new IcosahedronGeometry(1, 1);
-      const GREYS = ['#9a9a9a', '#8a8a8a', '#b0aeac', '#7c7c7c'].map((c) => new Color(c));
+      // One plain mid grey, the same for every stone.
+      const GREY = new Color('#a3a3a3');
       // The four sides of the dirt layer: where each faces, and its extent.
       const sides: Array<{ n: [number, number, number]; along: 'x' | 'z'; half: number }> = [
         { n: [0, 0, 1], along: 'x', half: 2 },
@@ -425,11 +430,11 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         { n: [-1, 0, 0], along: 'z', half: 1 },
       ];
       sides.forEach((side, si) => {
-        const count = side.half === 2 ? 14 : 7;
-        for (let i = 0; i < count; i += 1) {
-          const t = (rand(si * 50 + i, 7) * 2 - 1) * (side.half - 0.16);
+        // Three on each side, spread along it.
+        for (let i = 0; i < 3; i += 1) {
+          const t = ((i - 1) * 0.62 + (rand(si * 50 + i, 7) - 0.5) * 0.25) * (side.half - 0.25);
           const y = -0.84 + rand(si * 50 + i, 8) * 0.68; // within the dirt layer, clear of its edges
-          const r = 0.03 + rand(si * 50 + i, 9) * 0.035;
+          const r = 0.06 + rand(si * 50 + i, 9) * 0.02;
           const out = side.half === 2 ? 1 : 2; // how far that face is from the middle
           const pos = [0, y, 0];
           if (side.along === 'x') {
@@ -439,7 +444,8 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
             pos[2] = t;
             pos[0] = side.n[0] * out;
           }
-          const mat = new MeshStandardMaterial({ color: GREYS[(si + i) % GREYS.length], roughness: 1 });
+          // A glow of its own so it stays plain grey in shade, never charcoal.
+          const mat = new MeshStandardMaterial({ color: GREY, roughness: 1, emissive: GREY, emissiveIntensity: 0.35 });
           mat.toneMapped = false;
           const pebble = new Mesh(stone, mat);
           pebble.name = 'dirt-stone';
