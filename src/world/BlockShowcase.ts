@@ -200,6 +200,10 @@ export function pointyBlock(sharp: [number, number, number], colour: Color, radi
   return geometry;
 }
 
+/** The tiny land: how many blocks across each way, and how many high. */
+const LAND = 14;
+const LAND_HIGH = 3;
+
 /** The size the owner chose from the comparison: 0.146× the baseline. */
 export const CHOSEN_MULTIPLIER = PHI ** -4;
 
@@ -225,11 +229,11 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
   // The eight blocks, by cell: bottom layer earth, top layer grass.
   const cells = new Map<string, Kind>();
   if (single) {
-    // Sixteen blocks: four wide, two deep, two high, grass over dirt.
-    for (let x = 0; x < 4; x += 1) {
-      for (let z = 0; z < 2; z += 1) {
-        cells.set(`${x},0,${z}`, 'earth');
-        cells.set(`${x},1,${z}`, 'grass');
+    // A tiny patch of land: LAND × LAND blocks, grass on top of two layers
+    // of dirt.
+    for (let x = 0; x < LAND; x += 1) {
+      for (let z = 0; z < LAND; z += 1) {
+        for (let y = 0; y < LAND_HIGH; y += 1) cells.set(`${x},${y},${z}`, y === LAND_HIGH - 1 ? 'grass' : 'earth');
       }
     }
   } else {
@@ -361,15 +365,16 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
     cube.castShadow = true;
     cube.receiveShadow = true;
     cube.scale.setScalar(blockSize);
-    cube.position.set(-2 * blockSize, -blockSize, -blockSize);
+    // Centred across, with its top at height 0, where he stands.
+    cube.position.set((-LAND / 2) * blockSize, -LAND_HIGH * blockSize, (-LAND / 2) * blockSize);
     root.add(cube);
 
 
     // ---- A pattern of grass blades and stones ----
     // Cells: x 0–3 from left to right, z 0 at the back and 1 at the front.
     // The middle of a cell, in blocks, from the middle of the big block.
-    const cellX = (x: number) => x - 1.5;
-    const cellZ = (z: number) => z - 0.5;
+    const cellX = (x: number) => x - LAND / 2 + 0.5;
+    const cellZ = (z: number) => z - LAND / 2 + 0.5;
 
     // One blade on one grass block in every four: two of the eight, on
     // opposite corners of the pattern. Each stands in the middle of its block,
@@ -385,11 +390,16 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       // Lit as if it faced up, like the top of the block it stands on, so it
       // comes out the very same shade of green.
       shape.setAttribute('normal', new BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
-      for (const [x, z] of [[0, 1], [2, 0]] as const) {
+      // One grass block in four, staggered row by row.
+      const spots: Array<[number, number]> = [];
+      for (let x = 0; x < LAND; x += 1) {
+        for (let z = 0; z < LAND; z += 1) if (x % 4 === (z % 2) * 2) spots.push([x, z]);
+      }
+      for (const [x, z] of spots) {
         // The same colour as that block's top: its grass, at its own shade.
         const bladeMaterial = new MeshStandardMaterial({
           // A little darker than the block it stands on.
-          color: new Color(COLOURS.grass).multiplyScalar(variation(x, 1, z) * 0.82),
+          color: new Color(COLOURS.grass).multiplyScalar(variation(x, LAND_HIGH - 1, z) * 0.82),
           roughness: 0.86,
           metalness: 0,
           side: DoubleSide,
@@ -398,7 +408,7 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
         const blade = new Mesh(shape, bladeMaterial);
         blade.name = 'grass-blade';
         blade.castShadow = true;
-        blade.position.set(cellX(x) * blockSize, blockSize - 0.001, cellZ(z) * blockSize);
+        blade.position.set(cellX(x) * blockSize, -0.001, cellZ(z) * blockSize);
         root.add(blade);
       }
     }
@@ -411,27 +421,37 @@ export function buildBlockShowcase(scene: Scene, options: ShowcaseOptions = {}):
       stoneMaterial.toneMapped = false;
       const stone = new IcosahedronGeometry(1, 1);
       const r = 0.08 * blockSize;
-      for (const [x, z] of [[0, 1], [2, 1], [1, 0], [3, 0]] as const) {
-        const pebble = new Mesh(stone, stoneMaterial);
-        pebble.name = 'dirt-stone';
-        // Flattened against the face so it reads as a stone set into it.
-        pebble.scale.set(r, r * 0.85, r * 0.35);
-        const face = z === 1 ? 1 : -1;
-        pebble.position.set(cellX(x) * blockSize, -0.5 * blockSize, face * blockSize);
-        root.add(pebble);
+      // Round the four sides, on every other dirt block (a checkerboard).
+      const half = (LAND / 2) * blockSize;
+      for (let i = 0; i < LAND; i += 1) {
+        for (let y = 0; y < LAND_HIGH - 1; y += 1) {
+          if ((i + y) % 2 !== 0) continue;
+          const along = cellX(i) * blockSize;
+          const height = (y + 0.5 - LAND_HIGH) * blockSize;
+          for (const [px, pz, flatX] of [
+            [along, half, false],
+            [along, -half, false],
+            [half, along, true],
+            [-half, along, true],
+          ] as const) {
+            const pebble = new Mesh(stone, stoneMaterial);
+            pebble.name = 'dirt-stone';
+            pebble.scale.set(flatX ? r * 0.35 : r, r * 0.85, flatX ? r : r * 0.35);
+            pebble.position.set(px, height, pz);
+            root.add(pebble);
+          }
+        }
       }
     }
 
     scene.add(root);
 
-    // The character beside it, for size comparison only: feet level with
-    // the bottom of the big block, a little way off its right end.
-    const characterAt = new Vector3(2 * blockSize + 0.45, -blockSize, 0);
-    const left = -2 * blockSize;
-    const right = characterAt.x + 0.4;
+    // He stands in the middle of the land.
+    const characterAt = new Vector3(0, 0, 0);
+    const across = LAND * blockSize;
     const frame = {
-      centre: new Vector3((left + right) / 2, -blockSize + CHARACTER_HEIGHT / 2, 0),
-      extent: { width: right - left + 0.2, height: CHARACTER_HEIGHT + 0.1, depth: 2 * blockSize },
+      centre: new Vector3(0, (CHARACTER_HEIGHT - LAND_HIGH * blockSize) / 2, 0),
+      extent: { width: across, height: CHARACTER_HEIGHT + LAND_HIGH * blockSize, depth: across },
     };
     const group: ShowcaseGroup = {
       multiplier: CHOSEN_MULTIPLIER,
