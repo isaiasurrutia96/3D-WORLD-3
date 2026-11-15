@@ -74,10 +74,13 @@ function blocks(
   const indices: number[] = [];
   for (const [key, tint] of cells) {
     const [x, y, z] = key.split(',').map(Number);
+    // Every block is rounded on its own all round its sides, so a soft groove
+    // shows between neighbours; only where one sits on another do they meet
+    // flat and square.
     const occupied = [
-      [at(x - 1, y, z), at(x + 1, y, z)],
+      [false, false],
       [below(x, y, z), at(x, y + 1, z)],
-      [at(x, y, z - 1), at(x, y, z + 1)],
+      [false, false],
     ];
     // Where a block of this shape sits on this one and has an open side, its
     // rounded upright edges leave small openings down to this block's top.
@@ -92,6 +95,44 @@ function blocks(
         colours.push(tint.r, tint.g, tint.b);
       }
       indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
+    // The bottom of the grooves: a solid core inside the block, just under
+    // its rounded surface where a side is open and right up to the boundary
+    // where a neighbour is, so the cores of neighbouring blocks join into one
+    // solid and every groove has something behind it, from any angle.
+    {
+      const sealAt = R * 0.95;
+      const open = [
+        [!at(x - 1, y, z), !at(x + 1, y, z)],
+        [false, !at(x, y + 1, z)],
+        [!at(x, y, z - 1), !at(x, y, z + 1)],
+      ];
+      const min = [0, 1, 2].map((k) => -0.5 + (open[k][0] ? sealAt : 0));
+      const max = [0, 1, 2].map((k) => 0.5 - (open[k][1] ? sealAt : 0));
+      const origin = [x + 0.5, y + 0.5, z + 0.5];
+      for (const side of SIDES) {
+        // Not underneath: it rests on what is below.
+        if (side.n[1] === -1) continue;
+        const k = side.n.findIndex((v) => v !== 0);
+        const plane = side.n[k] > 0 ? max[k] : min[k];
+        const ua = side.u.findIndex((v) => v !== 0);
+        const va = side.v.findIndex((v) => v !== 0);
+        const back = positions.length / 3;
+        const l0 =
+          Math.max(0, side.n[0]) * 0.86 + Math.max(0, -side.n[0]) * 0.93 + Math.max(0, side.n[1]) * 1 +
+          Math.max(0, -side.n[1]) * 0.6 + Math.max(0, side.n[2]) * 0.88 + Math.max(0, -side.n[2]) * 0.8;
+        const dark = l0 * 0.8;
+        for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          const p = [0, 0, 0];
+          p[k] = plane;
+          p[ua] = (side.u[ua] * a > 0 ? max[ua] : min[ua]);
+          p[va] = (side.v[va] * b > 0 ? max[va] : min[va]);
+          positions.push((origin[0] + p[0]) * size, (origin[1] + p[1]) * size, (origin[2] + p[2]) * size);
+          normals.push(side.n[0], side.n[1], side.n[2]);
+          colours.push(tint.r * dark, tint.g * dark, tint.b * dark);
+        }
+        indices.push(back, back + 1, back + 2, back, back + 2, back + 3);
+      }
     }
     for (const side of SIDES) {
       if (at(x + side.n[0], y + side.n[1], z + side.n[2])) continue;
