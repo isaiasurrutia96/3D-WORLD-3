@@ -42,10 +42,18 @@ merged.toneMapped = false;
  * corners are rounded only where they face the open air, so the blocks read
  * as one big rounded block, each still its own slight shade.
  */
-function blocks(root: Group, size: number, list: Array<[number, number, number, string]>, name: string): void {
+function blocks(
+  root: Group,
+  size: number,
+  list: Array<[number, number, number, string]>,
+  name: string,
+  /** What these blocks sit on: it counts as there underneath, so they sit flat and square on it. */
+  restsOn?: (x: number, y: number, z: number) => boolean,
+): void {
   const cells = new Map<string, Color>();
   for (const [x, y, z, colour] of list) cells.set(`${x},${y},${z}`, new Color(colour).multiplyScalar(shade(x, y, z)));
   const at = (x: number, y: number, z: number) => cells.has(`${x},${y},${z}`);
+  const below = (x: number, y: number, z: number) => at(x, y - 1, z) || (restsOn?.(x, y - 1, z) ?? false);
   const R = ROUND;
   const steps = [-0.5, -0.5 + R * 0.35, -0.5 + R, 0.5 - R, 0.5 - R * 0.35, 0.5];
   const SIDES: Array<{ n: [number, number, number]; u: [number, number, number]; v: [number, number, number] }> = [
@@ -64,24 +72,13 @@ function blocks(root: Group, size: number, list: Array<[number, number, number, 
     const [x, y, z] = key.split(',').map(Number);
     const occupied = [
       [at(x - 1, y, z), at(x + 1, y, z)],
-      [at(x, y - 1, z), at(x, y + 1, z)],
+      [below(x, y, z), at(x, y + 1, z)],
       [at(x, y, z - 1), at(x, y, z + 1)],
     ];
-    // Where a block sits on this one and has an open side, its rounded
-    // corners leave small openings down to this block's top. This top is
-    // drawn there, flat, in this block's colour, so those corners show it
-    // (the dirt under the grass) and never the sky.
-    if (at(x, y + 1, z) && (!at(x - 1, y + 1, z) || !at(x + 1, y + 1, z) || !at(x, y + 1, z - 1) || !at(x, y + 1, z + 1))) {
-      const base = positions.length / 3;
-      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
-        positions.push((x + 0.5 + a) * size, (y + 1) * size, (z + 0.5 + b) * size);
-        normals.push(0, 1, 0);
-        colours.push(tint.r, tint.g, tint.b);
-      }
-      indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
-    }
     for (const side of SIDES) {
       if (at(x + side.n[0], y + side.n[1], z + side.n[2])) continue;
+      // Its underside, where it sits on what it rests on, is not seen.
+      if (side.n[1] === -1 && below(x, y, z)) continue;
       const base = positions.length / 3;
       for (const b of steps) {
         for (const a of steps) {
@@ -152,18 +149,25 @@ export function buildHalvingScene(scene: Scene, option: keyof typeof SIZES = 'ha
   const GRASS = '#93d91e';
   const DIRT = '#da965a';
 
-  // ---- Terrain: 8 × 8 blocks of 43 cm, grass over one layer of dirt ----
+  // ---- Terrain: a complete dirt slab first, then grass laid on top ----
+  // The slab is a finished solid on its own: its whole top, its sides, its
+  // rounded outer edges. The grass is a separate layer sitting flat and
+  // square on it (the outer ring left off, so the dirt steps out), so
+  // wherever the grass rounds off, what is underneath is the slab's own top.
   const N = 8;
-  const terrain: Array<[number, number, number, string]> = [];
-  // The outer ring of grass is left off, so the dirt steps out one block.
+  const dirt: Array<[number, number, number, string]> = [];
+  const grass: Array<[number, number, number, string]> = [];
   for (let x = -N / 2; x < N / 2; x += 1) {
     for (let z = -N / 2; z < N / 2; z += 1) {
+      dirt.push([x, -2, z, DIRT]);
       const outer = x === -N / 2 || x === N / 2 - 1 || z === -N / 2 || z === N / 2 - 1;
-      if (!outer) terrain.push([x, -1, z, GRASS]);
-      terrain.push([x, -2, z, DIRT]);
+      if (!outer) grass.push([x, -1, z, GRASS]);
     }
   }
-  blocks(root, TERRAIN, terrain, 'terrain');
+  blocks(root, TERRAIN, dirt, 'dirt-slab');
+  const onSlab = (x: number, y: number, z: number) => y === -2 && x >= -N / 2 && x < N / 2 && z >= -N / 2 && z < N / 2;
+  blocks(root, TERRAIN, grass, 'grass', onSlab);
+
   // Merged, there are no grooves to seal.
 
   // ---- A tree of 21.5 cm blocks: a trunk and a round crown ----
