@@ -414,11 +414,12 @@ use for every track, house or other build).**
    trees, rocks, bushes and other objects, 10.75 cm for small things. Eight
    of each size fill one of the next. Everything sits on one grid, and
    collision always comes from the same blocks.
-2. **Rounded only on the outer edges, merged with neighbours** (the owner's
-   final choice on 15 November, after trying grooved and plain square
-   blocks): blocks join flush into one solid shape, like 8 blocks making one
-   big block, and only edges facing the open air are rounded (10%). Each
-   block keeps a slightly different shade. The avatar is not affected.
+2. **Merged material groups** (the owner's choice, 15 November, from a
+   comparison picture, option 3): each connected material (grass, dirt,
+   stone, road, rails) is one continuous surface, with no per-block shading
+   and no visible block lines; only edges facing the open air are rounded.
+   The blocks stay underneath as the grid everything is built on. The
+   avatar is not affected.
 3. **Build bottom-up, complete:** a foundation is a complete solid (the
    dirt slab, with its whole top) and what sits on it is laid on top flat
    and square, so no gap ever shows the sky.
@@ -436,7 +437,7 @@ use for every track, house or other build).**
    size, on the island's own block grid, so the bridge runs straight into
    it. Road slab two blocks thick; climbs made of blocks with sloped
    (wedge) tops; road, kerbs and stripes coloured along smooth lines across
-   the block tops. Rails are grey (the racing game's grey, not brown), made
+   the block tops (no per-block shading). Rails are grey (the racing game's grey, not brown), made
    of the smallest blocks (a quarter block), two thick and a block high,
    flush along the kerb line, with posts; at the entry they carry the
    bridge's rails on at the same size. Open at `?world=island`.

@@ -11,8 +11,8 @@
  *  - A slab two blocks thick under the road, and a rail one block high
  *    round both edges, a post standing a block higher every few blocks,
  *    in the racing game's grey.
- *  - Blocks merge into one solid; only edges facing the open air are
- *    rounded. Each block is a slightly different shade.
+ *  - Blocks merge into one continuous surface per material; only edges
+ *    facing the open air are rounded.
  *  - Where the road climbs, each block's top is cut on the slope (a wedge),
  *    so the climb is smooth to walk or drive and still made of blocks.
  *  - The road, the kerbs and their stripes are coloured across the block
@@ -788,12 +788,6 @@ export function buildBlockCircuit(scene: Scene, collision: CollisionWorld, grid:
           if (vField < 2.5 && d > ${TRACK_HALF_WIDTH.toFixed(2)} && d < ${CURB_EDGE.toFixed(2)}) c = stripe > 0.5 ? uWhite : uRed;
           if (vField < 2.5 && d >= ${CURB_EDGE.toFixed(2)}) c = uLedge;
           diffuseColor.rgb = c * vColor;
-        }
-        {
-          float bs = vField > 4.5 ? uBlock * 0.25 : uBlock;
-          vec3 cell = floor((vWPos - vWNor * 0.01) / bs + 0.0001);
-          float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-          diffuseColor.rgb *= 0.92 + h * 0.16;
         }`,
       );
   };

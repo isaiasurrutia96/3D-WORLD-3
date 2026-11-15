@@ -29,11 +29,6 @@ export const TERRAIN = 0.43;
 /** How round each block's edges are, as a part of the block. */
 const ROUND = 0.1;
 
-/** A fixed lighter-or-darker amount per block, the same every time. */
-function shade(x: number, y: number, z: number): number {
-  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-  return 0.92 + (s - Math.floor(s)) * 0.16;
-}
 
 
 
@@ -55,7 +50,7 @@ function blocks(
   restsOn?: (x: number, y: number, z: number) => boolean,
 ): void {
   const cells = new Map<string, Color>();
-  for (const [x, y, z, colour] of list) cells.set(`${x},${y},${z}`, new Color(colour).multiplyScalar(shade(x, y, z)));
+  for (const [x, y, z, colour] of list) cells.set(`${x},${y},${z}`, new Color(colour));
   const at = (x: number, y: number, z: number) => cells.has(`${x},${y},${z}`);
   const below = (x: number, y: number, z: number) => at(x, y - 1, z) || (restsOn?.(x, y - 1, z) ?? false);
   const R = ROUND;

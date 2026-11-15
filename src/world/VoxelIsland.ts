@@ -273,11 +273,6 @@ const CUBE_CELLS: Partial<Record<Kind, number>> = { rock: 3 };
 /** How round a block's exposed edges and corners are, as a part of a block. */
 const ROUND = 0.1;
 
-/** Each block a slightly different shade, as in the block previews. */
-function blockShade(x: number, y: number, z: number): number {
-  const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-  return 0.92 + (v - Math.floor(v)) * 0.16;
-}
 
 /**
  * The faces of a set of cubes that can be seen, as one geometry: a face is
@@ -340,7 +335,7 @@ function facesOf(
   for (const [x, y, z, kind] of cells.entries()) {
     if (only && !only(kind)) continue;
     const across = CUBE_CELLS[kind] ?? 1;
-    colour.set(COLOURS[kind]).multiplyScalar(blockShade(x, y, z));
+    colour.set(COLOURS[kind]);
     const cell = [x, y, z];
     // Which of the block's six sides can be seen: those are the ones it is
     // rounded toward.
