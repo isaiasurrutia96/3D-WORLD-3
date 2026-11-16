@@ -154,3 +154,15 @@ new work should use this repository as the shared source.
   their road/support behavior matches the checkpoint. Preserve root, older
   island and garden/Canyon worlds. The pre-restore build is saved as
   `checkpoint-before-torpedo-restore-2026-11-16`.
+
+- **16 November 2026 — one-hit shield and mixed test items.** The owner now
+  requests a shield in the boxes, all the other weapons available for testing,
+  and offensive contact: one weapon hit or kart bump spends the shield. A
+  shielded kart makes an unshielded rival spin and slow like a weapon hit;
+  the shielded driver is protected. Both shields are spent if two protected
+  karts touch. The bubble stays active until impact, with no timer. Keep
+  `ITEM_UNDER_TEST=null`: free-drive/practice boxes draw Nitro, shell, banana,
+  torpedo and shield equally. Time Trials retain Nitro-only rules and all
+  saved ghost/lap data. Keep the one-NPC practice format, 200-MPH torpedo,
+  kart handling and other worlds unchanged. Checkpoint before this addition:
+  `checkpoint-before-one-hit-shield-2026-11-16` at `9a9df46`.

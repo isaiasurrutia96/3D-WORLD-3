@@ -2,8 +2,10 @@ import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
 import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
 import {launchTorpedo,stepTorpedoes,trackTorpedoPositions} from './torpedoes.js';
+import {activateShield,consumeShield,stepShield} from './shield.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
+export const ITEM_POOL=['nitro','shell','banana','torpedo','shield'];
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
  if(typeof tracks==='function'){random=tracks;tracks=[trackSamples];}
  if(!Array.isArray(tracks))tracks=[trackSamples];
@@ -19,7 +21,8 @@ function sweptDistance(a,b,x,z){
  return Math.hypot(x-a.x-dx*t,z-a.z-dz*t);
 }
 export function useHeldItem(system,kart,world,targets=[]){
- const item=kart.heldItem;if(!['nitro','shell','banana','torpedo'].includes(item)){kart.heldItem=null;return false;}
+ const item=kart.heldItem;if(!ITEM_POOL.includes(item)){kart.heldItem=null;return false;}
+ if(item==='shield'&&!activateShield(kart))return false;
  if(item==='banana'&&!dropBanana(system,kart,world))return false;
  if(item==='torpedo'&&!launchTorpedo(system,kart,targets))return false;
  kart.heldItem=null;
@@ -36,7 +39,7 @@ function pickup(system,kart,previous){
   if(box.cooldown>0||Math.abs(kart.y-box.y)>1.4)continue;
   if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){
    box.cooldown=BOX_RESPAWN;const draw=system.allowShells?system.random():0;
-   kart.heldItem=system.allowShells&&system.testItem?system.testItem:draw<.5?'nitro':draw<.75?'banana':'shell';break;
+   kart.heldItem=!system.allowShells?'nitro':system.testItem??ITEM_POOL[Math.max(0,Math.min(ITEM_POOL.length-1,Math.floor(draw*ITEM_POOL.length)))];break;
   }
  }
 }
@@ -45,6 +48,7 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
  system.time+=dt;system.hits=[];
  for(const box of system.boxes)box.cooldown=Math.max(0,box.cooldown-dt);
  const actors=[...(kart?[{state:kart,previous:previous??kart}]:[]),...rivals];
+ for(const actor of actors)stepShield(actor.state,dt);
  trackTorpedoPositions(system,actors.map(actor=>actor.state));
  clearFinishedBananas(system,previous,kart);
  for(const actor of actors)pickup(system,actor.state,actor.previous);
@@ -67,8 +71,9 @@ export function stepItems(system,kart,previous,dt,world,rivals=[]){
     const start=actor.previous??target,t0=part/steps,t1=(part+1)/steps;
     const a={x:old.x-(start.x+(target.x-start.x)*t0),z:old.z-(start.z+(target.z-start.z)*t0)},b={x:shell.x-(start.x+(target.x-start.x)*t1),z:shell.z-(start.z+(target.z-start.z)*t1)};
     if(Math.abs(shell.y-target.y)<1.4&&sweptDistance(a,b,0,0)<1.7){
-     target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);
-     system.hits.push({target,owner:shell.owner});removed=true;break;
+     const absorbed=consumeShield(target);
+     if(!absorbed){target.speed*=.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);}
+     system.hits.push({target,owner:shell.owner,item:'shell',absorbed});removed=true;break;
     }
    }
    if(removed)break;

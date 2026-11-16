@@ -42,7 +42,7 @@ test('time-trial pickup rows retain Nitro even when the item draw would be a she
  }
 });
 test('free-drive boxes can award shells without replacing a full slot',()=>{
- const system=createItemSystem(()=>.99),box=system.boxes[0],kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};
+ const system=createItemSystem(()=>.3),box=system.boxes[0],kart={...createVehicleState(),x:box.x,y:box.y,z:box.z};
  stepItems(system,kart,kart,.01);assert.equal(kart.heldItem,'shell');
  assert.equal(useHeldItem(system,kart),true);assert.equal(kart.heldItem,null);assert.equal(system.shells.length,1);
  kart.heldItem='nitro';box.cooldown=0;stepItems(system,kart,kart,.01,flat);assert.equal(kart.heldItem,'nitro');

@@ -1,12 +1,14 @@
 # LetsGo — locomotion foundation
 
-Restored on 16 November 2026 to the last torpedo-test checkpoint,
-`checkpoint-before-shield-2026-11-10` (`9dd5c30`): 200-MPH continuous homing,
-Torpedo-only free-drive/practice items and one NPC practice driver. Shields
-and the later multi-driver race are not active in this version. The current
-`world.js` road/support compatibility exports are retained for the other
-independent apps; racing behavior and storage match this checkpoint.
-The pre-restore build is saved as `checkpoint-before-torpedo-restore-2026-11-16`.
+The current shield test builds on the restored 200-MPH torpedo checkpoint,
+with one NPC practice driver. Free-drive/practice boxes offer Nitro, shells,
+bananas, torpedoes and shields with equal chances. A shield lasts until one
+weapon hit or kart contact, then pops. Shielded contact spins and slows an
+unshielded rival without penalizing the shielded driver; two shields cancel
+each other. Activate with Shift or the mobile Item button. Time Trials keep
+their Nitro-only rules and saved records. The later multi-driver race remains
+outside this version. Restore point before this shield:
+`checkpoint-before-one-hit-shield-2026-11-16` (`9a9df46`).
 
 Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Lap timing, saved top-four records and ghost playback retain their existing implementation.
 
@@ -175,14 +177,14 @@ TPV/ISO retain their existing camera behavior; FPV follows the seated driver
 through the spin. Ghost file fields and personal lap records are unchanged.
 
 The user requested separately testable deliveries. The first chunk delivered
-spin/recovery. Bananas and torpedoes are documented below; a shield and
-Space-bar kart jump remain later chunks.
+spin/recovery. Bananas, torpedoes and the new single-hit shield are documented
+below. The Space-bar kart jump remains a later chunk.
 Restore point: `checkpoint-before-shell-spin-2026-11-09` at `6b0c708`.
 
 ### Banana slip — second combat chunk
 
-The normal mixed pool is 50% Nitro, 25% banana, and 25% shell, overridden
-during single-item testing. Time Trials keep Nitro-only boxes. Shift or the existing mobile Item button drops
+The normal mixed pool now gives Nitro, shell, banana, torpedo and shield an
+equal 20% chance. Single-item testing is disabled. Time Trials keep Nitro-only boxes. Shift or the existing mobile Item button drops
 a yellow peel three metres behind the kart, on supported ground. The NPC can
 also drop bananas through its ordinary item action. Drops preserve active Nitro.
 
@@ -200,16 +202,15 @@ circuits' peels remain. Restarting, switching course, or returning to free
 drive clears dropped hazards; unsupported drops retain the held item. At most
 64 peels remain in a session, with the oldest retired first.
 
-The banana delivery was a separate review chunk. Shields and kart jumping
-remain pending; the torpedo chunk follows below. Restore point:
+The banana delivery was a separate review chunk. The torpedo and shield chunks
+follow below; kart jumping remains pending. Restore point:
 `checkpoint-before-bananas-2026-11-09` at `74355da`.
 
 ### Torpedo — continuous homing revision (10 November 2026)
 
-The user requested **only the item being tested** in free-drive/NPC boxes.
-`src/item-test-mode.js` selects Torpedo for every combat pickup and both practice
-starter slots. The other item implementations remain intact. Scored Time Trials
-retain Nitro-only pickups, starter Nitro and unchanged ghosts.
+The torpedo delivery originally used Torpedo-only boxes. The latest shield
+request restores the full mixed pool: `src/item-test-mode.js` is now null.
+Scored Time Trials retain Nitro-only pickups, starter Nitro and unchanged ghosts.
 
 Shift or the mobile Torpedo button always fires forward on supported ground.
 With no rival ahead, including when the only rival is behind, the shot follows
@@ -223,8 +224,8 @@ through the entire chase, including near the target. There is no committed
 straight attack, dodge window, or retarget-on-juke state. Guidance shares its
 movement budget between forward travel and lane correction, stops overshooting
 at the target's road progress, and continues correcting when the target turns
-or brakes. Normal steering cannot cancel the lock. The requested shield is the
-next combat chunk and is **not implemented here**.
+or brakes. Normal steering cannot cancel the lock. The shield below absorbs
+one torpedo and is consumed on that hit.
 
 A locked shot has a fixed 30-second total lifetime; a sufficiently distant
 rival can still remain out of reach before that timeout. Hits cancel Nitro,
@@ -313,3 +314,28 @@ Open [the wall-contact preview](wall-contact-preview.html) to compare head-on an
 This earlier zero-restitution study remains isolated in `src/preview/wall-contact.js`. The live track now uses the separately tuned slight-rebound response in `src/vehicle-contact.js`; the old preview is not an exact demonstration of the current live physics. Neither includes damage simulation.
 
 Next requested tuning, after reviewing wall contact: **increase kart speed and improve handling**. See [TODO.md](TODO.md).
+
+### One-hit bubble shield — 16 November 2026
+
+Pick up a shield from a mystery box and activate it with Shift or the existing
+mobile Item button. A translucent blue bubble and the HUD's **1 hit** label
+show that it is active. It has one charge and no automatic expiration. A shell,
+banana or torpedo consumes it and removes the incoming hazard without applying
+spin, slip, slowdown or boost cancellation. A second impact is unprotected,
+even during the brief pop animation. A spare held shield is retained until
+the active one is spent.
+
+On physical kart contact, an active shield is spent and applies the normal
+0.75-second spin and 72% speed loss to an unshielded rival. The protected kart
+keeps its heading and velocity. Both shields are spent when two protected
+karts touch; neither driver spins. Separate road heights do not count as a
+contact. NPCs collect and activate shields under the same rules. World/practice
+restarts clear active protection. No controlled hazard arena or extra opponents
+are added in this delivery.
+
+`src/shield.js` owns the single charge and pop state, `src/shield-view.js` owns
+the low-cost blue bubble and HUD, and `src/npc/contact.js` resolves offensive
+shield contact. Actual projectile hit paths consume protection before applying
+penalties. `tests/shield.test.js` covers every weapon for player and NPC,
+same-frame consecutive impacts, shield rams in both argument orders, protected
+pairs, vertical separation, mixed box draws and spare shields.

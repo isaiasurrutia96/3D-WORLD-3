@@ -18,9 +18,10 @@ function system(courses=[]){const s=createItemSystem(undefined,Math.random,cours
 function at(course,progress,offset=0,extra={}){const p=coursePoint(course,progress,offset);return kart({...p,yaw:Math.atan2(p.fx,p.fz),...extra});}
 
 test('the active test item replaces every normal box draw and Time Trials remain Nitro-only',()=>{
+ assert.equal(ITEM_UNDER_TEST,null,'normal play uses the mixed pool');
  for(const draw of [0,.3,.62,.99]){
-  const s=createItemSystem(()=>draw);s.testItem=ITEM_UNDER_TEST;const box=s.boxes[0],owner=kart({x:box.x,y:box.y,z:box.z});
-  stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,ITEM_UNDER_TEST);
+  const s=createItemSystem(()=>draw);s.testItem='torpedo';const box=s.boxes[0],owner=kart({x:box.x,y:box.y,z:box.z});
+  stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,'torpedo');
   owner.heldItem=null;box.cooldown=0;s.allowShells=false;stepItems(s,owner,owner,.01,flat);assert.equal(owner.heldItem,'nitro');
  }
 });

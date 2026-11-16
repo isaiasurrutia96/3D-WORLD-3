@@ -4,6 +4,7 @@ import {coursePoint,wrap} from './course-line.js';
 import {ORIGINAL_COURSE} from '../courses.js';
 import {ORIGINAL_NPC_REFERENCE} from './original-reference.js';
 import {findTorpedoTarget} from '../torpedoes.js';
+import {shieldActive} from '../shield.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const angle=v=>Math.atan2(Math.sin(v),Math.cos(v));
 export function referenceAt(progress,reference=ORIGINAL_NPC_REFERENCE){
@@ -83,6 +84,7 @@ export function readNpcInput(driver,dt,{traffic=[],boxes=[],torpedoSystem=null}=
   const lock=findTorpedoTarget(torpedoSystem??{courses:[course]},state,traffic);
   input.useItem=!!lock&&lock.gap>=65&&driver.torpedoCooldown===0&&state.speed>10&&alignment<.4&&!input.brake;
  }
+ if(state.heldItem==='shield'&&!driver.finished)input.useItem=!shieldActive(state);
  if(state.spinTime>0)input.useItem=false;
  if(driver.finished){input.throttle=0;input.brake=true;input.useItem=false;}
  if(input.useItem&&state.heldItem==='torpedo')driver.torpedoCooldown=5;

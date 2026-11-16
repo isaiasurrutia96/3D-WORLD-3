@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {createBananaModel} from './banana-view.js';
 import {createTorpedoModel,createTorpedoBursts} from './torpedo-view.js';
+import {createShieldView} from './shield-view.js';
 
 function questionFace(color){
  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
@@ -38,7 +39,7 @@ export function createItemView(scene,system,kart){
   const cube=new THREE.Mesh(cubeGeometry,faces);pivot.add(cube,new THREE.LineSegments(edgeGeometry,new THREE.LineBasicMaterial({color:'#e8faff'})));return pivot;
  });
  const template=shellModel(),shells=new Map(),bananaTemplate=createBananaModel(),bananas=new Map(),torpedoTemplate=createTorpedoModel(),torpedoes=new Map();
- const exhaust=createNitroExhaust(kart),bursts=createTorpedoBursts(root,system);
+ const exhaust=createNitroExhaust(kart),bursts=createTorpedoBursts(root,system),shield=createShieldView(kart);
  return function update(state,driving){
   system.boxes.forEach((box,i)=>{const node=boxes[i];node.visible=box.cooldown<=0;node.position.y=box.y+1.15+Math.sin(system.time*2+i)*.12;node.rotation.set(.12,system.time*1.1+i,.12);});
   const active=new Set();
@@ -61,5 +62,6 @@ export function createItemView(scene,system,kart){
   for(const [id,node]of torpedoes)if(!activeTorpedoes.has(id)){root.remove(node);torpedoes.delete(id);}
   bursts();
   exhaust(state,driving,system.time);
+  shield(driving?state:null,system.time);
  };
 }

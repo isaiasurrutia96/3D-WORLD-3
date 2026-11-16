@@ -1,3 +1,6 @@
+import {shieldActive,consumeShield} from '../shield.js';
+import {startHitSpin} from '../kart-hit.js';
+
 const OFFSETS=[-.35,.35],RADIUS=1.18;
 function velocity(state){return{x:Math.sin(state.yaw)*state.speed+Math.cos(state.yaw)*(state.lateralSpeed??0),z:Math.cos(state.yaw)*state.speed-Math.sin(state.yaw)*(state.lateralSpeed??0)};}
 function setVelocity(state,v){state.speed=v.x*Math.sin(state.yaw)+v.z*Math.cos(state.yaw);state.lateralSpeed=v.x*Math.cos(state.yaw)-v.z*Math.sin(state.yaw);}
@@ -7,7 +10,7 @@ function constrain(state,old,world){
 // Equal-mass, damped contact. Headings stay under the drivers' control.
 export function resolveKartContact(a,b,world){
  if(Math.abs(a.y-b.y)>1.6)return false;
- const va=velocity(a),vb=velocity(b);let touched=false;
+ const va=velocity(a),vb=velocity(b),shieldA=shieldActive(a),shieldB=shieldActive(b);let touched=false;
  for(let iteration=0;iteration<4;iteration++){
   let deepest=null;
   for(const oa of OFFSETS)for(const ob of OFFSETS){
@@ -19,8 +22,15 @@ export function resolveKartContact(a,b,world){
   a.x+=nx*(depth+.0001)*.5;a.z+=nz*(depth+.0001)*.5;b.x-=nx*(depth+.0001)*.5;b.z-=nz*(depth+.0001)*.5;
   constrain(a,oldA,world);constrain(b,oldB,world);
   const closing=(va.x-vb.x)*nx+(va.z-vb.z)*nz;
-  if(closing<0){const impulse=-closing*.525;va.x+=nx*impulse;va.z+=nz*impulse;vb.x-=nx*impulse;vb.z-=nz*impulse;}
+  if(closing<0&&!shieldA&&!shieldB){const impulse=-closing*.525;va.x+=nx*impulse;va.z+=nz*impulse;vb.x-=nx*impulse;vb.z-=nz*impulse;}
  }
- if(touched){setVelocity(a,va);setVelocity(b,vb);}
+ if(touched){
+  setVelocity(a,va);setVelocity(b,vb);
+  if(shieldA||shieldB){
+   if(shieldA)consumeShield(a);if(shieldB)consumeShield(b);
+   const target=shieldA&&!shieldB?b:shieldB&&!shieldA?a:null;
+   if(target){target.speed*=.28;target.lateralSpeed=(target.lateralSpeed??0)*.28;target.boostTime=0;target.impactRecovery=Math.max(target.impactRecovery??0,.25);startHitSpin(target);}
+  }
+ }
  return touched;
 }

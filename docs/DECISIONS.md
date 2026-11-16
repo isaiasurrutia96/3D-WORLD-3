@@ -8,7 +8,22 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 16 November 2026 — last torpedo test restored.
+Last updated: 16 November 2026 — single-hit shield with offensive contact.
+
+## Single-hit shield and mixed boxes — 16 November 2026
+
+**Confirmed by the owner.** Add shields and all other weapons to the restored
+torpedo version's boxes for testing. One hit or one physical kart contact
+spends the entire shield. A shielded bump spins and slows an unshielded rival
+using the existing weapon-hit response. The shield blocks the protected
+driver's hit penalties; two shields block each other and both are spent.
+No old two-impact budget is restored.
+
+Implementation choice: the blue bubble remains active until an impact or
+restart, with no automatic timeout. Free-drive/NPC boxes offer all five items
+equally; the single-item test override is disabled. The existing one-NPC
+practice, 200-MPH homing, Time Trial item rules and personal records stay intact.
+Backup: `checkpoint-before-one-hit-shield-2026-11-16` at `9a9df46`.
 
 ## Return to the torpedo-test checkpoint — 16 November 2026
 
