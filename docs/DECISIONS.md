@@ -458,6 +458,17 @@ use for every track, house or other build).**
    block style (merged material groups) and the same dirt and stone depths.
    Grass blocks each a slightly different shade of green (owner, 16 Nov).
 
+10. **Mini golf on the island** (16 November, the owner's request):
+   walking up to the putting green shows a "Play Golf" button. In the game
+   the avatar stands beside the ball holding a club, side on like a
+   right-handed golfer; the camera looks down over the whole green (along
+   its length on a phone). Drag back to aim (a dotted line shows direction
+   and power, green to red), let go to swing. The ball rolls, bounces off
+   the rim and drops in the hole if not too fast. Hole 1, par 3, strokes
+   counted; a card at the end (Hole in one / Birdie / Par ...) with Play
+   again and Exit. Original game in the mobile mini-golf style, not a copy
+   of any existing game. Code: `src/golf/GolfGame.ts`.
+
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.
 

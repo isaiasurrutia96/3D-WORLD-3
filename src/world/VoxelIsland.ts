@@ -59,6 +59,7 @@ import {
 } from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld.ts';
 import type { Carryable } from './Carryable.ts';
+import type { GolfCourse } from '../golf/GolfGame.ts';
 
 /** The size of one block, in metres. */
 export const BLOCK = 0.45;
@@ -565,6 +566,8 @@ export interface VoxelIslandWorld {
   views: Record<'overhead' | 'angled', { from: Vector3; at: Vector3; fov: number }>;
   /** Where the light comes from in the pictures. */
   sunDirection: Vector3;
+  /** The putting green, for the mini golf. */
+  golf: GolfCourse;
 }
 
 export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): VoxelIslandWorld {
@@ -1070,5 +1073,24 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     // From high up to the left and behind, where the sun glows at the top
     // left of both pictures: shadows fall to the right and toward the front.
     sunDirection: new Vector3(-0.5, 0.75, -0.42).normalize(),
+    golf: {
+      inner: (x: number, z: number) => {
+        const c = Math.floor((x - origin.x) / BLOCK);
+        const r = Math.floor((z - origin.z) / BLOCK);
+        const rim = !inGreen(c - 1, r) || !inGreen(c + 1, r) || !inGreen(c, r - 1) || !inGreen(c, r + 1);
+        return inGreen(c, r) && !rim;
+      },
+      near: (x: number, z: number) => {
+        const c = Math.floor((x - origin.x) / BLOCK);
+        const r = Math.floor((z - origin.z) / BLOCK);
+        if (!inside(c, r) || topOf(c, r) !== 0) return false;
+        for (let dc = -4; dc <= 4; dc += 1) for (let dr = -4; dr <= 4; dr += 1) if (inGreen(c + dc, r + dr)) return true;
+        return false;
+      },
+      hole: new Vector3(worldX(HOLE.c), 0, worldZ(HOLE.r)),
+      tee: new Vector3(worldX(TEE.c), 0, worldZ(TEE.r)),
+      centre: new Vector3(origin.x + 32.5 * BLOCK, 0, origin.z + 41 * BLOCK),
+      size: { x: 25 * BLOCK, z: 16 * BLOCK },
+    },
   };
 }

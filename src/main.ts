@@ -27,6 +27,7 @@ import { TEST_FACING, TEST_GROUND, buildSlab } from './world/Slab.ts';
 import { buildVoxelIsland, type VoxelIslandWorld } from './world/VoxelIsland.ts';
 import type { SkyCircuit } from './racing/SkyCircuit.ts';
 import type { BlockCircuit } from './racing/BlockCircuit.ts';
+import { GolfGame } from './golf/GolfGame.ts';
 import { buildBlockShowcase, type BlockShowcase, type ShowcaseFrame } from './world/BlockShowcase.ts';
 import { buildHalvingScene, buildNatureScene, buildOvalScene, buildTrackScene, buildTreeScene } from './world/HalvingScene.ts';
 import { createGoldenFigure } from './player/GoldenFigure.ts';
@@ -78,6 +79,8 @@ class Game {
   private voxel: VoxelIslandWorld | null = null;
   /** The race circuit beside the island, reached by its bridge. */
   private circuit: SkyCircuit | BlockCircuit | null = null;
+  /** Mini golf on the island's putting green. */
+  private golf: GolfGame | null = null;
   /** The eight blocks and the character beside them, when that is the world. */
   private showcase: BlockShowcase | null = null;
   /** Which way the showcase camera looks from, round the blocks. */
@@ -233,6 +236,16 @@ class Game {
     }
 
     window.addEventListener('keydown', this.onGlobalKey);
+
+    // Mini golf, offered when he walks up to the island's putting green.
+    if (this.voxel) {
+      this.golf = new GolfGame(this.engine.scene, this.engine.camera, this.engine.renderer.domElement, this.player, this.voxel.golf, {
+        onStart: () => this.input.setPointerLockWanted(false),
+        onEnd: () => {
+          if (!this.touch) this.input.setPointerLockWanted(true);
+        },
+      });
+    }
 
     // The corner buttons: the camera view and the graphics quality.
     if (this.settings.cameraView === 'isometric') this.cameraRig.setIsometric(true, this.player);
@@ -565,9 +578,14 @@ class Game {
       this.showcaseYaw -= this.input.look.x;
       this.showcasePitch = Math.max(-0.4, Math.min(1.35, this.showcasePitch + this.input.look.y));
       this.frameShowcase(this.showcaseZoom);
+    } else if (this.golf?.active) {
+      this.golf.update(delta);
     } else {
       this.updateMovement(delta);
       this.cameraRig.update(delta, this.player);
+      const p = this.player.position;
+      const onFoot = !/fall|jump|flip|pound|swim|ledge|hang|climb|wall|triple|double|mantle|vault|swing/.test(this.player.stateName);
+      this.golf?.offer(onFoot && (this.voxel?.golf.near(p.x, p.z) ?? false));
     }
     const held = this.applyFixedView();
     // Only the circuits near enough to be seen are drawn.
