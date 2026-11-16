@@ -1,5 +1,13 @@
 # LetsGo — locomotion foundation
 
+Restored on 16 November 2026 to the last torpedo-test checkpoint,
+`checkpoint-before-shield-2026-11-10` (`9dd5c30`): 200-MPH continuous homing,
+Torpedo-only free-drive/practice items and one NPC practice driver. Shields
+and the later multi-driver race are not active in this version. The current
+`world.js` road/support compatibility exports are retained for the other
+independent apps; racing behavior and storage match this checkpoint.
+The pre-restore build is saved as `checkpoint-before-torpedo-restore-2026-11-16`.
+
 Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Lap timing, saved top-four records and ghost playback retain their existing implementation.
 
 ## Controls
@@ -167,15 +175,14 @@ TPV/ISO retain their existing camera behavior; FPV follows the seated driver
 through the spin. Ghost file fields and personal lap records are unchanged.
 
 The user requested separately testable deliveries. The first chunk delivered
-spin/recovery. Bananas and torpedoes are documented below; the shield is described below and a
-Space-bar kart jump remains a later chunk.
+spin/recovery. Bananas and torpedoes are documented below; a shield and
+Space-bar kart jump remain later chunks.
 Restore point: `checkpoint-before-shell-spin-2026-11-09` at `6b0c708`.
 
 ### Banana slip — second combat chunk
 
-The current mixed pool includes Nitro, shell, banana, torpedo and shield at
-20% each. The earlier banana delivery used a single-item override; that override
-is now disabled. Time Trials keep Nitro-only boxes. Shift or the existing mobile Item button drops
+The normal mixed pool is 50% Nitro, 25% banana, and 25% shell, overridden
+during single-item testing. Time Trials keep Nitro-only boxes. Shift or the existing mobile Item button drops
 a yellow peel three metres behind the kart, on supported ground. The NPC can
 also drop bananas through its ordinary item action. Drops preserve active Nitro.
 
@@ -193,17 +200,16 @@ circuits' peels remain. Restarting, switching course, or returning to free
 drive clears dropped hazards; unsupported drops retain the held item. At most
 64 peels remain in a session, with the oldest retired first.
 
-The banana delivery was a separate review chunk. Torpedo and shield deliveries
-are documented below; kart jumping remains pending. Restore point:
+The banana delivery was a separate review chunk. Shields and kart jumping
+remain pending; the torpedo chunk follows below. Restore point:
 `checkpoint-before-bananas-2026-11-09` at `74355da`.
 
 ### Torpedo — continuous homing revision (10 November 2026)
 
-The torpedo delivery originally used Torpedo-only pickups and practice starter
-slots. The latest shield-testing request supersedes that restriction:
-`src/item-test-mode.js` is null and all five items are available in free driving
-and NPC practice. Scored Time Trials retain Nitro-only pickups, starter Nitro
-and unchanged ghosts.
+The user requested **only the item being tested** in free-drive/NPC boxes.
+`src/item-test-mode.js` selects Torpedo for every combat pickup and both practice
+starter slots. The other item implementations remain intact. Scored Time Trials
+retain Nitro-only pickups, starter Nitro and unchanged ghosts.
 
 Shift or the mobile Torpedo button always fires forward on supported ground.
 With no rival ahead, including when the only rival is behind, the shot follows
@@ -217,7 +223,8 @@ through the entire chase, including near the target. There is no committed
 straight attack, dodge window, or retarget-on-juke state. Guidance shares its
 movement budget between forward travel and lane correction, stops overshooting
 at the target's road progress, and continues correcting when the target turns
-or brakes. Normal steering cannot cancel the lock. The shield counter and repeatable impact tests are described below.
+or brakes. Normal steering cannot cancel the lock. The requested shield is the
+next combat chunk and is **not implemented here**.
 
 A locked shot has a fixed 30-second total lifetime; a sufficiently distant
 rival can still remain out of reach before that timeout. Hits cancel Nitro,
@@ -256,7 +263,7 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 ## Item boxes
 
-`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box awards Nitro, a green shell, a banana, a torpedo or a shield, each with a 20% chance in free driving/NPC practice, with one inventory slot. The single-item override is disabled. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
+`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Outside single-item testing, driving through an available box awards Nitro (50%), a green shell (25%) or a banana (25%) in free driving/NPC practice, with one inventory slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
 
 While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. Each fresh time-trial attempt (entrance start or restart) begins with one Nitro in the normal item slot; rolling over the finish line does not grant another. The existing mobile item button also uses it. Activating this Nitro while waiting does not start the clock or consume boost time; E/Gas starts both the simulation and the lap. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 
@@ -306,94 +313,3 @@ Open [the wall-contact preview](wall-contact-preview.html) to compare head-on an
 This earlier zero-restitution study remains isolated in `src/preview/wall-contact.js`. The live track now uses the separately tuned slight-rebound response in `src/vehicle-contact.js`; the old preview is not an exact demonstration of the current live physics. Neither includes damage simulation.
 
 Next requested tuning, after reviewing wall contact: **increase kart speed and improve handling**. See [TODO.md](TODO.md).
-
-## Shield and repeatable impact tests — 10 November 2026
-
-Play opens normal free driving with no held item or active shield. NPC races
-also start all four drivers empty; both modes have all five items in their boxes.
-The optional **Laps & ghosts → Shield test area** opens a controlled fixture on
-the existing floor slab, with an active shield and a blue seated driver.
-Its test controls launch real shells/torpedoes, place a banana four metres ahead,
-and place the other driver five metres ahead for collision tests. Drive through
-the banana or into the blue kart with the normal controls. No automatic impacts
-or shield renewal interrupt a no-hit expiration test.
-
-On desktop use **B** to restore, **1/2/3/4** for Shell/Banana/Torpedo/Collision,
-and **0** to reset the area. The same labeled buttons work on mobile. Restore
-only replenishes the shield; Reset returns to the slab start and clears hazards.
-Back to world closes the test controls; re-enter via **Laps & ghosts → Shield
-test area**. Starting a Time Trial, NPC practice, exiting the kart, or Home also
-leaves the area. Tests never write lap records. Scored Time Trials retain their
-Nitro-only item rules and start without a shield. Shift/mobile Item activates
-the held item, including any shield collected from a mystery box.
-
-`src/shield.js` owns the timer and two-impact budget. Shell, banana, and a slam
-into another kart each cost one standard impact. A torpedo spends all remaining
-protection. A protected impact consumes its hazard without spin, slowdown,
-boost cancellation, or banana slip. Taking a hit never refreshes the timer;
-the second standard hit or a torpedo removes protection immediately. Manual
-restoration starts a new 12-second timer. The bubble and HUD blink/fade during
-the final three seconds, and change color when one impact remains.
-
-`src/npc/contact.js` latches one impact per kart pair until they separate by
-0.25 m; relative closing speed must exceed 3 m/s to count as a slam. Continued
-contact cannot spend a second charge. An absorbed contact preserves the
-protected kart's velocity while separating geometry and respecting rails. A
-newly separated/repeated impact is distinct, and expired protection no longer
-blocks contact. Projectile identities also deduplicate hit accounting.
-
-`src/shield-test-area.js` provides the physical fixtures and controlled hazards;
-`src/shield-view.js` renders the player/NPC bubbles and HUD. `tests/shield.test.js`
-checks no-hit expiration, all nine pairs of standard impacts, torpedoes before
-and after every standard type, continuous contact, expired/unprotected impacts,
-rail constraints, and repeatable real-hazard fixtures. Restore point:
-`checkpoint-before-shield-2026-11-10` at `9dd5c30`.
-
-
-## Three-lap NPC race and shell aiming — updated 11 November 2026
-
-Use **Race · 3 laps** in the Original Circuit's Laps & ghosts menu. This
-replaces the one-opponent practice entry with three opponents (Blue, Gold,
-Purple) and the player. Four separated grid slots wait for E/Gas.
-All start with empty item slots and no active shield or boost. All drivers
-use the existing physical kart controller and the shared five-item box pool.
-They can overtake, collide, use shields, and be hit by the same projectiles.
-The three colored minimap dots match the karts. The compact HUD shows lap/3,
-position/4, total race time, and finishing order after the player finishes.
-NPCs continue until they finish their own third lap; finishing drivers brake.
-Restart resets all four racers and hazards. Home, Time Trial, the shield area,
-leaving the kart and a fall recovery end the race.
-
-`src/npc/race.js` owns the grid, opponents, shared start, traffic and race state.
-`src/npc/race-progress.js` validates twelve ordered gates and forward finish
-crossings at the correct height for three laps, rejects teleports, and ranks
-finishers by interpolated finish time. Race scoring has no storage or ghost
-frames. The player's saved Time Trial records, Nitro-only scored laps and all
-four course storage keys remain independent.
-
-`src/npc/shell-aim.js` chooses a direct aim or a 3.8-metre lateral near-miss
-point with equal probability per held shell. It keeps that choice while lining
-up, targets the player ahead within 10–105 metres, and avoids aiming across
-infields or separate bridge decks. Ordinary steering aligns the chassis;
-its heading is never snapped. Fire only when the chosen aim point is centered
-in the kart's real forward firing line. Shells retain their straight launch,
-existing rail ricochets, speed, lifetime and hit response. The 50/50 setting
-is an aim choice, not a guaranteed hit/miss rate; player turns and ricochets
-can change the result. There is no homing or leading prediction for shells.
-
-`tests/npc-race.test.js` checks the aim split and persistence, a physical
-steering/launch sequence, dodging straight shells, unsafe-target rejection,
-three-opponent spawn/restart, gate/finish validation, and two complete three-lap
-four-kart simulations with shared items and impacts.
-Restore point: `checkpoint-before-three-npc-race-2026-11-10`.
-
-
-### Empty world and race restarts — 11 November 2026
-
-The latest request reduces races from five laps to three. World entry/re-entry
-and race starts/restarts clear held items, boosts and active shields. NPC racers
-also start empty. Mystery boxes still award all five items; collected shields
-and their activation behavior are unchanged. Scored Time Trials retain their
-starter Nitro, and the optional shield test area still starts protected so its
-repeatable impact tests work. Personal lap records and ghost files are unchanged.
-Restore point: `checkpoint-before-three-lap-clean-start-2026-11-11`.

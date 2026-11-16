@@ -142,3 +142,15 @@ new work should use this repository as the shared source.
   curbs, guardrails and smooth contact. No imports or changes to the other
   games' runtimes, driving or ghost storage. Run `test:garden`, browser
   driving/touch/compatibility checks and `build:all` before publishing.
+
+- **16 November 2026 — restore the last torpedo-test checkpoint.** The owner
+  asked to return to the last torpedo test. Restore only `apps/letsgo-racing/`
+  from `checkpoint-before-shield-2026-11-10` (`9dd5c30`), the 200-MPH continuous
+  homing delivery with Torpedo-only free-drive/practice pickups, one NPC
+  practice driver, warning and spin recovery, before shields and multi-NPC
+  races. This supersedes the mixed-item/three-lap defaults above for this
+  restoration. Keep all course IDs, browser records and ghost formats.
+  Retain the current `world.js` compatibility exports used by the other apps;
+  their road/support behavior matches the checkpoint. Preserve root, older
+  island and garden/Canyon worlds. The pre-restore build is saved as
+  `checkpoint-before-torpedo-restore-2026-11-16`.

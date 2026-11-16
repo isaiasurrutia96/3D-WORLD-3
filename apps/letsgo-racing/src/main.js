@@ -18,16 +18,12 @@ import {createDriverView} from './driver-view.js';
 import {createLayoutEditor} from './layout-editor.js';
 import {COURSES,ORIGINAL_COURSE,WORLD_START} from './courses.js';
 import {createLapEntranceMarkers,nearestLapEntrance} from './lap-entrances.js';
-import {createNpcRace} from './npc/race.js';
-import {NPC_COLORS,NPC_NAMES} from './npc/colors.js';
+import {createNpcPractice} from './npc/practice.js';
 import {createNpcView} from './npc/view.js';
 import {interpolateHitSpin} from './kart-hit.js';
 import {ITEM_UNDER_TEST} from './item-test-mode.js';
 import {createTorpedoWarning} from './torpedo-view.js';
 import {resetTorpedoes} from './torpedoes.js';
-import {stepShield} from './shield.js';
-import {createShieldView,updateShieldHud} from './shield-view.js';
-import {createShieldTestArea} from './shield-test-area.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -53,16 +49,13 @@ const driverView=createDriverView(avatar,kart);
 const itemSystem=createItemSystem(COURSES.map(course=>course.samples),Math.random,COURSES),applyItems=createItemView(scene,itemSystem,kart);
 itemSystem.testItem=ITEM_UNDER_TEST;
 const updateTorpedoWarning=createTorpedoWarning(document.getElementById('torpedo-warning'),itemSystem);
-const npcRace=createNpcRace(worldPhysics,itemSystem),npcViews=NPC_COLORS.map((color,i)=>createNpcView(scene,{color,name:`${NPC_NAMES[i]} race kart`}));
-const applyShield=createShieldView(kart),shieldTests=createShieldTestArea(worldPhysics),shieldDummyView=createNpcView(scene),applyShieldTestItems=createItemView(scene,shieldTests.items,kart);
-shieldDummyView.model.name='Shield test driver';
-const shieldPanel=document.getElementById('shield-panel'),shieldTestControls=document.getElementById('shield-test-controls'),shieldTestMessage=document.getElementById('shield-test-message');
+const npcPractice=createNpcPractice(worldPhysics,itemSystem),npcView=createNpcView(scene);
 let driving=false;
 let trialStorage=null;try{trialStorage=window.localStorage;}catch{}
 const trials=new Map(COURSES.map(course=>[course.id,createTimeTrial(trialStorage,course)]));
 let activeCourse=ORIGINAL_COURSE,trial=trials.get(activeCourse.id),nearEntrance=null,dismissedEntrance=null;
-const applyTrial=createTimeTrialView(scene,()=>trial,COURSES,()=>npcRace.active?npcRace:null);
-const updateMinimap=createMinimap(document.getElementById('minimap'),()=>npcRace.active||trial.status==='ready'||trial.status==='running'?activeCourse:null);
+const applyTrial=createTimeTrialView(scene,()=>trial,COURSES,()=>npcPractice.active?npcPractice:null);
+const updateMinimap=createMinimap(document.getElementById('minimap'),()=>npcPractice.active||trial.status==='ready'||trial.status==='running'?activeCourse:null);
 const entrancePrompt=document.getElementById('lap-entrance'),entranceName=document.getElementById('lap-entrance-name');
 const pedestrianWorld={supportHeight:worldPhysics.supportHeight,resolveHorizontal:(x,z,nx,nz,y,radius=CHARACTER_RADIUS,height=CHARACTER_HEIGHT)=>{
  const road=worldPhysics.resolveHorizontal(x,z,nx,nz,y,radius,height);
@@ -234,37 +227,17 @@ function toggleVehicle(){
   const exit=findExitPosition(kartState,worldPhysics);
   if(!exit){hint.textContent=kartState.spinTime>0?'Wait for spin to finish':Math.abs(kartState.speed)>.75?'Stop to exit':'No safe exit here';return false;}
   invalidateTimeTrial(trial,'Left the kart — restart lap');
-  stopShieldTests();
-  stopNpcRace();driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
+  stopNpcPractice();driving=false;kartState.speed=0;kartState.boostTime=0;previousKart={...kartState};scene.add(avatar);animation.reset();
   Object.assign(runner,createRunner(),exit);runner.jumpHeld=keys.has('Space');previous={...runner};
   driverView.firstPerson(false);if(viewMode==='first-person')viewMode='third-person';
  }
  mobile.clear();mobileExitPending=false;
  jumpQueued=false;itemQueued=false;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);return true;
 }
-function stopNpcRace(){npcRace.stop();npcViews.forEach(view=>view.update(null,0,itemSystem.time));}
-function stopShieldTests(){shieldTests.stop();shieldDummyView.update(null,0,0);app.classList.remove('shield-testing');shieldTestControls.hidden=true;}
-function startShieldTests(){
- if(!playing)return;exploreWorld();shieldTests.start(kartState);app.classList.add('shield-testing');shieldTestControls.hidden=false;reset();canvas.focus({preventScroll:true});
-}
-function testShieldImpact(kind){if(playing&&driving&&shieldTests.active){shieldTests.trigger(kind,kartState);canvas.focus({preventScroll:true});}}
-function restoreTestShield(){if(playing&&shieldTests.active){shieldTests.restore(kartState);canvas.focus({preventScroll:true});}}
-bindPress(document.getElementById('shield-tests-start'),startShieldTests);
-bindPress(document.getElementById('shield-tests-reset'),startShieldTests);
-bindPress(document.getElementById('shield-tests-close'),()=>{stopShieldTests();canvas.focus({preventScroll:true});});
-bindPress(document.getElementById('shield-restore'),restoreTestShield);
-for(const button of document.querySelectorAll('[data-shield-test]'))bindPress(button,()=>testShieldImpact(button.dataset.shieldTest));
-window.addEventListener('keydown',event=>{
- if(!playing||!shieldTests.active||event.repeat||event.altKey||event.ctrlKey||event.metaKey||event.target.closest('input,textarea,select,button,summary,a'))return;
- const kinds={Digit1:'shell',Digit2:'banana',Digit3:'torpedo',Digit4:'collision'};
- if(kinds[event.code]){event.preventDefault();testShieldImpact(kinds[event.code]);}
- else if(event.code==='KeyB'){event.preventDefault();restoreTestShield();}
- else if(event.code==='Digit0'){event.preventDefault();startShieldTests();}
-});
+function stopNpcPractice(){npcPractice.stop();npcView.update(null,0,itemSystem.time);}
 function startTrial(course=activeCourse){
  if(!playing)return;
- stopShieldTests();
- stopNpcRace();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
+ stopNpcPractice();itemSystem.allowShells=false;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;
  if(course!==activeCourse)invalidateTimeTrial(trial,'Switched tracks');
  activeCourse=course;trial=trials.get(course.id);document.getElementById('ghost-transfer-status').hidden=true;
@@ -275,17 +248,16 @@ function startTrial(course=activeCourse){
  armTimeTrial(trial);accumulator=0;previousTime=undefined;manualCameraUntil=0;setDrivingChart();setCameraView(viewMode);
  nearEntrance=null;entrancePrompt.hidden=true;
 }
-function startNpcRace(){
+function startNpcPractice(){
  if(!playing)return;
  startTrial(ORIGINAL_COURSE);
- invalidateTimeTrial(trial,'NPC races do not save Time Trial records');trial.status='idle';trial.elapsed=0;
+ invalidateTimeTrial(trial,'NPC practice does not save lap times');trial.status='idle';trial.elapsed=0;
  itemSystem.allowShells=true;
- Object.assign(kartState,npcRace.start(kartState));previousKart={...kartState};setCameraView(viewMode);
+ Object.assign(kartState,npcPractice.start(),{heldItem:itemSystem.testItem??'nitro'});previousKart={...kartState};setCameraView(viewMode);
 }
-bindPress(document.getElementById('npc-start'),startNpcRace);
+bindPress(document.getElementById('npc-start'),startNpcPractice);
 function exploreWorld(){
- stopShieldTests();
- stopNpcRace();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
+ stopNpcPractice();itemSystem.allowShells=true;itemSystem.shells=[];itemSystem.bananas=[];resetTorpedoes(itemSystem);itemSystem.itemMessage='';
  clearInputs();mobileExitPending=false;dismissedEntrance=null;nearEntrance=null;entrancePrompt.hidden=true;
  armTimeTrial(trial);trial.status='idle';
  Object.assign(kartState,createVehicleState(),WORLD_START);previousKart={...kartState};animation.reset();kart.add(avatar);seatAvatar();driving=true;
@@ -293,7 +265,7 @@ function exploreWorld(){
 }
 function updateEntrancePrompt(position){
  if(dismissedEntrance&&nearestLapEntrance(position,COURSES,23)!==dismissedEntrance)dismissedEntrance=null;
- nearEntrance=npcRace.active||shieldTests.active||trial.status==='running'?null:nearestLapEntrance(position,COURSES);
+ nearEntrance=npcPractice.active||trial.status==='running'?null:nearestLapEntrance(position,COURSES);
  if(nearEntrance===dismissedEntrance)nearEntrance=null;
  entrancePrompt.hidden=!nearEntrance;if(nearEntrance)entranceName.textContent=nearEntrance.name;
  canvas.dataset.nearTrack=nearEntrance?.id??'';
@@ -334,30 +306,27 @@ function frame(time){
   const dt=previousTime===undefined?0:Math.min(0.1,(time-previousTime)/1000);
   previousTime=time;accumulator+=dt;
   while(accumulator>=STEP){
-   stepShield(kartState,STEP);
    if(interactionQueued){interactionQueued=false;toggleVehicle();}
    if(driving){
     previousKart={...kartState};jumpQueued=false;
-    if(itemQueued){useHeldItem(itemSystem,kartState,worldPhysics,npcRace.actors().map(actor=>actor.state));itemQueued=false;}
+    if(itemQueued){useHeldItem(itemSystem,kartState,worldPhysics,npcPractice.actors().map(actor=>actor.state));itemQueued=false;}
     const drivingInput=readDrivingInput(keys,mobile.consume());
     if(mobileExitPending){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
-    if(npcRace.active&&npcRace.player.finishedAt!==null){drivingInput.throttle=0;drivingInput.steer=0;drivingInput.brake=true;}
     const startForward=drivingInput.throttle>0&&!drivingInput.brake;
-    const waiting=trial.status==='ready'||npcRace.active&&!npcRace.running;
+    const waiting=trial.status==='ready'||npcPractice.active&&!npcPractice.running;
     if(!waiting||startForward||kartState.spinTime>0)stepVehicle(kartState,drivingInput,STEP,worldPhysics);
-    if(npcRace.active)npcRace.step(STEP,kartState,previousKart,startForward);else stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
+    if(npcPractice.active)npcPractice.step(STEP,kartState,startForward);else stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
-   stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics,npcRace.actors());
-   if(driving)shieldTests.step(STEP,kartState,previousKart);
+   stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics,npcPractice.actors());
    accumulator-=STEP;
   }
-  if(driving&&kartState.y< -35){stopNpcRace();invalidateTimeTrial(trial,'Returned to slab — restart lap');Object.assign(kartState,createVehicleState(),WORLD_START);itemQueued=false;previousKart={...kartState};reset();}
+  if(driving&&kartState.y< -35){stopNpcPractice();invalidateTimeTrial(trial,'Returned to slab — restart lap');Object.assign(kartState,createVehicleState(),WORLD_START);itemQueued=false;previousKart={...kartState};reset();}
   if(!driving&&runner.y< -35){Object.assign(runner,createRunner(),SPAWN);runner.jumpHeld=keys.has('Space');jumpQueued=false;previous={...runner};reset();}
   const alpha=accumulator/STEP;
   const kartTurn=Math.atan2(Math.sin(kartState.yaw-previousKart.yaw),Math.cos(kartState.yaw-previousKart.yaw));
   const kartPose={...kartState,spinTime:interpolateHitSpin(previousKart,kartState,alpha),x:THREE.MathUtils.lerp(previousKart.x,kartState.x,alpha),y:THREE.MathUtils.lerp(previousKart.y,kartState.y,alpha),z:THREE.MathUtils.lerp(previousKart.z,kartState.z,alpha),yaw:previousKart.yaw+kartTurn*alpha};
-  applyKart(kartPose);applyShield(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);applyShieldTestItems(kartPose,false);shieldDummyView.update(shieldTests.active?{state:shieldTests.dummy,previous:shieldTests.previous}:null,alpha,shieldTests.items.time);const npcPoses=npcViews.map((view,i)=>view.update(npcRace.drivers[i],alpha,itemSystem.time)).filter(Boolean),ghostPoses=applyTrial(alpha,STEP);
+  applyKart(kartPose);if(driving)driverView.update();driverView.firstPerson(driving&&viewMode==='first-person');applyItems(kartPose,driving);const npcPose=npcView.update(npcPractice.driver,alpha,itemSystem.time),ghostPoses=applyTrial(alpha,STEP);
   if(!driving){
    avatar.position.set(THREE.MathUtils.lerp(previous.x,runner.x,alpha),THREE.MathUtils.lerp(previous.y,runner.y,alpha),THREE.MathUtils.lerp(previous.z,runner.z,alpha));
    const turn=Math.atan2(Math.sin(runner.yaw-previous.yaw),Math.cos(runner.yaw-previous.yaw));
@@ -368,7 +337,7 @@ function frame(time){
   }
   const focus=driving?kartPose:avatar.position;
   updateEntrancePrompt(driving?kartState:runner);
-  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses,npcPoses);
+  updateMinimap(focus,driving?kartPose.yaw:avatar.rotation.y,ghostPoses,npcPose?[npcPose]:[]);
   if(driving&&viewMode==='first-person')updateFirstPersonCamera();
   else{
    const target=new THREE.Vector3(focus.x,THREE.MathUtils.damp(controls.target.y,focus.y+(driving?1:1.2),10,dt),focus.z);
@@ -381,27 +350,21 @@ function frame(time){
   }
   sun.position.set(focus.x-3,focus.y+8,focus.z+5);sun.target.position.set(focus.x,focus.y,focus.z);sun.target.updateMatrixWorld();
   const itemLabel=document.querySelector('#held-item');
-  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.heldItem==='banana'?'Item: Banana':kartState.heldItem==='torpedo'?'Item: Torpedo':kartState.heldItem==='shield'?'Item: Shield':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
-  updateTorpedoWarning(driving?kartState:null,shieldTests.active?shieldTests.items:itemSystem);
-  updateShieldHud(shieldPanel,kartState,shieldTests.active);
-  if(shieldTests.active&&shieldTestMessage.textContent!==shieldTests.message)shieldTestMessage.textContent=shieldTests.message;
+  if(itemLabel){const text=kartState.heldItem==='nitro'?'Item: Nitro':kartState.heldItem==='shell'?'Item: Shell':kartState.heldItem==='banana'?'Item: Banana':kartState.heldItem==='torpedo'?'Item: Torpedo':kartState.boostTime>0?'Nitro active':'Item: —';if(itemLabel.textContent!==text)itemLabel.textContent=text;}
+  updateTorpedoWarning(driving?kartState:null);
   render();
-  canvas.dataset.npc=npcRace.active?(npcRace.player.finishedAt!==null?'finished':npcRace.running?'running':'ready'):'off';canvas.dataset.npcElapsed=String(npcRace.elapsed);canvas.dataset.shells=String(itemSystem.shells.length);canvas.dataset.torpedoes=String(itemSystem.torpedoes.length);
-  canvas.dataset.npcCount=String(npcRace.drivers.length);canvas.dataset.raceLap=String(npcRace.player?Math.min(npcRace.laps,npcRace.player.completed+1):0);canvas.dataset.racePlace=String(npcRace.player?npcRace.order().indexOf(npcRace.player)+1:0);
+  canvas.dataset.npc=npcPractice.active?(npcPractice.driver.finished?'finished':npcPractice.running?'running':'ready'):'off';canvas.dataset.npcElapsed=String(npcPractice.driver?.elapsed??0);canvas.dataset.shells=String(itemSystem.shells.length);canvas.dataset.torpedoes=String(itemSystem.torpedoes.length);
   canvas.dataset.course=activeCourse.id;canvas.dataset.trial=trial.status;canvas.dataset.lap=String(trial.completed+1);canvas.dataset.checkpoints=String(trial.passed);canvas.dataset.elapsed=String(trial.elapsed);
   canvas.dataset.item=kartState.heldItem??'';canvas.dataset.boost=String(kartState.boostTime);
-  canvas.dataset.shieldHits=String(kartState.shieldHits);canvas.dataset.shieldTime=String(kartState.shieldTime);canvas.dataset.shieldTests=String(shieldTests.active);
   const state=driving?kartState:runner;canvas.dataset.mode=driving?'driving':runner.mode;
   const mph=String(driving?speedToMph(Math.hypot(kartState.speed,kartState.lateralSpeed)):0);if(speedometer.value!==mph)speedometer.value=mph;
-  if(shieldTests.active)document.getElementById('shield-test-speed').value=`${mph} MPH`;
   canvas.dataset.height=String(state.y);canvas.dataset.grounded=String(state.grounded);
   canvas.dataset.speed=String(state.speed);canvas.dataset.position=`${state.x},${state.z}`;
   mobile.update({driving,heldItem:kartState.heldItem,boosting:kartState.boostTime>0,interactionText:driving?(mobileExitPending?'Stop…':'Exit'):'Kart',canInteract:driving||canEnterVehicle(runner,kartState),canFlip:runner.grounded&&runner.speed<.65});
 }
 
 function goHome(){
- stopShieldTests();
- stopNpcRace();playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
+ stopNpcPractice();playing=false;renderer.setAnimationLoop(null);clearInputs();mobileExitPending=false;
  nearEntrance=null;entrancePrompt.hidden=true;
  invalidateTimeTrial(trial,'Returned home — restart lap');previousTime=undefined;accumulator=0;
  if(document.pointerLockElement===canvas)document.exitPointerLock();
@@ -409,7 +372,7 @@ function goHome(){
 }
 function playGame(){
  homeScreen.hidden=true;gameScreen.hidden=false;gameScreen.inert=false;playing=true;gameFocused=true;controls.enabled=viewMode!=='first-person';app.dataset.screen='game';document.title='LetsGo · Race';
- if(ITEM_UNDER_TEST==='shield')startShieldTests();else exploreWorld();resize();renderer.setAnimationLoop(frame);
+ exploreWorld();resize();renderer.setAnimationLoop(frame);
 }
 bindPress(document.getElementById('home-button'),goHome);
 bindPress(document.getElementById('home-logo-link'),goHome);

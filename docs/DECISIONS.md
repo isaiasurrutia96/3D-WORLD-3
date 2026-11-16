@@ -8,7 +8,24 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 16 November 2026 — Canyon Switchbacks selected.
+Last updated: 16 November 2026 — last torpedo test restored.
+
+## Return to the torpedo-test checkpoint — 16 November 2026
+
+**Confirmed by the owner.** Restore the racing app to the last torpedo test,
+using `checkpoint-before-shield-2026-11-10` at `9dd5c30`. This includes the
+200-MPH continuously homing torpedo, forward cruising when nobody is ahead,
+the incoming warning, hit spin/recovery, Torpedo-only test boxes and the
+single NPC practice driver. Shields and the later multi-driver race are
+outside this restored version. Time Trials retain their Nitro-only rules;
+course IDs, saved lap formats and ghost storage code are unchanged.
+
+The restoration is a new commit, not a history reset. Root/Claude, the older
+island and the independent garden/Canyon app remain saved and unmodified.
+The current road-surface compatibility exports in racing `world.js` are
+retained so those other apps continue to build and behave as before.
+Rollback of this restoration: `checkpoint-before-torpedo-restore-2026-11-16`
+at `0d85b3b`.
 
 ## Canyon Switchbacks — 16 November 2026
 
