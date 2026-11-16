@@ -618,11 +618,11 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
       const pool = inPool(c, r);
       const top = pool ? -1 : terrace(c, r);
       // Grass on top (the path where it runs, earth under the water), earth
-      // under it down to three blocks below the lawn.
+      // under it down to three blocks below the lawn — two at the very rim,
+      // where the picture shows it thinner.
       ground.set(c, top, r, pool ? 'dirt' : onPath(c, r) ? 'path' : 'grass');
-      // The same depth everywhere, the rim too, so grass, dirt and stone
-      // meet in straight, level bands.
-      const dirtBottom = -3;
+      const d = edgeOf(c, r);
+      const dirtBottom = d <= 1 ? -2 : -3;
       for (let y = top - 1; y >= dirtBottom; y -= 1) ground.set(c, y, r, 'dirt');
       // Stone under that, in two-block chunks: one chunk at the rim, deeper
       // toward the middle, each chunk's depth set by where it is.
