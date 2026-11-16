@@ -63,6 +63,9 @@ jobs:
       - name: Check island terrain
         run: npm run test:island
 
+      - name: Check independent garden
+        run: npm run test:garden
+
       - name: Check types and build all independent sites
         run: npm run build:all
 

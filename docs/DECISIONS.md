@@ -8,7 +8,26 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 13 November 2026 — Firefox island graphics startup fallback.
+Last updated: 15 November 2026 — independent Codex Floating Garden.
+
+## Independent merged-material garden — 15 November 2026
+
+**Confirmed by the project owner.** Use the third visual style: adjacent blocks
+of the same material form seamless rounded surfaces; different materials stay
+separate and the underlying 43 / 21.5 / 10.75 cm source grid remains editable.
+Recreate the five-tree floating island with rear terraces, pond and waterfall,
+without a racing track. Add one small mini golf course to start.
+
+The owner then asked to build this world and clarified "no do ur own" when
+integration with the older island/Claude runtime was proposed. The result is
+a separate Codex app at `/garden/` under `apps/letsgo-garden/`. The root,
+racing and older island games keep their own runtime and behavior. The new
+garden has its own view controls, graphics tiers and mouse/touch putting;
+the first hole has a stroke counter, cup capture and reset. It does not add
+an avatar or import the other worlds' movement controllers.
+
+Checkpoint before this addition: `checkpoint-before-merged-island-mini-golf`
+at `e0c6d9f`.
 
 ## Repository consolidation — 9 November 2026
 

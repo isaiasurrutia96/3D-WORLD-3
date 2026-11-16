@@ -118,3 +118,17 @@ new work should use this repository as the shared source.
   1.125 m baseline: a 16.4 cm block. The root preview now shows that single
   block alone (bright orange, no avatar). The comparison row remains in
   `src/world/BlockShowcase.ts`.
+
+- **15 November 2026 — independent Codex Floating Garden.** The owner approved
+  the third island method (connected same-material blocks merge into seamless,
+  softly rounded surfaces), then a small playable mini golf course. They
+  explicitly corrected an attempt to integrate with the older island/Claude
+  runtime: "no do ur own". Build this as `apps/letsgo-garden/` at `/garden/`,
+  using the approved five-tree island, pond, waterfall, open lawn and terraces.
+  Preserve the other worlds and their startups. The garden has its own scene,
+  cameras, ball simulation and touch input; import no runtime from the other
+  apps or root movement world. Reuse only pinned library dependencies. Run
+  `npm run test:garden` and `npm run build:garden`; `build:all` includes it.
+  Keep its Canvas 2D compatibility view, graphics tiers and phone controls
+  working. The garden currently has no avatar; screenshots should show the
+  wide island, overhead and close golf views rather than inventing a character.

@@ -1,7 +1,7 @@
 # LetsGo
 
 This is the shared **`isaiasurrutia96/3D-WORLD-3`** repository for the
-independent movement game, racing game and island terrain preview.
+independent movement game, racing game, island terrain preview and Codex garden.
 The repository is consolidated; the worlds are not combined.
 
 | Project | Source | Run locally | GitHub Pages path |
@@ -9,6 +9,7 @@ The repository is consolidated; the worlds are not combined.
 | Claude's movement and obstacle world | Root `src/`, `index.html` | `npm run dev` | `/3D-WORLD-3/` |
 | LetsGo kart racing | `apps/letsgo-racing/` | `npm run dev:racing` | `/3D-WORLD-3/racing/` |
 | Floating minigame-island terrain | `apps/letsgo-island/` | `npm run dev:island` | `/3D-WORLD-3/island/` |
+| Codex Floating Garden + mini golf | `apps/letsgo-garden/` | `npm run dev:garden` | `/3D-WORLD-3/garden/` |
 
 Use **Node.js 24**. Install each project's pinned dependencies separately:
 
@@ -27,13 +28,18 @@ to port 5174, and the terrain preview to 5275.
 `npm run build` builds only the movement world into `dist/`.
 `npm run build:racing` builds only racing into `apps/letsgo-racing/dist/`.
 `npm run test:racing` runs the existing racing checks.
-`npm run build:all` checks the root TypeScript project and builds all three
+`npm run build:garden` builds the separate Codex garden into `dist/garden/`.
+`npm run test:garden` checks its source meshes and mini golf behavior.
+`npm run build:all` checks the root TypeScript project and builds all four
 pages into `dist/`, with racing isolated under `dist/racing/` and the island
-under `dist/island/`. The Pages workflow publishes that folder. The island uses
-the root library dependencies with its own scene and entry point.
+under `dist/island/`, and the garden under `dist/garden/`.
+The Pages workflow publishes that folder. The island and garden use
+the root library dependencies, each with its own scene and entry point.
 Run `npm run test:island` for terrain geometry checks.
 Building/loading one world does not load the others.
 The [island README](apps/letsgo-island/README.md) describes its terrain-only scope.
+The [garden README](apps/letsgo-garden/README.md) describes the independent
+merged-material world and its playable first mini golf hole.
 
 Racing was imported unchanged from
 [`isaiasurrutia96/LetsGo@029984f`](https://github.com/isaiasurrutia96/LetsGo/commit/029984f1c4d9a857c93b8a4a8105f1540dd73778),
