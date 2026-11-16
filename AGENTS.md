@@ -132,3 +132,13 @@ new work should use this repository as the shared source.
   Keep its Canvas 2D compatibility view, graphics tiers and phone controls
   working. The garden currently has no avatar; screenshots should show the
   wide island, overhead and close golf views rather than inventing a character.
+
+- **16 November 2026 — Canyon Switchbacks in the independent garden.** The
+  owner selected number 5 from the newly recreated six-floating-island race
+  concepts. `/garden/` now opens this canyon track, with its own kart and
+  desktop/mobile controls. Garden & golf preserves the previous island.
+  The chosen sheet is saved in `apps/letsgo-garden/docs/`. Keep the circuit
+  one continuous loop with two bridges, full-width turns, red-and-white
+  curbs, guardrails and smooth contact. No imports or changes to the other
+  games' runtimes, driving or ghost storage. Run `test:garden`, browser
+  driving/touch/compatibility checks and `build:all` before publishing.

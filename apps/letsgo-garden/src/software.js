@@ -5,12 +5,13 @@ import {Vector3} from 'three';
 export function createSoftwareRenderer(faces){
  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{alpha:true});
  if(!ctx)throw new Error('A drawing context is unavailable.');
- canvas.dataset.graphics='canvas';let width=1,height=1,ratio=1,actors=()=>[],showClouds=()=>true,last=0,timer=null;
+ canvas.dataset.graphics='canvas';let width=1,height=1,ratio=1,actors=()=>[],baseFaces=faces,showClouds=()=>true,last=0,timer=null,pendingCamera=null;
  const renderer={domElement:canvas,info:{render:{calls:0,triangles:0}},shadowMap:{enabled:false},
   setActorProvider(provider,clouds){actors=provider;showClouds=clouds;},
+  setBaseFaces(value){baseFaces=value??faces;},
   setPixelRatio(value){ratio=Math.min(value,1);},getPixelRatio(){return ratio;},
   setSize(w,h){width=w;height=h;canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);canvas.style.width=w+'px';canvas.style.height=h+'px';},
-  render(scene,camera){const remaining=50-(performance.now()-last);if(remaining>0){if(timer===null)timer=setTimeout(()=>{timer=null;paint(camera);},remaining);return;}paint(camera);}
+  render(scene,camera){pendingCamera=camera;const remaining=50-(performance.now()-last);if(remaining>0){if(timer===null)timer=setTimeout(()=>{timer=null;paint(pendingCamera);},remaining);return;}paint(camera);}
  };
  function paint(camera){
   last=performance.now();camera.updateMatrixWorld();const view=camera.matrixWorldInverse.elements,projection=camera.projectionMatrix.elements,world=camera.matrixWorld.elements;
@@ -30,16 +31,20 @@ export function createSoftwareRenderer(faces){
    for(const{face,p}of visible){ctx.globalAlpha=face.alpha??1;ctx.beginPath();for(let i=0;i<p.length;i++)i?ctx.lineTo(...p[i]):ctx.moveTo(...p[i]);ctx.closePath();ctx.fillStyle=face.color;ctx.fill();if((face.alpha??1)===1){ctx.strokeStyle=face.color;ctx.stroke();}}
    return visible.length;
   }
-  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,width,height);ctx.lineWidth=.5;ctx.lineJoin='round';const count=drawBatch(faces)+drawBatch(actors());ctx.globalAlpha=1;renderer.info.render.calls=1;renderer.info.render.triangles=count*2;
+  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,width,height);ctx.lineWidth=.5;ctx.lineJoin='round';const count=drawBatch(baseFaces)+drawBatch(actors());ctx.globalAlpha=1;renderer.info.render.calls=1;renderer.info.render.triangles=count*2;
  }
  return renderer;
 }
 
 export function meshProjector(root){
- const entries=[],p=new Vector3(),ab=new Vector3(),ac=new Vector3(),course=root.name.startsWith('Mini golf');
+ const entries=[],p=new Vector3(),ab=new Vector3(),ac=new Vector3(),course=root.name.startsWith('Mini golf'),canyon=root.name.startsWith('Canyon Switchbacks');
  root.traverse(mesh=>{if(!mesh.isMesh||mesh.isInstancedMesh||mesh.material.map)return;
   const position=mesh.geometry.attributes.position,index=mesh.geometry.index,vertices=Array.from({length:position.count},()=>[0,0,0]),triangles=[];
-  const layer=!course?0:mesh.name.includes('putting surface')?10:mesh.name.includes('Tee marking')?11:mesh.name.startsWith('Cup')?12:mesh.name.includes('stone edging')?20:30;
+  let layer=!course?0:mesh.name.includes('putting surface')?10:mesh.name.includes('Tee marking')?11:mesh.name.startsWith('Cup')?12:mesh.name.includes('stone edging')?20:30;
+  // A Canvas painter cannot depth-test the large terrain triangles against
+  // the much smaller road strips. Draw the authored surface layers in order
+  // so bridge undersides and cliffs never paint over the driving surface.
+  if(canyon){const type=mesh.name.split(' ')[1];layer=({water:1,underside:2,asphalt:10,white:12,red:12,rail:20,wood:25,leaf:25,rock:25,flower:25})[type]??0;}
   for(let i=0;i<(index?.count??position.count);i+=3){const ids=[0,1,2].map(j=>index?index.getX(i+j):i+j);triangles.push({points:ids.map(id=>vertices[id]),normal:[0,0,0],color:mesh.material.color?.getStyle()||'#ffffff',alpha:mesh.material.opacity??1,doubleSided:mesh.material.side===2,layer});}
   entries.push({mesh,position,vertices,triangles});
  });

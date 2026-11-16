@@ -9,6 +9,8 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createMiniGolf} from './mini-golf.js';
 import {createSoftwareRenderer,meshProjector} from './software.js';
+import {createCanyonWorld} from './canyon-world.js';
+import {createCanyonDrive} from './canyon-drive.js';
 
 export async function startGarden(){
 
@@ -18,7 +20,7 @@ let renderer,software=false;
 for(const options of [{antialias:true,powerPreference:'default'},{antialias:false,powerPreference:'default'},{antialias:false,powerPreference:'low-power'}]){try{renderer=new THREE.WebGLRenderer({...options,alpha:true,preserveDrawingBuffer:true,failIfMajorPerformanceCaveat:false});break;}catch{}}
 if(!renderer){const data=await import('./data/compatibility-faces.json');renderer=createSoftwareRenderer(data.default);software=true;}
 renderer.setPixelRatio(Math.min(devicePixelRatio,1));renderer.setSize(innerWidth,innerHeight);if(!software){renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NeutralToneMapping;renderer.toneMappingExposure=1;renderer.shadowMap.enabled=false;renderer.shadowMap.type=THREE.VSMShadowMap;}document.body.appendChild(renderer.domElement);renderer.domElement.dataset.graphics=software?'canvas':'webgl';
-const camera=new THREE.OrthographicCamera(-12,12,9,-9,.1,150),controls=new OrbitControls(camera,renderer.domElement),center=new THREE.Vector3(7.74,-.25,-6.88);controls.target.copy(center);controls.enablePan=false;controls.enableDamping=false;controls.minZoom=.65;controls.maxZoom=4;controls.maxPolarAngle=Math.PI*.85;
+const orbitCamera=new THREE.OrthographicCamera(-12,12,9,-9,.1,650),controls=new OrbitControls(orbitCamera,renderer.domElement),center=new THREE.Vector3(7.74,-.25,-6.88);let camera=orbitCamera;controls.target.copy(center);controls.enablePan=false;controls.enableDamping=false;controls.minZoom=.65;controls.maxZoom=4;controls.maxPolarAngle=Math.PI*.85;
 if(!software){const room=new RoomEnvironment(),pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(room,.04).texture;scene.environmentIntensity=.4;room.dispose();pmrem.dispose();}
 scene.add(new THREE.HemisphereLight('#fff8ea','#b4c8df',1.05));
 const sun=new THREE.DirectionalLight('#fff0d1',2.8);sun.position.copy(center).add(new THREE.Vector3(-10,18,12));sun.target.position.copy(center);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-11,right:11,top:11,bottom:-11,near:.1,far:48});sun.shadow.normalBias=.003;sun.shadow.bias=-.000015;sun.shadow.radius=5;sun.shadow.blurSamples=8;scene.add(sun,sun.target);
@@ -73,13 +75,16 @@ const droplets=new THREE.InstancedMesh(new RoundedBoxGeometry(.055,.085,.055,2,.
 for(let i=0;i<26;i++){const t=i/25;dummy.position.set(fallX+Math.sin(i*2.37)*.28*(1-t),-Q-drop-.08-i*.031,fallZ+.23+Math.cos(i*1.73)*.08);dummy.scale.setScalar(.45+(i%4)*.16);dummy.updateMatrix();droplets.setMatrixAt(i,dummy.matrix);}droplets.name='Waterfall droplets';fall.add(droplets);
 
 const golf=createMiniGolf({THREE,RoundedBoxGeometry,world,renderer,camera,onRender:()=>render(),onExit:()=>setupView('front')});
-if(software){const course=meshProjector(golf.group),waterfall=meshProjector(fall);renderer.setActorProvider(()=>[...waterfall(),...course()],()=>clouds.visible);document.querySelector('footer').textContent='Compatibility view · Drag to orbit · Scroll or pinch to zoom';for(const option of document.querySelector('#quality').options)if(option.value!=='low')option.disabled=true;}
-let currentView='front',quality='low';
+const canyon=createCanyonWorld({software});scene.add(canyon.group);
+const drive=createCanyonDrive({route:canyon.route,scene,camera:new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,650),software,onRender:()=>render(),onExit:()=>setupView('front')});
+let canyonFaces;
+if(software){const course=meshProjector(golf.group),waterfall=meshProjector(fall),kart=meshProjector(drive.group);canyonFaces=meshProjector(canyon.group)();renderer.setActorProvider(()=>activeWorld==='canyon'?kart():[...waterfall(),...course()],()=>clouds.visible&&activeWorld==='garden');document.querySelector('footer').textContent='Compatibility view · Drag to orbit · Scroll or pinch to zoom';for(const option of document.querySelector('#quality').options)if(option.value!=='low')option.disabled=true;}
+let currentView='front',quality='low',activeWorld='canyon';
 const directions={front:new THREE.Vector3(10,10.5,20),back:new THREE.Vector3(-18,12,-19),low:new THREE.Vector3(11,6,23),top:new THREE.Vector3(0,40,.001)};
 function render(){renderer.render(scene,camera);}
 function fitCamera(){
  camera.updateMatrixWorld(true);world.updateMatrixWorld(true);const inverse=camera.matrixWorldInverse,p=new THREE.Vector3(),matrix=new THREE.Matrix4();let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
- world.traverse(o=>{if(!o.isMesh||!o.visible||!o.parent.visible)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const box=o.geometry.boundingBox;
+ (activeWorld==='canyon'?canyon.group:world).traverse(o=>{if(!o.isMesh||!o.visible||!o.parent.visible)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const box=o.geometry.boundingBox;
   function include(transform,bounds=box){for(const x of[bounds.min.x,bounds.max.x])for(const y of[bounds.min.y,bounds.max.y])for(const z of[bounds.min.z,bounds.max.z]){p.set(x,y,z).applyMatrix4(transform).applyMatrix4(inverse);minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}}
   if(o.userData.fitBoxes){for(const b of o.userData.fitBoxes)include(o.matrixWorld,new THREE.Box3(new THREE.Vector3().fromArray(b.min),new THREE.Vector3().fromArray(b.max)));return;}
   if(o.isInstancedMesh){for(let i=0;i<o.count;i++){o.getMatrixAt(i,matrix);include(new THREE.Matrix4().multiplyMatrices(o.matrixWorld,matrix));}}else include(o.matrixWorld);
@@ -88,17 +93,29 @@ function fitCamera(){
 }
 function setupView(view){
  if(view==='golf'){setupGolf();return;}
- golf.setPlaying(false);controls.enabled=true;
- currentView=view;clouds.visible=view!=='top';camera.up.set(0,1,0);camera.zoom=1;camera.position.copy(center).add(directions[view]);controls.target.copy(center);camera.lookAt(center);controls.enableRotate=view!=='top';controls.update();fitCamera();render();
+ if(view==='drive'){setupDrive();return;}
+ drive.setDriving(false);golf.setPlaying(false);controls.enabled=true;camera=orbitCamera;
+ const focus=activeWorld==='canyon'?canyon.center:center;
+ currentView=view;clouds.visible=view!=='top';camera.up.set(0,1,0);camera.zoom=1;camera.position.copy(focus).addScaledVector(directions[view],activeWorld==='canyon'?9:1);controls.target.copy(focus);camera.lookAt(focus);controls.enableRotate=view!=='top';controls.update();fitCamera();render();
 }
-function setupGolf(){currentView='golf';clouds.visible=false;controls.enabled=false;golf.setPlaying(true);camera.up.set(0,1,0);camera.zoom=1;camera.position.copy(golf.focus).add(new THREE.Vector3(1.8,5.8,5.7));camera.lookAt(golf.focus);const aspect=innerWidth/innerHeight,span=Math.max(4.8,5.8/aspect);camera.left=-span*aspect/2;camera.right=span*aspect/2;camera.top=span/2;camera.bottom=-span/2;camera.updateProjectionMatrix();render();}
+function setupGolf(){if(activeWorld!=='garden')setWorld('garden');drive.setDriving(false);camera=orbitCamera;currentView='golf';clouds.visible=false;controls.enabled=false;golf.setPlaying(true);camera.up.set(0,1,0);camera.zoom=1;camera.position.copy(golf.focus).add(new THREE.Vector3(1.8,5.8,5.7));camera.lookAt(golf.focus);const aspect=innerWidth/innerHeight,span=Math.max(4.8,5.8/aspect);camera.left=-span*aspect/2;camera.right=span*aspect/2;camera.top=span/2;camera.bottom=-span/2;camera.updateProjectionMatrix();render();}
+function setupDrive(){if(activeWorld!=='canyon')setWorld('canyon');golf.setPlaying(false);camera=drive.camera;currentView='drive';controls.enabled=false;camera.up.set(0,1,0);drive.setDriving(true);render();}
+function setWorld(value){
+ activeWorld=value;world.visible=value==='garden';canyon.group.visible=value==='canyon';drive.group.visible=value==='canyon';
+ if(software)renderer.setBaseFaces(value==='canyon'?canyonFaces:null);
+ document.querySelector('#play-golf').hidden=value!=='garden';document.querySelector('#drive-canyon').hidden=value!=='canyon';document.querySelector('#show-garden').hidden=value==='garden';document.querySelector('#show-canyon').hidden=value==='canyon';
+ document.querySelector('header h1').textContent=value==='canyon'?'Canyon Switchbacks':'Floating Garden';document.querySelector('header p').textContent=value==='canyon'?'Two bridges. One winding lap.':'A little island. One little golf hole.';
+ const focus=value==='canyon'?canyon.center:center,scale=value==='canyon'?8:1;
+ sun.target.position.copy(focus);sun.position.copy(focus).add(new THREE.Vector3(-10,18,12).multiplyScalar(scale));Object.assign(sun.shadow.camera,{left:-11*scale,right:11*scale,top:11*scale,bottom:-11*scale,far:48*scale});sun.shadow.camera.updateProjectionMatrix();
+ setupView('front');
+}
 function setQuality(value){
  if(software&&value!=='low')return false;
  quality=value;const config={low:{ratio:1,shadow:0},good:{ratio:1.5,shadow:1024},excellent:{ratio:2,shadow:2048}}[value];renderer.setPixelRatio(Math.min(devicePixelRatio,config.ratio));renderer.shadowMap.enabled=config.shadow>0;
  if(config.shadow){sun.shadow.mapSize.set(config.shadow,config.shadow);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}if(sun.shadow.mapPass){sun.shadow.mapPass.dispose();sun.shadow.mapPass=null;}}
  renderer.setSize(innerWidth,innerHeight);document.querySelector('#quality').value=value;try{localStorage.setItem('letsgo.garden.graphics.v1',value);}catch{}render();
 }
-for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>setupView(b.dataset.view);document.querySelector('#play-golf').onclick=setupGolf;document.querySelector('#quality').onchange=e=>setQuality(e.target.value);controls.addEventListener('change',render);window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);setupView(currentView);});
-try{const saved=localStorage.getItem('letsgo.garden.graphics.v1');if(['low','good','excellent'].includes(saved))setQuality(saved);}catch{}setupView('front');document.querySelector('#loading').remove();
-window.referenceIsland={world,land,clouds,fall,pond,golf,renderer,scene,camera,controls,plan,summary,components,setupView,setQuality,render,clean:()=>document.body.classList.add('clean'),getQuality:()=>quality};window.referenceIslandReady=true;window.__letsgoGarden=window.referenceIsland;renderer.domElement.dataset.ready='true';
+for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>setupView(b.dataset.view);document.querySelector('#play-golf').onclick=setupGolf;document.querySelector('#drive-canyon').onclick=setupDrive;document.querySelector('#show-garden').onclick=()=>setWorld('garden');document.querySelector('#show-canyon').onclick=()=>setWorld('canyon');document.querySelector('#quality').onchange=e=>setQuality(e.target.value);controls.addEventListener('change',render);window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);if(currentView==='drive'){drive.syncCamera();render();}else setupView(currentView);});
+try{const saved=localStorage.getItem('letsgo.garden.graphics.v1');if(['low','good','excellent'].includes(saved))setQuality(saved);}catch{}setWorld('canyon');document.querySelector('#loading').remove();
+window.referenceIsland={world,land,clouds,fall,pond,golf,canyon,drive,renderer,scene,get camera(){return camera;},controls,plan,summary,components,setupView,setWorld,setQuality,render,clean:()=>document.body.classList.add('clean'),getQuality:()=>quality,getWorld:()=>activeWorld};window.referenceIslandReady=true;window.__letsgoGarden=window.referenceIsland;renderer.domElement.dataset.ready='true';
 }

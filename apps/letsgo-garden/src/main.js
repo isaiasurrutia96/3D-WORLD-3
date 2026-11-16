@@ -1,4 +1,5 @@
 import './style.css';
+import './canyon.css';
 import {startGarden} from './world.js';
 
 startGarden().catch(error=>{

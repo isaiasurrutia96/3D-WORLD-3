@@ -9,7 +9,7 @@ The repository is consolidated; the worlds are not combined.
 | Claude's movement and obstacle world | Root `src/`, `index.html` | `npm run dev` | `/3D-WORLD-3/` |
 | LetsGo kart racing | `apps/letsgo-racing/` | `npm run dev:racing` | `/3D-WORLD-3/racing/` |
 | Floating minigame-island terrain | `apps/letsgo-island/` | `npm run dev:island` | `/3D-WORLD-3/island/` |
-| Codex Floating Garden + mini golf | `apps/letsgo-garden/` | `npm run dev:garden` | `/3D-WORLD-3/garden/` |
+| Codex Floating Garden, mini golf & Canyon racing | `apps/letsgo-garden/` | `npm run dev:garden` | `/3D-WORLD-3/garden/` |
 
 Use **Node.js 24**. Install each project's pinned dependencies separately:
 

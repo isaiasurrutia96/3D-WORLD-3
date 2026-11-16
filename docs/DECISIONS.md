@@ -8,7 +8,22 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 15 November 2026 — independent Codex Floating Garden.
+Last updated: 16 November 2026 — Canyon Switchbacks selected.
+
+## Canyon Switchbacks — 16 November 2026
+
+**Confirmed.** The owner selected number 5, Canyon Switchbacks, from the new
+six-floating-island race-track concept sheet. Its image is saved with the
+garden app, avoiding confusion with the earlier dark-background concepts.
+Build it in the independent `/garden/` app, with a separate Garden & golf
+choice preserving the approved island and putting game. The circuit is a
+single closed ring across two canyon bridges; asphalt, curbs, rails and
+collision derive from one sampled route. Rounded merged material bands form
+the terrain. The new kart keeps separate keyboard and mobile gas, steering
+and brake/reverse controls, with no drifting. Lap gates, camera and input
+are local to this app. Other worlds and saved racing records are unchanged.
+
+Checkpoint: `checkpoint-before-canyon-switchbacks` at `74c9f8b`.
 
 ## Independent merged-material garden — 15 November 2026
 
