@@ -40,7 +40,11 @@ import {
   AmbientLight,
   BufferAttribute,
   BufferGeometry,
+  BoxGeometry,
   CanvasTexture,
+  CircleGeometry,
+  CylinderGeometry,
+  PlaneGeometry,
   Color,
   DirectionalLight,
   DoubleSide,
@@ -62,133 +66,123 @@ export const BLOCK = 0.45;
 // ---- The layout, as read off the overhead picture ----------------------------
 // Columns run left to right, rows back to front, both in blocks.
 
-const FIRST_ROW = 7;
-const LAST_ROW = 82;
+const FIRST_ROW = 8;
+const LAST_ROW = 69;
 /** The column and row that sit at the middle of the world. */
 const MID_COL = 34;
 const MID_ROW = 45;
 
-/** Expands "from-to:value" runs into a table. */
-function table(runs: Array<[number, number, number]>): Record<number, number> {
-  const out: Record<number, number> = {};
-  for (const [from, to, value] of runs) for (let i = from; i <= to; i += 1) out[i] = value;
-  return out;
-}
-
-/** The leftmost column of the island on each row. */
-const LEFT = table([
-  [7, 13, 11], [14, 15, 12], [16, 20, 11], [21, 22, 10], [23, 25, 9], [26, 26, 8],
-  [27, 28, 7], [29, 29, 6], [30, 30, 5], [31, 32, 4], [33, 40, 3], [41, 45, 2],
-  [46, 49, 3], [50, 51, 4], [52, 53, 5], [54, 54, 6], [55, 56, 7], [57, 57, 8],
-  [58, 58, 9], [59, 61, 10], [62, 62, 11], [63, 64, 12], [65, 65, 13], [66, 66, 14],
-  [67, 68, 15], [69, 69, 16], [70, 71, 17], [72, 72, 18], [73, 73, 20], [74, 74, 22],
-  [75, 75, 24], [76, 76, 26], [77, 77, 27], [78, 78, 28], [79, 79, 29], [80, 80, 31],
-  [81, 81, 32], [82, 82, 33],
-]);
-/** The rightmost column on each row. */
-const RIGHT = table([
-  [7, 12, 51], [13, 13, 52], [14, 14, 53], [15, 15, 54], [16, 16, 55], [17, 17, 56],
-  [18, 18, 57], [19, 19, 58], [20, 20, 59], [21, 21, 60], [22, 26, 61], [27, 30, 62],
-  [31, 34, 63], [35, 35, 64], [36, 50, 65], [51, 53, 63], [54, 55, 62], [56, 56, 61],
-  [57, 59, 60], [60, 60, 59], [61, 61, 58], [62, 63, 57], [64, 64, 56], [65, 65, 55],
-  [66, 67, 51], [68, 68, 50], [69, 69, 49], [70, 70, 48], [71, 72, 47], [73, 73, 46],
-  [74, 74, 45], [75, 75, 44], [76, 76, 42], [77, 77, 41], [78, 78, 39], [79, 79, 37],
-  [80, 80, 36], [81, 81, 35], [82, 82, 34],
-]);
-/** The rearmost row of the island in each column, along the back. */
-const BACK = table([
-  [0, 10, 0], [11, 11, 16], [12, 15, 14], [16, 28, 13], [29, 32, 12], [33, 33, 11],
-  [34, 35, 9], [36, 46, 7], [47, 49, 10], [50, 51, 12], [52, 52, 13], [53, 70, 0],
-]);
-
-/** Whether column c, row r is part of the island. */
+/**
+ * The island's outline (columns, rows), seen from above: a broad, blunt
+ * five-sided shape, as the golf-island picture shows it from its front
+ * corner. The cells along its slanted sides step, as the picture's do.
+ */
+const OUTLINE: Array<[number, number]> = [
+  [10, 65], [60, 69], [66, 59], [67, 22], [60, 10], [30, 9], [18, 12], [6, 30], [5, 53],
+];
 function inside(c: number, r: number): boolean {
   if (r < FIRST_ROW || r > LAST_ROW) return false;
-  return c >= LEFT[r] && c <= RIGHT[r] && r >= BACK[c];
+  const x = c + 0.5;
+  const y = r + 0.5;
+  let odd = false;
+  for (let i = 0, j = OUTLINE.length - 1; i < OUTLINE.length; j = i, i += 1) {
+    const [xi, yi] = OUTLINE[i];
+    const [xj, yj] = OUTLINE[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) odd = !odd;
+  }
+  return odd;
 }
 
-/** The high terrace (four blocks): the frontmost row it reaches in each column. */
-const HIGH = table([
-  [33, 33, 14], [34, 34, 15], [35, 35, 16], [36, 36, 17], [37, 38, 18], [39, 39, 19],
-  [40, 42, 20], [43, 46, 21], [47, 50, 18],
-]);
-/** The low terrace along the back left and middle (two blocks). */
-const LOW = table([
-  [15, 15, 18], [16, 16, 20], [17, 22, 22], [23, 24, 20], [25, 25, 19], [26, 36, 17],
-]);
-/** The low lobe in front and to the right of the high terrace (two blocks). */
-const LOBE = table([
-  [43, 43, 22], [44, 44, 23], [45, 45, 24], [46, 48, 26], [49, 50, 25], [51, 51, 24],
-  [52, 52, 22],
-]);
+/** The front edge of the raised strip along the back, in each stretch of columns. */
+function backLine(c: number): number {
+  if (c < 14) return 27;
+  if (c < 26) return 25;
+  if (c < 35) return 22;
+  if (c < 44) return 20;
+  return 22;
+}
+/** The stairs up to the back strip: columns, on the row in front of it. */
+const STAIRS = { from: 14, to: 17 };
 
 /** How many blocks the top of a column stands above the lawn. */
 function terrace(c: number, r: number): number {
-  if (HIGH[c] !== undefined && r <= HIGH[c]) return 4;
-  if (LOW[c] !== undefined && r <= LOW[c]) return 2;
-  if (LOBE[c] !== undefined && r <= LOBE[c]) return 2;
+  // The higher step at the back right.
+  if ((c >= 44 && r <= 15) || (c >= 50 && r <= 17)) return 4;
+  if (r <= backLine(c)) return 2;
+  if (c >= STAIRS.from && c <= STAIRS.to && r === backLine(c) + 1) return 1;
   return 0;
 }
 
-/** The stone path at the back left: the columns it covers on each row. */
+/** The sand path: across the back strip, down the stairs and onto the lawn. */
 const PATH: Record<number, [number, number]> = {
-  17: [14, 14], 18: [13, 14], 19: [13, 15], 20: [12, 15], 21: [12, 16], 22: [12, 16],
-  23: [11, 15], 24: [11, 14], 25: [10, 14], 26: [10, 13], 27: [10, 12],
+  16: [19, 20], 17: [18, 20], 18: [18, 19], 19: [17, 19], 20: [17, 19], 21: [16, 18],
+  22: [16, 18], 23: [15, 18], 24: [15, 17], 25: [14, 17], 26: [14, 17], 27: [14, 17],
+  28: [13, 16], 29: [13, 15],
 };
 function onPath(c: number, r: number): boolean {
   const span = PATH[r];
-  return span !== undefined && c >= span[0] && c <= span[1] && terrace(c, r) === 0;
+  return span !== undefined && c >= span[0] && c <= span[1];
 }
 
-/** The pool: the columns of water on each row, and the channel it spills by. */
+/** The pool near the front corner: its water on each row, and the channel it spills by. */
 const POOL: Record<number, [number, number]> = {
-  55: [51, 54], 56: [50, 55], 57: [49, 56], 58: [48, 56], 59: [48, 56], 60: [48, 56],
-  61: [48, 55], 62: [48, 54], 63: [49, 54], 64: [50, 54], 65: [53, 54],
+  57: [53, 57], 58: [52, 58], 59: [51, 59], 60: [51, 59], 61: [51, 59], 62: [52, 58],
+  63: [52, 57], 64: [52, 55], 65: [52, 53], 66: [52, 53], 67: [52, 53],
 };
 function inPool(c: number, r: number): boolean {
   const span = POOL[r];
-  return span !== undefined && c >= span[0] && c <= span[1];
+  return span !== undefined && c >= span[0] && c <= span[1] && inside(c, r);
 }
 /** The channel's columns and the row whose front face the water falls from. */
-const FALL = { from: 53, to: 54, row: 65 };
+const FALL = { from: 52, to: 53, row: 67 };
+
+/** The putting green: an L of short dark grass with a raised cream rim. */
+function inGreen(c: number, r: number): boolean {
+  return (c >= 20 && c <= 44 && r >= 33 && r <= 39) || (c >= 20 && c <= 27 && r >= 39 && r <= 48);
+}
+/** Where the hole and its flag are, and the tee at the other end. */
+const HOLE = { c: 41, r: 36 };
+const TEE = { c: 23, r: 45 };
 
 /**
  * The five trees: the back-left corner of the two-by-two trunk, how many
  * blocks tall the trunk is, and the crown's half-widths (across, up, deep).
  */
 const TREES = [
-  { c: 7, r: 43, trunk: 5, crown: [5.2, 4.8, 4.7] },
-  { c: 19, r: 19, trunk: 4, crown: [4.0, 3.9, 3.6] },
-  { c: 43, r: 16, trunk: 5, crown: [5.4, 5.0, 4.9] },
-  { c: 55, r: 23, trunk: 4, crown: [3.9, 3.9, 3.6] },
-  { c: 61, r: 46, trunk: 5, crown: [4.6, 4.4, 4.2] },
+  { c: 11, r: 43, trunk: 5, crown: [3.8, 3.4, 3.8] },
+  { c: 22, r: 13, trunk: 5, crown: [3.8, 3.4, 3.8] },
+  { c: 47, r: 10, trunk: 5, crown: [3.8, 3.4, 3.8] },
+  { c: 61, r: 25, trunk: 5, crown: [3.8, 3.4, 3.8] },
+  { c: 58, r: 46, trunk: 5, crown: [3.8, 3.4, 3.8] },
 ] as const;
 
-/** The four bushes: the middle of each, in blocks (halves allowed). */
+/** The four flower bushes: the middle of each, in blocks (halves allowed). */
 const BUSHES: Array<[number, number]> = [
-  [6.5, 50.5],
-  [31, 15.5],
-  [55.5, 49],
-  [43.5, 68.5],
+  [9, 50],
+  [38.5, 14],
+  [48.5, 61],
+  [57.5, 53],
+];
+
+/** White daisies dotted on the lawn: the half-block cells of each. */
+const DAISIES: Array<[number, number]> = [
+  [18, 116], [26, 120], [34, 124], [36, 46], [122, 124], [124, 100], [40, 66], [90, 50],
 ];
 
 /**
- * The five rock piles. Each rock is a cube a block and a half on a side
- * (three half blocks), given by its back-left corner in half blocks and how
- * many half blocks up from the ground it sits: three on the ground and one
- * on top, as most of the picture's piles are; the one on the high terrace's
- * edge is three in a row stepping down.
+ * The four rocks, each a pair of cubes a block and a half on a side (three
+ * half blocks) with a third on top of one: given by back-left corners in
+ * half blocks and how many half blocks up each sits.
  */
 const ROCKS: Array<Array<[number, number, number]>> = [
-  [[16, 106, 0], [19, 106, 0], [17, 109, 0], [17, 107, 3]],
-  [[68, 24, 0], [71, 24, 0], [69, 27, 0], [69, 25, 3]],
-  [[114, 100, 0], [117, 100, 0], [115, 103, 0], [115, 101, 3]],
-  [[90, 132, 0], [93, 132, 0], [91, 135, 0], [91, 133, 3]],
-  [[98, 38, 0], [95, 40, 0], [92, 43, 0]],
+  [[14, 104, 0], [17, 104, 0], [17, 104, 3]],
+  [[82, 30, 0], [85, 30, 0], [85, 30, 3]],
+  [[94, 118, 0], [97, 118, 0], [97, 118, 3]],
+  [[108, 100, 0], [111, 100, 0], [111, 100, 3]],
 ];
 
-/** Where the figure in the pictures stands: the game starts here. */
-const START = { c: 15, r: 62 };
+/** Where the game starts: on the lawn in front of the green. */
+const START = { c: 32, r: 54 };
 
 /**
  * The bridge to the race circuit: a deck of planks off the east edge, from
@@ -213,6 +207,9 @@ type Kind =
   | 'bush'
   | 'bushLow'
   | 'berry'
+  | 'green'
+  | 'curb'
+  | 'daisy'
   | 'rock'
   | 'cloud'
   | 'plank';
@@ -232,6 +229,9 @@ const COLOURS: Record<Kind, string> = {
   rock: '#d8ccd4',
   cloud: '#ffffff',
   plank: '#c98f55',
+  green: '#58c26e',
+  curb: '#f3dfb2',
+  daisy: '#ffffff',
 };
 
 // ---- Cubes -----------------------------------------------------------------
@@ -620,7 +620,11 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
       // Grass on top (the path where it runs, earth under the water), earth
       // under it down to three blocks below the lawn — two at the very rim,
       // where the picture shows it thinner.
-      ground.set(c, top, r, pool ? 'dirt' : onPath(c, r) ? 'path' : 'grass');
+      const green = inGreen(c, r);
+      const rim = green && (!inGreen(c - 1, r) || !inGreen(c + 1, r) || !inGreen(c, r - 1) || !inGreen(c, r + 1));
+      ground.set(c, top, r, pool ? 'dirt' : onPath(c, r) ? 'path' : rim ? 'curb' : green ? 'green' : 'grass');
+      // The green's rim stands a half block proud of the lawn.
+      if (rim) for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]]) fine.set(c * 2 + dx, (top + 1) * 2, r * 2 + dz, 'curb');
       const d = edgeOf(c, r);
       const dirtBottom = d <= 1 ? -2 : -3;
       for (let y = top - 1; y >= dirtBottom; y -= 1) ground.set(c, y, r, 'dirt');
@@ -645,22 +649,7 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   }
   const topOf = (c: number, r: number) => topCell.get(`${c},${r}`) ?? 0;
 
-  // ---- The bridge to the circuit ----
-  // Planks on top, level with the lawn, a beam of wood under them, and a rail
-  // a block high along each edge with a post standing higher every fourth
-  // block. Part of the ground, so the island's edge and the bridge are one.
-  for (let i = 0; i < BRIDGE.length; i += 1) {
-    const c = BRIDGE.firstCol + i;
-    for (let r = BRIDGE.from; r <= BRIDGE.to; r += 1) {
-      const edge = r === BRIDGE.from || r === BRIDGE.to;
-      ground.set(c, 0, r, edge ? 'wood' : 'plank');
-      if (!edge) ground.set(c, -1, r, 'wood');
-      if (edge) {
-        ground.set(c, 1, r, 'wood');
-        if (i % 4 === 0) ground.set(c, 2, r, 'wood');
-      }
-    }
-  }
+  // No bridge: the golf island stands on its own.
 
   // ---- Trees ----
   const trunks: VoxelIslandWorld['trunks'] = [];
@@ -746,6 +735,13 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
         }
       }
     }
+  }
+
+  // ---- Daisies: a white half block each, two side by side ----
+  for (const [hc, hr] of DAISIES) {
+    const base = (topOf(Math.floor(hc / 2), Math.floor(hr / 2)) + 1) * 2;
+    fine.set(hc, base, hr, 'daisy');
+    fine.set(hc + 1, base, hr + 1, 'daisy');
   }
 
   // ---- Rocks: cubes three half blocks on a side ----
@@ -938,6 +934,47 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     root.add(fall);
   }
 
+  // ---- The hole, its flag and the tee ----
+  {
+    const hx = worldX(HOLE.c);
+    const hz = worldZ(HOLE.r);
+    const hole = new Mesh(new CircleGeometry(0.13, 20), new MeshBasicMaterial({ color: '#1d1f22' }));
+    hole.rotation.x = -Math.PI / 2;
+    hole.position.set(hx, 0.006, hz);
+    hole.name = 'golf hole';
+    root.add(hole);
+    const pole = new Mesh(new CylinderGeometry(0.025, 0.025, 1.7, 8), new MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.6 }));
+    pole.position.set(hx, 0.85, hz);
+    pole.castShadow = true;
+    pole.name = 'flag pole';
+    root.add(pole);
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 80;
+    const g = canvas.getContext('2d');
+    if (g) {
+      g.fillStyle = '#ec4b47';
+      g.fillRect(0, 0, 128, 80);
+      g.fillStyle = '#ffffff';
+      g.font = 'bold 54px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('1', 50, 42);
+    }
+    const flagTex = new CanvasTexture(canvas);
+    flagTex.colorSpace = SRGBColorSpace;
+    const flagMat = new MeshBasicMaterial({ map: flagTex, side: DoubleSide });
+    flagMat.toneMapped = false;
+    const flag = new Mesh(new PlaneGeometry(0.62, 0.38), flagMat);
+    flag.position.set(hx + 0.33, 1.5, hz);
+    flag.name = 'flag';
+    root.add(flag);
+    const tee = new Mesh(new BoxGeometry(0.34, 0.03, 0.34), new MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.8 }));
+    tee.position.set(worldX(TEE.c), 0.015, worldZ(TEE.r));
+    tee.name = 'golf tee';
+    root.add(tee);
+  }
+
   collision.addSolid(solid);
 
   const cell = (c: number, r: number) => ({ x: worldX(c), z: worldZ(r) });
@@ -955,10 +992,13 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
   });
 
   // The middle of the island's top, which both reference views look at.
-  const middle = new Vector3(worldX(34), 0, worldZ(44));
+  const middle = new Vector3(worldX(36), 0, worldZ(40));
+  // Seen from the front corner (south-east), as the picture is.
   const from = (elevation: number, distance: number, target: Vector3) => {
     const e = (elevation * Math.PI) / 180;
-    return target.clone().add(new Vector3(0, Math.sin(e) * distance, Math.cos(e) * distance));
+    const yaw = Math.PI / 4;
+    const flat = Math.cos(e) * distance;
+    return target.clone().add(new Vector3(Math.sin(yaw) * flat, Math.sin(e) * distance, Math.cos(yaw) * flat));
   };
   const overheadAt = middle.clone().add(new Vector3(0, 0, 0.6));
   const angledAt = middle.clone().add(new Vector3(0, -2.2, 0));
@@ -981,23 +1021,21 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     columns,
     trunks,
     marks: {
-      lawnBeforeTerrace: cell(27, 21),
-      terrace: cell(27, 15),
-      terraceBeforeHigh: cell(34, 17),
-      high: cell(38, 17),
-      lawnBelowHigh: cell(38, 24),
-      besidePool: cell(51, 51),
-      inPool: cell(51, 59),
+      lawnBeforeTerrace: cell(30, 25),
+      terrace: cell(30, 17),
+      terraceBeforeHigh: cell(46, 19),
+      high: cell(54, 14),
+      lawnBelowHigh: cell(54, 27),
+      besidePool: cell(49, 56),
+      inPool: cell(55, 60),
     },
     edgeRuns: [
-      { ...cell(7, 36), dx: -1, dz: 0 },
-      { ...cell(14, 60), dx: -1, dz: 1 },
-      { ...cell(26, 73), dx: -1, dz: 1 },
-      { ...cell(33, 78), dx: 0, dz: 1 },
-      { ...cell(41, 73), dx: 1, dz: 1 },
-      { ...cell(58, 56), dx: 1, dz: 0 },
-      { ...cell(59, 30), dx: 1, dz: 0 },
-      { ...cell(22, 68), dx: -1, dz: 1 },
+      { ...cell(7, 40), dx: -1, dz: 0 },
+      { ...cell(9, 60), dx: -1, dz: 1 },
+      { ...cell(30, 66), dx: 0, dz: 1 },
+      { ...cell(62, 66), dx: 1, dz: 1 },
+      { ...cell(65, 40), dx: 1, dz: 0 },
+      { ...cell(64, 16), dx: 1, dz: -1 },
     ],
     bridge: {
       minX: origin.x + BRIDGE.firstCol * BLOCK,
@@ -1013,7 +1051,7 @@ export function buildVoxelIsland(scene: Scene, collision: CollisionWorld): Voxel
     },
     bounds: {
       minX: origin.x + 2 * BLOCK,
-      maxX: origin.x + 66 * BLOCK,
+      maxX: origin.x + 68 * BLOCK,
       minZ: origin.z + FIRST_ROW * BLOCK,
       maxZ: origin.z + (LAST_ROW + 1) * BLOCK,
     },

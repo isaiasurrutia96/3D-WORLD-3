@@ -448,6 +448,15 @@ use for every track, house or other build).**
    **Removed from the world** by the owner (15 November); the code
    (`src/racing/BlockCircuit.ts`) is kept, unbuilt.
 
+9. **The island is now the golf island** (16 November, from the owner's
+   picture; no Codex code for it was found in any repository, so it was
+   rebuilt from the picture): a broad five-sided island, a raised strip
+   along the back with a higher step at the back right and sand stairs at
+   the back left, an L-shaped putting green with a cream rim, a tee and a
+   red "1" flag, five trees, four rocks, four flower bushes, daisies, and a
+   pool by the front corner spilling over a waterfall. No bridge. Same
+   block style (merged material groups) and the same dirt and stone depths.
+
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.
 
