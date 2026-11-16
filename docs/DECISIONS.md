@@ -456,6 +456,7 @@ use for every track, house or other build).**
    red "1" flag, five trees, four rocks, four flower bushes, daisies, and a
    pool by the front corner spilling over a waterfall. No bridge. Same
    block style (merged material groups) and the same dirt and stone depths.
+   Grass blocks each a slightly different shade of green (owner, 16 Nov).
 
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.

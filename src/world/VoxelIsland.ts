@@ -354,6 +354,11 @@ function facesOf(
     level = y;
     const across = CUBE_CELLS[kind] ?? 1;
     colour.set(COLOURS[kind]);
+    // Grass blocks each a slightly different shade of green.
+    if (kind === 'grass') {
+      const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      colour.multiplyScalar(0.93 + (v - Math.floor(v)) * 0.14);
+    }
     const cell = [x, y, z];
     // Which of the block's six sides can be seen: those are the ones it is
     // rounded toward.
