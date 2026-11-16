@@ -2,10 +2,11 @@ import {trackSamples} from './track.js';
 import {startHitSpin} from './kart-hit.js';
 import {dropBanana,stepBananas,clearFinishedBananas} from './bananas.js';
 import {launchTorpedo,stepTorpedoes,trackTorpedoPositions} from './torpedoes.js';
-import {activateShield,consumeShield,stepShield} from './shield.js';
+import {activateShield,consumeShield,stepShield,shieldActive} from './shield.js';
 
 export const BOX_RESPAWN=8,NITRO_SECONDS=2,SHELL_LIFETIME=8;
 export const ITEM_POOL=['nitro','shell','banana','torpedo','shield'];
+const SHIELDED_ITEM_POOL=ITEM_POOL.filter(item=>item!=='shield');
 export function createItemSystem(tracks=[trackSamples],random=Math.random,courses=[]){
  if(typeof tracks==='function'){random=tracks;tracks=[trackSamples];}
  if(!Array.isArray(tracks))tracks=[trackSamples];
@@ -39,7 +40,10 @@ function pickup(system,kart,previous){
   if(box.cooldown>0||Math.abs(kart.y-box.y)>1.4)continue;
   if(sweptDistance(previous??kart,kart,box.x,box.z)<2.1){
    box.cooldown=BOX_RESPAWN;const draw=system.allowShells?system.random():0;
-   kart.heldItem=!system.allowShells?'nitro':system.testItem??ITEM_POOL[Math.max(0,Math.min(ITEM_POOL.length-1,Math.floor(draw*ITEM_POOL.length)))];break;
+   // Protection lives outside the inventory slot. While it is active, roll
+   // a usable item instead of a spare shield that cannot yet be activated.
+   const pool=shieldActive(kart)?SHIELDED_ITEM_POOL:ITEM_POOL;
+   kart.heldItem=!system.allowShells?'nitro':system.testItem??pool[Math.max(0,Math.min(pool.length-1,Math.floor(draw*pool.length)))];break;
   }
  }
 }

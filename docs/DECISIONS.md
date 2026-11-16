@@ -8,7 +8,23 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 16 November 2026 — single-hit shield with offensive contact.
+Last updated: 16 November 2026 — 15-second shields and protected pickups.
+
+## Shield expiration and protected item pickup — 16 November 2026
+
+**Confirmed by the owner.** Shields must vanish after 15 seconds and must
+allow another item to be collected while protection is active. This supersedes
+the indefinite-duration choice from the preceding shield delivery. Protection
+still ends on the first hit or bump, and shielded contact retains its offensive
+spin/slowdown response.
+
+The HUD counts down and the bubble fades near expiry. Protection is stored
+outside the held-item slot. While shielded, normal boxes draw from the four
+usable items rather than awarding a duplicate shield that blocks collection.
+Picking up or using an item does not reset the timer; a held weapon survives
+expiration. The parked kart's timer also advances during on-foot gameplay.
+Other worlds, handling, scored Time Trials and saved ghosts are unchanged.
+Backup: `checkpoint-before-shield-timer-2026-11-16` at `d40c14c`.
 
 ## Single-hit shield and mixed boxes — 16 November 2026
 

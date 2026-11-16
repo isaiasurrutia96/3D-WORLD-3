@@ -2,13 +2,15 @@
 
 The current shield test builds on the restored 200-MPH torpedo checkpoint,
 with one NPC practice driver. Free-drive/practice boxes offer Nitro, shells,
-bananas, torpedoes and shields with equal chances. A shield lasts until one
-weapon hit or kart contact, then pops. Shielded contact spins and slows an
+bananas, torpedoes and shields with equal chances. A shield lasts for up to
+15 seconds, or until one weapon hit or kart contact, then pops. Shielded contact spins and slows an
 unshielded rival without penalizing the shielded driver; two shields cancel
 each other. Activate with Shift or the mobile Item button. Time Trials keep
 their Nitro-only rules and saved records. The later multi-driver race remains
 outside this version. Restore point before this shield:
 `checkpoint-before-one-hit-shield-2026-11-16` (`9a9df46`).
+The latest timer/pickup fix has its own restore point:
+`checkpoint-before-shield-timer-2026-11-16` (`d40c14c`).
 
 Claude’s plain jointed avatar, walking, running and normal jump are connected to the existing slab and four floating racing circuits. Kart driving uses grip steering; drifting has been removed. Lap timing, saved top-four records and ghost playback retain their existing implementation.
 
@@ -264,7 +266,7 @@ Tests cover acceleration, reverse/braking, mirrored steering, entry/exit safety,
 
 ## Item boxes
 
-`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Outside single-item testing, driving through an available box awards Nitro (50%), a green shell (25%) or a banana (25%) in free driving/NPC practice, with one inventory slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
+`src/items.js` handles 48 boxes in 16 rows around each circuit, including elevated sections. The original circuit retains its previous box positions. Driving through an available box in free driving/NPC practice awards Nitro, shell, banana, torpedo or shield equally. While shielded, boxes roll the four usable items instead of another shield. Active protection is separate from the one held-item slot. Time Trials retain Nitro-only boxes. A full slot is not overwritten. Boxes respawn after eight seconds. Swept pickup checks prevent fast karts skipping boxes; elevation checks prevent picking up a box through the overpass. Green shells launch forward, follow supported road surfaces, ricochet off rails and expire after eight seconds or twelve bounces. They use swept collision against player and NPC karts, respect separate road heights, and briefly slow a hit kart while cancelling Nitro. A hit now spins the kart and seated driver through one complete, eased turn over 0.75 seconds, then settles back onto the driving heading. The spin is a presentation offset rather than a forced change to the driving direction. Throttle and new steering input pause during the hit while the kart slows; braking still works, and normal control returns afterward. Mounting/exiting waits until the spin finishes. The launching kart has a short owner grace period and can be hit by its own later ricochet.
 
 While driving, press either Shift key once to use the held item. Holding Shift does not auto-use a later pickup. Each fresh time-trial attempt (entrance start or restart) begins with one Nitro in the normal item slot; rolling over the finish line does not grant another. The existing mobile item button also uses it. Activating this Nitro while waiting does not start the clock or consume boost time; E/Gas starts both the simulation and the lap. On foot, Shift continues to mean walking. The compact control chart shows the current item.
 
@@ -319,11 +321,15 @@ Next requested tuning, after reviewing wall contact: **increase kart speed and i
 
 Pick up a shield from a mystery box and activate it with Shift or the existing
 mobile Item button. A translucent blue bubble and the HUD's **1 hit** label
-show that it is active. It has one charge and no automatic expiration. A shell,
+show that it is active. It has one charge and a 15-second countdown, with a
+warning fade during the final three seconds. A shell,
 banana or torpedo consumes it and removes the incoming hazard without applying
 spin, slip, slowdown or boost cancellation. A second impact is unprotected,
-even during the brief pop animation. A spare held shield is retained until
-the active one is spent.
+even during the brief pop animation. Protection is separate from the item
+slot. While protected, boxes give Nitro, shells, bananas or torpedoes instead
+of another shield that would block the slot. Collecting or using an item
+does not renew the shield timer; expiration does not remove the held weapon.
+The timer continues when leaving the kart during active gameplay.
 
 On physical kart contact, an active shield is spent and applies the normal
 0.75-second spin and 72% speed loss to an unshielded rival. The protected kart

@@ -166,3 +166,14 @@ new work should use this repository as the shared source.
   saved ghost/lap data. Keep the one-NPC practice format, 200-MPH torpedo,
   kart handling and other worlds unchanged. Checkpoint before this addition:
   `checkpoint-before-one-hit-shield-2026-11-16` at `9a9df46`.
+
+- **16 November 2026 — timed shields and usable pickups while protected.**
+  The latest owner instruction supersedes the no-timeout choice above:
+  protection expires after 15 seconds or the first hit/bump. Show its remaining
+  time and warn during the final three seconds. Active protection occupies no
+  inventory slot. Protected drivers draw Nitro/shell/banana/torpedo instead of
+  a duplicate shield; full weapon slots remain preserved. Pickups and weapon
+  use do not renew protection, and expiration does not remove a held weapon.
+  Advance the parked kart's timer while the player is on foot too. Keep the
+  one-hit/offensive contact rules, Time Trials and ghost storage unchanged.
+  Checkpoint: `checkpoint-before-shield-timer-2026-11-16` at `d40c14c`.

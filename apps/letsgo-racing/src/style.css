@@ -147,6 +147,7 @@
 .touch-item[data-item="shield"] .item-shield{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .shield-status{margin:5px 0 8px;padding:5px 7px;border:1px solid #72d5ff66;border-radius:6px;background:#277eae22;color:#a3ecff;font-size:10px;line-height:1.2}
 .shield-status[hidden]{display:none}
+.shield-status[data-expiring="true"]{color:#ffe29c;border-color:#e2b55788}
 .touch-item[data-item="torpedo"] .item-torpedo{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .torpedo-warning{position:absolute;left:50%;top:max(88px,env(safe-area-inset-top));transform:translateX(-50%);z-index:6;max-width:min(270px,70vw);padding:10px 15px;border:1px solid #f2ad61;border-radius:10px;background:#24160aeb;color:#ffe1ac;text-align:center;font:700 13px Arial,sans-serif;pointer-events:none}
 .torpedo-warning[data-kind="imminent"]{background:#3f1211ed;border-color:#ff8177;color:#ffd8d4}

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {shieldActive,SHIELD_POP_SECONDS} from './shield.js';
+import {shieldActive,SHIELD_POP_SECONDS,SHIELD_WARNING_SECONDS} from './shield.js';
 
 // A translucent centre with a bright view-dependent rim, without bloom or
 // extra lights. One small mesh per shield keeps the effect inexpensive.
@@ -38,12 +38,15 @@ export function createShieldView(kart){
   bubble.visible=!!active||flash>0;if(!bubble.visible)return;
   const pop=active?0:1-flash/SHIELD_POP_SECONDS,scale=active?1+.012*Math.sin(time*3):1+pop*.2;
   bubble.scale.set(1.9,1.55,2.35).multiplyScalar(scale);
-  material.uniforms.opacity.value=active?1:1-pop;material.uniforms.tint.value.set(active?'#58ceff':'#e7fbff');
+  const warning=active&&state.shieldTime<=SHIELD_WARNING_SECONDS;
+  const fade=warning ? .4+.6*(.5+.5*Math.sin((SHIELD_WARNING_SECONDS-state.shieldTime)*Math.PI*6)) : 1;
+  material.uniforms.opacity.value=active?fade:1-pop;material.uniforms.tint.value.set(active?'#58ceff':'#e7fbff');
  };
 }
 
 export function updateShieldHud(node,state){
  const active=state&&shieldActive(state),popping=(state?.shieldFlash??0)>0;
  node.hidden=!active&&!popping;
- const text=active?'Shield active · 1 hit':'Shield spent';if(node.textContent!==text)node.textContent=text;
+ node.dataset.expiring=String(!!active&&state.shieldTime<=SHIELD_WARNING_SECONDS);
+ const text=active?`Shield · ${state.shieldTime.toFixed(1)}s · 1 hit`:'Shield ended';if(node.textContent!==text)node.textContent=text;
 }

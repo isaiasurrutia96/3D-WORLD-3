@@ -25,6 +25,7 @@ import {ITEM_UNDER_TEST} from './item-test-mode.js';
 import {createTorpedoWarning} from './torpedo-view.js';
 import {resetTorpedoes} from './torpedoes.js';
 import {updateShieldHud} from './shield-view.js';
+import {stepShield} from './shield.js';
 
 const canvas=document.querySelector('canvas');
 const app=document.getElementById('app'),gameScreen=document.getElementById('game-screen'),homeScreen=document.getElementById('home-screen'),playButton=document.getElementById('play-button');
@@ -319,6 +320,7 @@ function frame(time){
     if(npcPractice.active)npcPractice.step(STEP,kartState,startForward);else stepTimeTrial(trial,previousKart,kartState,startForward,STEP);
     if(mobileExitPending&&Math.abs(kartState.speed)<.75){mobileExitPending=false;toggleVehicle();}
    }else{previous={...runner};stepRunner(runner,input(),STEP,pedestrianWorld);}
+   if(!driving)stepShield(kartState,STEP);
    stepItems(itemSystem,driving?kartState:null,previousKart,STEP,worldPhysics,npcPractice.actors());
    accumulator-=STEP;
   }
