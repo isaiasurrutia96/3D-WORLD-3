@@ -8,7 +8,21 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 16 November 2026 — restore missing Pages routes.
+Last updated: 17 November 2026 — four NPCs and races on every circuit.
+
+## Five-kart races across all four circuits — 17 November 2026
+
+**Confirmed by the owner.** Add four NPC opponents and make every existing
+track raceable. Each entrance offers Race and Time Trial; a Track selector
+also allows starting directly. Restore three-lap race scoring with ordered
+checkpoints, position, standings and matching colored minimap dots. Race
+results do not write or replace Time Trial laps or ghosts. All five racers
+start with empty inventory, no shield and no boost, and use the shared boxes.
+
+Original retains its derived player line. Skyline, Suzuka and Winding use
+their own centerlines with preview braking and the same kart controller.
+Do not change track geometry, player handling or the 15-second/one-hit shield.
+Checkpoint: `checkpoint-before-four-npc-all-tracks-2026-11-17` at `ec598d4`.
 
 ## Preserve the live main world during companion publishing — 16 November 2026
 

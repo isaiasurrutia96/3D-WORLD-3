@@ -1,13 +1,13 @@
 # LetsGo — locomotion foundation
 
 The current shield test builds on the restored 200-MPH torpedo checkpoint,
-with one NPC practice driver. Free-drive/practice boxes offer Nitro, shells,
+with four NPC opponents on all four circuits. Free-drive/race boxes offer Nitro, shells,
 bananas, torpedoes and shields with equal chances. A shield lasts for up to
 15 seconds, or until one weapon hit or kart contact, then pops. Shielded contact spins and slows an
 unshielded rival without penalizing the shielded driver; two shields cancel
 each other. Activate with Shift or the mobile Item button. Time Trials keep
-their Nitro-only rules and saved records. The later multi-driver race remains
-outside this version. Restore point before this shield:
+their Nitro-only rules and saved records. Race results are separate.
+Restore point before this shield:
 `checkpoint-before-one-hit-shield-2026-11-16` (`9a9df46`).
 The latest timer/pickup fix has its own restore point:
 `checkpoint-before-shield-timer-2026-11-16` (`d40c14c`).
@@ -125,19 +125,21 @@ The course ID is `letsgo-winding-v1`; its recordings save under `letsgo.winding.
 
 Restore point before this replacement: `checkpoint-before-winding-track-2026-11-09` at `4a41753`. Earlier restore points: `checkpoint-before-shorter-three-level-2026-11-09` at `d356457` for the original long circuit; `checkpoint-before-three-level-circuit-2026-11-09` at `cf2e6f2` predates the fourth course.
 
-## First NPC practice — Original Circuit
+## Four-opponent races on every circuit
 
-On the **Original Circuit**, open **Laps & ghosts** (already expanded on desktop)
-and choose **Practice with NPC**. The player and one solid blue kart spawn in
-separate positions at the start. Both wait until **E / Gas** is pressed. The NPC
-drives one lap and brakes after finishing. Use **Restart NPC practice** to retry;
-**Time Trial / T**, another course, exiting the kart or Home ends the practice.
-The blue minimap dot follows the same interpolated pose as the visible kart.
-Practice never saves lap times or changes the browser's top-four recordings.
-Other courses still offer their existing Time Trials.
+Every entrance offers **Race · 3 laps · 4 opponents** or **Time Trial**.
+You can also open **Laps & ghosts**, choose Original, Skyline, Suzuka or Winding
+in the Track selector, then press **Race**. The player and four colored karts
+spawn in a spaced grid, empty of items, shields and boost. All wait for **E / Gas**.
+The race shows position, lap count, standings and four matching minimap dots.
+Three laps require all twelve checkpoints and a forward finish crossing per lap.
+Restart rebuilds the entire grid; Time Trial, Home or exiting ends the race.
+Races never write Time Trial records or ghost frames.
 
 `src/npc/driver.js` reads a distance-indexed racing line and speed profile derived
-from the four approved Original Circuit ghost exports. It returns throttle,
+from the four approved Original Circuit ghost exports. Other tracks use their
+own centerlines and the same curvature/braking preview, with small opponent pace
+variations; no ghost from Original is stretched onto them. It returns throttle,
 steering, braking and item-use requests; the unchanged `stepVehicle` controller
 moves the NPC, including wheel smoothing, rail contacts, elevation and Nitro.
 The NPC never gets placed on a time-indexed replay. Pure-pursuit steering,
@@ -146,9 +148,9 @@ position. An obstructing kart triggers a held passing-side choice and following
 distance; an empty item slot can target a reachable pickup. A displaced kart
 steers back toward the line. Kart-to-kart contact is damped and preserves heading.
 
-The NPC uses the same shared boxes, item slot, boost duration and speed caps
-as the player. Normally both start with Nitro; during a combat-item test both
-start with that test item instead. It can collect and use combat items. Item draws mean
+The NPCs use the same shared boxes, item slot, shield timer, boost duration and
+speed caps as the player. All five karts start empty, collect boxes and use combat
+items against any rival. Item draws mean
 its pace varies; it is not forced to finish at the exact recorded ghost time.
 The visible driver uses six opaque geometry batches with independent moving
 wheels and steering, plus the same Nitro exhaust as the player's kart.
@@ -164,8 +166,10 @@ node scripts/derive-npc-reference.mjs /path/to/letsgo-ghosts-2026-11-09.json
 `tests/npc.test.js` drives complete laps through every checkpoint using actual
 kart physics and varied item draws, checks displacement recovery and a passing
 maneuver, verifies practice startup/restart and kart contact, and checks the
-opaque geometry budget. This is the first one-opponent practice pass; a full
-Race menu, multi-kart grid, countdown and race results are deferred for review.
+opaque geometry budget. `tests/npc-race.test.js` checks all four five-kart grids,
+ordered three-lap scoring and complete races on every circuit with real physics
+and shared mixed items. The shield still expires once after 15 seconds, rather
+than advancing its timer once per opponent.
 Restore point: `checkpoint-before-npc-and-shell-2026-11-09` at `6495325`.
 
 ### Shell-hit spin — first combat chunk

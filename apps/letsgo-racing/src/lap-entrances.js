@@ -15,7 +15,7 @@ export function createLapEntranceMarkers(scene,courses){
   const pad=new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,.08,32),dark);pad.position.y=.04;node.add(pad);
   const ring=new THREE.Mesh(new THREE.RingGeometry(3.9,4.2,32),cyan);ring.rotation.x=-Math.PI/2;ring.position.y=.085;node.add(ring);
   for(const side of [-1,1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.18,3.4,.18),silver);post.position.set(side*3.4,1.7,-4.8);node.add(post);}
-  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const ctx=canvas.getContext('2d');ctx.fillStyle='#101b35';ctx.fillRect(0,0,512,128);ctx.fillStyle='#dfeefa';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 35px Arial';ctx.fillText(course.name,256,43);ctx.font='bold 25px Arial';ctx.fillStyle='#83edf2';ctx.fillText('START LAP',256,92);
+  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const ctx=canvas.getContext('2d');ctx.fillStyle='#101b35';ctx.fillRect(0,0,512,128);ctx.fillStyle='#dfeefa';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 35px Arial';ctx.fillText(course.name,256,43);ctx.font='bold 25px Arial';ctx.fillStyle='#83edf2';ctx.fillText('RACE / TIME TRIAL',256,92);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;const sign=new THREE.Mesh(new THREE.PlaneGeometry(7.4,1.85),new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide}));sign.position.set(0,3.15,-4.8);node.add(sign);
  }
  return group;

@@ -18,7 +18,7 @@ function seeded(seed){let value=seed;return()=>{value=(value*1664525+1013904223)
 test('the driving reference covers the current Original course and all four approved laps',()=>{
  assert.equal(ORIGINAL_NPC_REFERENCE.course,ORIGINAL_COURSE.id);assert.equal(ORIGINAL_NPC_REFERENCE.length,ORIGINAL_COURSE.length);assert.equal(ORIGINAL_NPC_REFERENCE.sourceLaps,4);
  for(const [offset,speed]of ORIGINAL_NPC_REFERENCE.samples){assert.ok(Math.abs(offset)<=9.8);assert.ok(speed>=0&&speed<=NITRO_TOP_SPEED);}
- assert.throws(()=>createNpcDriver({course:SUZUKA_COURSE}),/different course/);
+ assert.throws(()=>createNpcDriver({course:SUZUKA_COURSE,reference:ORIGINAL_NPC_REFERENCE}),/different course/);
 });
 
 test('the brain issues bounded controls without placing the kart along a replay',()=>{

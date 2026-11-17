@@ -1,5 +1,16 @@
 # Shared repository, independent worlds
 
+- **17 November 2026 — four NPCs on every racing course.** The owner now
+  requests four NPC opponents total and races on all existing tracks. Each
+  entrance offers Race or Time Trial; the lap panel also has a Track selector.
+  `src/npc/race.js` runs a five-kart, three-lap race with ordered checkpoints,
+  standings, four colored minimap dots, shared items and empty starting slots.
+  Retain the derived Original racing line; other circuits use their own
+  centerline and curvature preview. Keep player physics, shield duration,
+  Time Trial storage/ghost formats and other worlds unchanged. NPC shields
+  advance only through the shared item clock. Before-change checkpoint:
+  `checkpoint-before-four-npc-all-tracks-2026-11-17` at `ec598d4`.
+
 - **16 November 2026 — preserve the published root when repairing Pages.**
   The live root is published separately on `gh-pages` and can be ahead of
   `main`. Companion releases must use `tools/publish-companions.mjs` to update
