@@ -469,6 +469,11 @@ use for every track, house or other build).**
    again and Exit. Original game in the mobile mini-golf style, not a copy
    of any existing game. Code: `src/golf/GolfGame.ts`.
 
+11. **The owner's mini-game list so far** (17 November): mini golf (built,
+   one hole), go-kart racing, paintball, throwing a football through a net
+   or into a barrel, and arcade-style basketball hoops. Other ideas
+   discussed are suggestions only until the owner picks them.
+
 Previews of these are behind `?blocks=halving`, `?blocks=track` and
 `?blocks=oval` in the root game.
 
