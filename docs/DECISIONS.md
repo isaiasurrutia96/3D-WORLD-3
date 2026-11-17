@@ -8,7 +8,24 @@ Labels used throughout: **Confirmed** means the project owner stated the
 choice. **Proposed** means a practical answer awaiting review. **Deferred**
 means planned for later. **Open** means the answer is still needed.
 
-Last updated: 16 November 2026 — 15-second shields and protected pickups.
+Last updated: 16 November 2026 — restore missing Pages routes.
+
+## Preserve the live main world during companion publishing — 16 November 2026
+
+**Implementation repair for the reported racing 404.** The configured Pages
+publisher serves `gh-pages`. A root-only publication removed the independent
+racing, island and garden pages. Restore those built directories from `main`,
+preserving every existing root/asset/avatar-preview file from the latest
+published branch. The live root is newer than the root source on `main`, so
+uploading all of `dist/` would roll back Claude's work.
+
+The workflow now overlays only the three companion routes, verifies their
+entry assets, and refreshes its isolated publication checkout before pushing.
+It also checks successful root-only builds and repairs missing companion
+routes; a source marker prevents repeated self-triggered deployments. Publish
+using the configured Pages mode without changing repository settings. No game
+code, handling, shield rules, saved laps or ghosts change in this repair.
+Backup: `checkpoint-pages-before-racing-repair-2026-11-16` at `456b09b`.
 
 ## Shield expiration and protected item pickup — 16 November 2026
 

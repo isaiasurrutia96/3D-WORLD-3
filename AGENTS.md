@@ -1,5 +1,15 @@
 # Shared repository, independent worlds
 
+- **16 November 2026 — preserve the published root when repairing Pages.**
+  The live root is published separately on `gh-pages` and can be ahead of
+  `main`. Companion releases must use `tools/publish-companions.mjs` to update
+  only `/racing/`, `/island/` and `/garden/` plus their deployment marker.
+  Never replace the current root page/assets/avatar-preview with a stale root
+  build. Root publishers should preserve those three directories and
+  `.companion-pages.json`. The workflow repairs root-only publications and
+  skips its own follow-up when the marker and all companion assets are current.
+  This deployment repair changes no game behavior or browser records.
+
 The user explicitly requested repository consolidation **without combining
 the worlds**. The projects belong in this repository, with separate runtimes.
 

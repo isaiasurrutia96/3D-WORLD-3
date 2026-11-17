@@ -33,8 +33,17 @@ to port 5174, and the terrain preview to 5275.
 `npm run build:all` checks the root TypeScript project and builds all four
 pages into `dist/`, with racing isolated under `dist/racing/` and the island
 under `dist/island/`, and the garden under `dist/garden/`.
-The Pages workflow publishes that folder. The island and garden use
-the root library dependencies, each with its own scene and entry point.
+The Pages workflow copies only `dist/racing/`, `dist/island/` and `dist/garden/`
+into the latest `gh-pages` branch. Its existing main page, assets and avatar
+preview are preserved: Claude's published root can be newer than root source
+on `main`. Do not replace that site with the root of `dist/` during a companion
+game update. Root publishers should retain the companion folders and
+`.companion-pages.json`; the workflow also restores them after a successful
+root-only Pages build. It supports the configured branch or Actions publisher
+without changing repository Pages settings. `npm run test:pages` verifies the
+publishing boundaries and missing-asset checks.
+The island and garden use the root library dependencies, each with its own
+scene and entry point.
 Run `npm run test:island` for terrain geometry checks.
 Building/loading one world does not load the others.
 The [island README](apps/letsgo-island/README.md) describes its terrain-only scope.

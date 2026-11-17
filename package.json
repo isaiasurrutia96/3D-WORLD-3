@@ -19,7 +19,8 @@
     "build:all": "npm run build && npm --prefix apps/letsgo-racing run build -- --outDir ../../dist/racing --emptyOutDir && npm run build:island && npm run build:garden",
     "dev:garden": "vite --config apps/letsgo-garden/vite.config.js",
     "build:garden": "vite build --config apps/letsgo-garden/vite.config.js",
-    "test:garden": "node --test apps/letsgo-garden/tests/*.test.js"
+    "test:garden": "node --test apps/letsgo-garden/tests/*.test.js",
+    "test:pages": "node --test tools/publish-companions.test.mjs"
   },
   "dependencies": {
     "three": "0.180.0"

@@ -150,3 +150,6 @@ vite.config.ts.timestamp-*
 
 # Headless verification screenshots
 tools/shots/
+
+# Isolated published-site checkout used by the Pages workflow
+.published-site/
