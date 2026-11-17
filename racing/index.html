@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#080e25" />
     <title>LetsGo</title>
-    <script type="module" crossorigin src="./assets/game-B90ypRh0.js"></script>
+    <script type="module" crossorigin src="./assets/game-uW6QitLC.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/three.module-B03xgM90.js">
     <link rel="modulepreload" crossorigin href="./assets/vehicle-view-CXgUZWqC.js">
     <link rel="modulepreload" crossorigin href="./assets/backflip-clip-DWgin2vg.js">
-    <link rel="stylesheet" crossorigin href="./assets/game-D5x2pCPh.css">
+    <link rel="stylesheet" crossorigin href="./assets/game-Dmlk5Itb.css">
   </head>
   <body>
     <div id="app">
@@ -38,7 +38,7 @@
         <button id="view-toggle" type="button" aria-label="Camera: TPV. Switch to FPV.">TPV</button>
         <button id="touch-kart" class="touch-only" type="button">Exit</button>
       </nav>
-      <div id="minimap" class="minimap" role="img" aria-label="Track minimap. The blue arrow shows your position and direction, colored dots show your saved lap ghosts, the solid blue dot shows the practice NPC, and the white line marks start and finish."></div>
+      <div id="minimap" class="minimap" role="img" aria-label="Track minimap. The blue arrow shows you, colored dots show your saved ghosts or the four race opponents, and the white line marks start and finish."></div>
       <div class="race-tools">
       <section class="trial-panel" aria-label="Time trial">
         <div class="trial-heading"><span id="trial-mode">TIME TRIAL</span><span id="trial-lap">Lap 1</span></div>
@@ -48,8 +48,9 @@
           <span class="speed-readout"><output id="kart-speed" aria-label="Kart speed in miles per hour" aria-live="off">0</output><span>MPH</span></span>
         </div>
         <p id="shield-status" class="shield-status" role="status" hidden>Shield active · 1 hit</p>
+        <p id="race-position" class="race-position" hidden></p>
         <details id="trial-details" class="trial-details" open>
-        <summary>Laps &amp; ghosts</summary>
+        <summary>Race &amp; Time Trial</summary>
         <div class="trial-details-body">
         <div class="trial-best"><span class="ghost-rank ghost-rank-1">#1 BEST</span> <output id="trial-best" aria-label="Best lap time">--:--.---</output></div>
         <ol class="trial-records" start="2" aria-label="Second through fourth fastest laps">
@@ -58,8 +59,11 @@
           <li><span class="ghost-rank ghost-rank-4">#4</span><output data-lap-rank="4">--:--.---</output></li>
         </ol>
         <div id="trial-last"></div>
-        <button id="trial-start" type="button">Start in kart · T</button>
-        <button id="npc-start" type="button" aria-label="Start one-lap practice with one NPC on the Original Circuit">Practice with NPC</button>
+        <ol id="race-standings" class="race-standings" aria-label="Race standings" hidden></ol>
+        <label class="course-label" for="course-select">Track</label>
+        <select id="course-select" aria-label="Choose a track"></select>
+        <button id="trial-start" type="button">Time Trial · T</button>
+        <button id="npc-start" type="button" aria-label="Start a three-lap race against four NPC opponents on the selected track">Race · 4 opponents</button>
         <label class="ghost-control"><input id="trial-ghost" type="checkbox" checked disabled> Top 4 ghosts</label>
         <div class="ghost-transfer" role="group" aria-label="Move saved ghosts between browsers">
           <button id="ghost-export" type="button" disabled>Export ghosts</button>
@@ -104,8 +108,9 @@
         <button id="touch-primary" type="button" aria-pressed="false"><span id="touch-primary-label">Gas</span><small id="touch-primary-hint">Hold to accelerate</small></button>
       </section>
       <section id="lap-entrance" class="lap-entrance" aria-label="Start a track lap" hidden>
-        <div><strong id="lap-entrance-name">Original Circuit</strong><span>Ready for a timed lap?</span></div>
-        <button id="lap-entrance-start" type="button">Start lap <kbd>Enter</kbd></button>
+        <div><strong id="lap-entrance-name">Original Circuit</strong><span>Choose your mode</span></div>
+        <button id="lap-entrance-race" type="button">Race · 3 laps · 4 opponents</button>
+        <button id="lap-entrance-start" type="button">Time Trial <kbd>Enter</kbd></button>
         <button id="lap-entrance-close" type="button" aria-label="Dismiss track entrance prompt">×</button>
       </section>
       </main>
